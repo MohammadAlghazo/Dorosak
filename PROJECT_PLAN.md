@@ -319,9 +319,9 @@
 | Logging | `Serilog` structured JSON | console sink في containers مع redaction |
 | Telemetry | `OpenTelemetry` + OTLP | traces, metrics, logs عبر collector/backend |
 | Backend tests | `xUnit`, `WebApplicationFactory`, `Testcontainers`, `Playwright`, `k6` | لا يستخدم EF InMemory لاختبارات persistence |
-| Frontend | `Angular 22.1.x` stable | Standalone, Signals, zoneless, OnPush, strict mode |
+| Frontend | `Angular 21.2.x LTS` latest stable patch | Standalone, Signals, zoneless, OnPush, strict mode |
 | SSR | `@angular/ssr` | البديل الحديث لـAngular Universal مع hydration وevent replay |
-| Frontend runtime | `Node.js 24 LTS`, compatible TypeScript 6.x, RxJS 7.x | الإصدارات الفعلية تقفل وفق Angular compatibility table |
+| Frontend runtime | `Node.js 24.19+ LTS`, TypeScript `>=5.9.0 <6.0.0`, RxJS 7.x | Node 20.19+ و22.12+ بدائل توافقية؛ الإصدارات تقفل وفق Angular compatibility table |
 | UI | `Bootstrap 5.3.x` Sass/CSS variables | لا Bootstrap JavaScript ولا jQuery |
 | UI behavior | `Angular CDK` | overlays, focus, a11y, virtual scrolling, drag/drop |
 | Component library | `Angular Material` | يبدأ دون استخدام؛ يضاف فقط لمكون يحقق فائدة ولا يكرر design system |
@@ -344,6 +344,17 @@
 - بما أن MediatR وAutoMapper متطلبات صريحة، تعتمد رخصتهما التجارية المناسبة إن طلب إصدار الإنتاج ذلك.
 - يمنع إدخال dependency ذات رخصة غير معتمدة أو غير قابلة للتوزيع في container image.
 - ينتج `SBOM` لكل release وتفشل بوابة الإنتاج عند غيابه.
+
+### 7.2 Angular Version Support Decision
+
+| Version | Support status at planning time | Decision |
+|---|---|---|
+| Angular 21.2.x | `LTS` حتى يونيو 2027 | معتمد للمنصة |
+| Angular 20.3.x | `LTS` حتى 28 نوفمبر 2026 | بديل فقط إذا ظهرت library compatibility blocker مثبتة |
+| Angular 19.2.x | خارج الدعم | مرفوض للإنتاج رغم تفضيل قدمه |
+| Angular 22.1.x | Active وليس مطلوبًا للمنصة الآن | لا يستخدم في هذه المرحلة |
+
+القاعدة: نستخدم آخر patch مستقر من Angular 21.2 مع تطابق major/minor بين `@angular/core`, `@angular/cli`, `@angular/ssr`, `@angular/cdk` و`@angular/service-worker`. لا نخلط Angular 19 أو20 packages مع Angular 21.
 
 ## 8. Architecture
 
@@ -909,7 +920,7 @@ app/
 - theme: Light, Dark, System عبر CSS variables و`data-bs-theme`، محفوظ في cookie غير حساسة وprofile.
 - هدف اللمس 44x44px، focus ظاهر، ولا تحمل الألوان المعنى وحدها.
 - الحركة 120-240ms للتغذية الراجعة فقط وتحترم `prefers-reduced-motion`.
-- Angular Animations تنفذ عبر stable native `animate.enter` و`animate.leave` وCSS transitions؛ لا يستخدم legacy animation engine إذا كان deprecated في Angular 22.
+- Angular Animations تنفذ عبر stable native `animate.enter` و`animate.leave` وCSS transitions؛ لا يستخدم legacy animation engine إذا كان deprecated في Angular 21.
 - SweetAlert2 للتأكيدات البسيطة؛ CDK Dialog للنماذج المعقدة مع focus trap واستعادة focus.
 - الفيديو يدعم keyboard, captions, transcript, speed, quality, volume, PiP، ولا يبدأ بصوت تلقائي.
 
@@ -1910,7 +1921,7 @@ app/
 | ADR | Decision | Status |
 |---|---|---|
 | `ADR-001` | Modular Monolith before Microservices | Proposed |
-| `ADR-002` | .NET 10 LTS and Angular 22 stable baselines | Proposed |
+| `ADR-002` | .NET 10 LTS and Angular 21.2 LTS stable baselines | Proposed |
 | `ADR-003` | Neon PostgreSQL is the system of record | Proposed |
 | `ADR-004` | Short-lived JWT in memory + path-scoped rotating opaque refresh cookie | Proposed |
 | `ADR-005` | Same public origin through Front Door | Proposed |
@@ -1981,7 +1992,7 @@ app/
 
 تم اختيار `Modular Monolith` بدل Microservices لأن المنتج واسع لكن الفريق والمستخدم ما زالا في بداية المشروع. هذا الاختيار يحافظ على معاملات PostgreSQL البسيطة، ويقلل تكلفة DevOps، ويمنع فشلًا موزعًا غير ضروري، مع حدود modules تسمح بالاستخراج لاحقًا عند وجود قياس حقيقي.
 
-تم اختيار `.NET 10 LTS` بدل `.NET 9` لأن LTS هو الأنسب لعمر منصة إنتاجية في تاريخ هذه الخطة. وتم اختيار Angular 22 standalone مع SSR/hydration لأنه أحدث stable baseline، واختيار Neon PostgreSQL يلغي أي اعتماد على SQL Server. كما تم اعتماد access JWT قصيرة داخل الذاكرة وrefresh token مدورة داخل Secure HttpOnly cookie لتلبية JWT مع تقليل مخاطر سرقة token الدائمة.
+تم اختيار `.NET 10 LTS` بدل `.NET 9` لأن LTS هو الأنسب لعمر منصة إنتاجية في تاريخ هذه الخطة. وتم اختيار Angular 21.2 LTS standalone مع SSR/hydration بدل Angular 19 غير المدعوم وAngular 20 الأقصر دعمًا، واختيار Neon PostgreSQL يلغي أي اعتماد على SQL Server. كما تم اعتماد access JWT قصيرة داخل الذاكرة وrefresh token مدورة داخل Secure HttpOnly cookie لتلبية JWT مع تقليل مخاطر سرقة token الدائمة.
 
 تم اختيار Azure Container Apps بدل Kubernetes كبداية لأنه يقدم containers, autoscaling, revisions, jobs, secrets، وWebSockets مع عبء تشغيلي أقل. PostgreSQL يبقى مصدر الحقيقة، بينما Redis وSignalR وcache طبقات قابلة لإعادة البناء، وهذا يمنع فقد البيانات عند تعطلها.
 
