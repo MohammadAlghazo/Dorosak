@@ -3,11 +3,12 @@
 | Field | Value |
 |---|---|
 | Document | `PROJECT_PLAN.md` |
-| Status | Proposed architecture baseline - awaiting user approval |
-| Version | `1.0.0` |
+| Status | Approved architecture baseline |
+| Version | `1.1.0` |
 | Date | `2026-08-05` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
+| Current delivery phase | `1. Workstation and Repository Hardening` |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Production database | Neon PostgreSQL |
 
@@ -1920,22 +1921,22 @@ app/
 
 | ADR | Decision | Status |
 |---|---|---|
-| `ADR-001` | Modular Monolith before Microservices | Proposed |
-| `ADR-002` | .NET 10 LTS and Angular 21.2 LTS stable baselines | Proposed |
-| `ADR-003` | Neon PostgreSQL is the system of record | Proposed |
-| `ADR-004` | Short-lived JWT in memory + path-scoped rotating opaque refresh cookie | Proposed |
-| `ADR-005` | Same public origin through Front Door | Proposed |
-| `ADR-006` | Direct multipart uploads to quarantine object storage | Proposed |
-| `ADR-007` | PostgreSQL full-text/trigram search before external engine | Proposed |
-| `ADR-008` | Azure Container Apps reference deployment, no Kubernetes initially | Proposed |
-| `ADR-009` | Single marketplace, no speculative multi-tenancy | Proposed |
-| `ADR-010` | REST/OpenAPI 3.1, no GraphQL/OData initially | Proposed |
-| `ADR-011` | EF Core DbContext as Unit of Work; no generic repository | Proposed |
-| `ADR-012` | Transactional outbox and atomic idempotency with at-least-once delivery | Proposed |
-| `ADR-013` | Locale-prefixed public routes for Arabic/English SSR and SEO | Proposed |
-| `ADR-014` | One immutable release manifest for all workload image digests | Proposed |
-| `ADR-015` | Concrete foreign keys instead of generic polymorphic target IDs | Proposed |
-| `ADR-016` | Separate Production Redis services for cache, rate limits, and realtime | Proposed |
+| `ADR-001` | Modular Monolith before Microservices | Accepted |
+| `ADR-002` | .NET 10 LTS and Angular 21.2 LTS stable baselines | Accepted |
+| `ADR-003` | Neon PostgreSQL is the system of record | Accepted |
+| `ADR-004` | Short-lived JWT in memory + path-scoped rotating opaque refresh cookie | Accepted |
+| `ADR-005` | Same public origin through Front Door | Accepted |
+| `ADR-006` | Direct multipart uploads to quarantine object storage | Accepted |
+| `ADR-007` | PostgreSQL full-text/trigram search before external engine | Accepted |
+| `ADR-008` | Azure Container Apps reference deployment, no Kubernetes initially | Accepted |
+| `ADR-009` | Single marketplace, no speculative multi-tenancy | Accepted |
+| `ADR-010` | REST/OpenAPI 3.1, no GraphQL/OData initially | Accepted |
+| `ADR-011` | EF Core DbContext as Unit of Work; no generic repository | Accepted |
+| `ADR-012` | Transactional outbox and atomic idempotency with at-least-once delivery | Accepted |
+| `ADR-013` | Locale-prefixed public routes for Arabic/English SSR and SEO | Accepted |
+| `ADR-014` | One immutable release manifest for all workload image digests | Accepted |
+| `ADR-015` | Concrete foreign keys instead of generic polymorphic target IDs | Accepted |
+| `ADR-016` | Separate Production Redis services for cache, rate limits, and realtime | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -1944,9 +1945,9 @@ app/
 | Phase | Deliverables | Exit gate and GitHub checkpoint |
 |---|---|---|
 | `0. Architecture` | هذا PROJECT_PLAN، القرارات والحدود وخطة البيانات/API/تشغيل | مراجعة الملف، commit/push `docs: add Dorosak architecture plan` |
-| `1. Workstation and Repository Hardening` | تثبيت/تحقق Git, .NET SDK, Node, Angular CLI, Docker Desktop, IDE؛ gitignore, editorconfig, branch policy | أوامر versions ناجحة، commit/push foundation docs/config |
+| `1. Workstation and Repository Hardening` | تثبيت/تحقق Git, .NET SDK, Node, Angular CLI, Docker Desktop, IDE؛ gitignore, editorconfig, CODEOWNERS، وتصميم branch policy | أوامر versions ناجحة، commit/push foundation docs/config |
 | `2. Development Infrastructure and Neon` | Neon Dev project/branch، environment contract، Docker Compose لـRedis/MinIO/Mailpit/ClamAV، synthetic data policy | اتصال Neon آمن وفحوص الخدمات، commit/push `chore: add development infrastructure` |
-| `3. Backend Foundation and Initial CI` | solution/projects، dependency rules، Result، ProblemDetails، pipelines، EF/Neon migrations، Serilog، OTel، health، backend dev/production Dockerfiles، أول GitHub Actions | build + container + architecture/integration tests، migration على Neon Dev، commit/push |
+| `3. Backend Foundation and Initial CI` | solution/projects، dependency rules، Result، ProblemDetails، pipelines، EF/Neon migrations، Serilog، OTel، health، backend dev/production Dockerfiles، أول GitHub Actions، وتفعيل branch ruleset على checks حقيقية | build + container + architecture/integration tests، migration على Neon Dev، protected-main verification، commit/push |
 | `4. Frontend Foundation` | Angular standalone SSR/hydration/PWA، locale routes، shells، design tokens، routing، API client، errors، frontend dev/production Dockerfiles، accessibility baseline | SSR/hydration/container/E2E/bundle gates، commit/push |
 | `5. Identity and Security` | registration, verification, login, refresh rotation, sessions, reset, TOTP, roles/permissions, CSRF/headers/rate limits | security test matrix كاملة، commit/push |
 | `6. Catalog and Authoring Drafts` | categories/tags، teacher onboarding، course drafts/revisions، review workflow وcatalog projection contracts؛ لا تفعيل CourseRelease نهائية بعد | draft concurrency/auth/search-contract tests، commit/push |
@@ -1976,7 +1977,9 @@ app/
 - الدفع مفعل قبل webhook verification, idempotency, reconciliation، والمتطلبات القانونية.
 - Privacy/Terms غير معتمدتين قبل public launch.
 
-## 33. Current Phase Completion Report
+## 33. Phase 0 Completion Report (Completed)
+
+تمت الموافقة على Phase 0 ورفعها إلى `origin/main`. التعليمات أدناه سجل تاريخي للمرحلة المكتملة ولا يعاد تنفيذها.
 
 ===========================
 ### 1. ماذا أنجزت؟
@@ -2064,3 +2067,60 @@ git status
 `تم`
 
 لن تبدأ أي مرحلة أو كتابة كود قبل هذا التأكيد.
+
+## 34. Phase 1 Completion Report (Ready for Checkpoint)
+
+===========================
+### 1. ماذا أنجزت؟
+===========================
+
+- تم التحقق من Git `2.51.1`, .NET SDK `10.0.302`, Node.js `24.19.0`, npm `11.17.0`، وAngular CLI `21.2.20` محليًا عبر npx.
+- تم تشغيل Docker Desktop `4.85.0`, Docker Engine `29.6.2`, Docker Compose `5.3.1` على Linux/WSL2.
+- تم تثبيت GitHub CLI `2.97.0`; يؤجل browser authentication حتى Phase 3 عند إنشاء CI وbranch ruleset.
+- بقي Angular CLI `19.2.19` العالمي دون تغيير لحماية المشاريع القديمة؛ Dorosak سيقفل Angular CLI 21.2 داخل المشروع.
+- تمت إضافة `.gitattributes`, `.editorconfig`, `.gitignore`, `CODEOWNERS`، وإعدادات وتوصيات VS Code.
+- تم تحديث `README.md`، واعتماد architecture baseline كإصدار `1.1.0` وتحويل ADRs إلى `Accepted`.
+- لم يتم إنشاء Backend أو Frontend أو database، ولم يتم حذف أي Docker image, container، أو volume.
+
+===========================
+### 2. لماذا اخترت هذه الطريقة؟
+===========================
+
+توحيد line endings والتنسيق وملفات التجاهل قبل إنشاء code يمنع ضوضاء diffs وتسرب secrets ورفع build outputs. تم تثبيت الأدوات المطلوبة فقط، بينما أجل Azure CLI إلى مرحلة Cloud التي تحتاجه. كما أُجل فرض branch protection إلى Phase 3 لأن required status checks غير موجودة الآن، وتفعيله قبل CI سيعطل workflow بدل حمايته.
+
+===========================
+### 3. ماذا يجب أن أفعل أنا؟
+===========================
+
+هذا هو التدخل الوحيد المطلوب لإغلاق Phase 1: مراجعة الملفات الثمانية ورفعها إلى GitHub.
+
+```powershell
+git status --short
+git add .editorconfig .gitattributes .gitignore .github/CODEOWNERS .vscode/extensions.json .vscode/settings.json PROJECT_PLAN.md README.md
+git diff --cached --check
+git --no-pager diff --cached --stat
+git commit -m "chore: harden repository foundation"
+git push origin main
+```
+
+لا تستخدم `git add .` أو force push في هذه النقطة.
+
+===========================
+### 4. ما الذي سيحدث بعد أن أنفذ الخطوات؟
+===========================
+
+سيصبح repository foundation محفوظًا ومتزامنًا. تبدأ بعده Phase 2 بإنشاء Neon Dev project والاتصال الآمن به، ثم إعداد Redis/MinIO/Mailpit/ClamAV عبر Docker Compose من دون إنشاء application code قبل اكتمال البنية التطويرية.
+
+===========================
+### 5. كيف أتأكد أن كل شيء يعمل؟
+===========================
+
+بعد push يجب أن يعرض `git status` النص `nothing to commit, working tree clean`، وأن يظهر commit باسم `chore: harden repository foundation` في GitHub. يجب ألا يظهر تحذير LF/CRLF بعد اعتماد `.gitattributes`.
+
+إذا فتح Git pager اضغط `q`. إذا رفض push لا تستخدم `--force`; أرسل الخطأ. إذا فشل `git diff --cached --check` فلا تنفذ commit وأرسل الناتج.
+
+===========================
+### 6. هل ننتقل للمرحلة التالية؟
+===========================
+
+لا تبدأ Phase 2 حتى ينجح push ويكتب المستخدم `تم`.

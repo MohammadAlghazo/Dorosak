@@ -1,0 +1,79 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!**/.env.example
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+**/secrets.json
+*.key
+*.p12
+*.pem
+*.pfx
+
+# .NET
+**/[Bb]in/
+**/[Oo]bj/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.nuget/
+
+# Node and Angular
+**/node_modules/
+**/.angular/
+**/dist/
+**/coverage/
+**/.cache/
+**/.npm/
+**/.eslintcache
+**/.stylelintcache
+
+# End-to-end and performance reports
+**/playwright-report/
+**/blob-report/
+**/test-results/
+**/k6-results/
+
+# Local service data
+.data/
+.docker/
+.minio/
+.redis/
+docker-compose.local.yml
+docker-compose.override.yml
+
+# User-generated development files
+**/wwwroot/uploads/
+**/App_Data/
+
+# Logs and diagnostics
+*.log
+*.dmp
+*.stackdump
+
+# IDEs
+.idea/
+.fleet/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
