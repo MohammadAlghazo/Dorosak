@@ -1,0 +1,119 @@
+name: dorosak
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-file: "3"
+    max-size: 10m
+
+services:
+  redis:
+    image: redis:8.10.0@sha256:39353c6a2f310da333374e1290c91805d15a85def073b5090f58e4ac646d284c
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lfu
+      - --requirepass
+      - ${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+    environment:
+      REDISCLI_AUTH: ${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+    ports:
+      - "127.0.0.1:${DOROSAK_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    mem_limit: 384m
+    cpus: 1
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DOROSAK_MINIO_ROOT_USER:?Run Initialize-LocalEnvironment.ps1 first}
+      MINIO_ROOT_PASSWORD: ${DOROSAK_MINIO_ROOT_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+    ports:
+      - "127.0.0.1:${DOROSAK_MINIO_API_PORT:-9100}:9000"
+      - "127.0.0.1:${DOROSAK_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: 512m
+    cpus: 1
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  mailpit:
+    image: axllent/mailpit:v1.30.6@sha256:7f33095f80e901f6ad08028f06ca284aa58fe84942be5496008d041d3b9f4d4d
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "1000"
+    ports:
+      - "127.0.0.1:${DOROSAK_MAILPIT_SMTP_PORT:-1026}:1025"
+      - "127.0.0.1:${DOROSAK_MAILPIT_UI_PORT:-8026}:8025"
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    mem_limit: 256m
+    cpus: 0.5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  clamav:
+    image: clamav/clamav:1.5.3-debian13-slim@sha256:741e6c447241220e0792a901befcaec1d55a755c5097fc9cd88d7fd8be251a5c
+    environment:
+      CLAMAV_NO_CLAMD: "false"
+      CLAMAV_NO_FRESHCLAMD: "false"
+    ports:
+      - "127.0.0.1:${DOROSAK_CLAMAV_PORT:-3311}:3310"
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 1 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 240s
+    mem_limit: 2g
+    cpus: 2
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+volumes:
+  redis-data:
+  minio-data:
+  mailpit-data:
+  clamav-db:

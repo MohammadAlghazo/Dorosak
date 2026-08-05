@@ -4,11 +4,11 @@
 |---|---|
 | Document | `PROJECT_PLAN.md` |
 | Status | Approved architecture baseline |
-| Version | `1.1.0` |
+| Version | `1.2.0` |
 | Date | `2026-08-05` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `1. Workstation and Repository Hardening` |
+| Current delivery phase | `2. Development Infrastructure and Neon` |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Production database | Neon PostgreSQL |
 
@@ -2068,7 +2068,9 @@ git status
 
 لن تبدأ أي مرحلة أو كتابة كود قبل هذا التأكيد.
 
-## 34. Phase 1 Completion Report (Ready for Checkpoint)
+## 34. Phase 1 Completion Report (Completed)
+
+تم رفع Phase 1 إلى `origin/main` في commit `829dc7f`.
 
 ===========================
 ### 1. ماذا أنجزت؟
@@ -2124,3 +2126,68 @@ git push origin main
 ===========================
 
 لا تبدأ Phase 2 حتى ينجح push ويكتب المستخدم `تم`.
+
+## 35. Phase 2 Completion Report (Ready for Checkpoint)
+
+===========================
+### 1. ماذا أنجزت؟
+===========================
+
+- تم إنشاء Neon project مستقل باسم `Dorosak Dev` ومعرف `wispy-glitter-91617289` في Frankfurt `aws-eu-central-1`.
+- يعمل المشروع على PostgreSQL 18، والنسخة الفعلية المختبرة `18.4`، مع branch `main`, database `dorosak_dev`، وowner role باسم `dorosak_owner`.
+- تم اختبار الاتصال المباشر وpooled باستخدام TLS `verify-full`. لم تحفظ connection strings في Git ولم تطبع في logs.
+- بقي مشروع Neon القديم `Budgetha` دون تعديل.
+- تمت إضافة Docker Compose بصور ثابتة tag + digest لـRedis `8.10.0`, MinIO, Mailpit `1.30.6`، وClamAV `1.5.3`.
+- جميع المنافذ مرتبطة بـ`127.0.0.1` وبأرقام لا تتعارض مع defaults الشائعة.
+- ينشئ `Initialize-LocalEnvironment.ps1` ملف `.env.local` عشوائيًا ويحفظ Neon owner credentials محليًا فقط، ويقيد Windows ACL بالمستخدم وSYSTEM وAdministrators.
+- تمت إضافة `Test-DevelopmentInfrastructure.ps1` لاختبار Redis read/write, MinIO, Mailpit, ClamAV EICAR، وNeon direct/pooled.
+- تمت إضافة دليل التشغيل وسياسة Synthetic Data. الخدمات الأربع تعمل بحالة `Healthy` واجتازت الاختبارات السلوكية.
+
+===========================
+### 2. لماذا اخترت هذه الطريقة؟
+===========================
+
+عُزل Dorosak عن أي مشروع سابق، واختيرت Frankfurt لقربها من مستخدمي الشرق الأوسط. PostgreSQL 18 هو إصدار Neon GA الفعلي. تستخدم migrations الاتصال المباشر، بينما سيستخدم API اتصالًا pooled بحساب `dorosak_app` محدود الصلاحيات ينشأ في Phase 3؛ لا يستخدم التطبيق `dorosak_owner`.
+
+تثبيت image digests يمنع تغير البيئة بصمت، وربط المنافذ بـlocalhost يمنع تعريض الخدمات للشبكة. استخدمت منافذ بديلة حتى يمكن تشغيل مشاريع Docker قديمة بالتوازي. رفعت ذاكرة ClamAV إلى `2 GiB` بعد قياس OOM حقيقي، لا بالتخمين.
+
+===========================
+### 3. ماذا يجب أن أفعل أنا؟
+===========================
+
+هذا هو تدخل GitHub الوحيد لإغلاق Phase 2. لا تضف `.env.local` تحت أي ظرف.
+
+```powershell
+git add docker-compose.yml deploy/env/.env.example deploy/neon/development.json deploy/scripts/Initialize-LocalEnvironment.ps1 deploy/scripts/Test-DevelopmentInfrastructure.ps1 docs/DEVELOPMENT_SETUP.md docs/SYNTHETIC_DATA_POLICY.md README.md PROJECT_PLAN.md
+git diff --cached --check
+git --no-pager diff --cached --stat
+git commit -m "chore: add development infrastructure"
+git push origin main
+```
+
+===========================
+### 4. ما الذي سيحدث بعد أن أنفذ الخطوات؟
+===========================
+
+تبدأ Phase 3 بإنشاء .NET solution والمشاريع وClean Architecture boundaries، ثم EF Core/Npgsql وruntime role محدود وmigration أولى على Neon، وبعدها Result/ProblemDetails/pipelines/logging/telemetry/health وCI.
+
+===========================
+### 5. كيف أتأكد أن كل شيء يعمل؟
+===========================
+
+يمكن إعادة الفحص في أي وقت:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Test-DevelopmentInfrastructure.ps1
+git status
+```
+
+يجب أن تنتهي الفحوص بالنص `All development infrastructure checks passed.`، وبعد push يعرض Git النص `nothing to commit, working tree clean`.
+
+إذا كان أول تشغيل بعد حذف ClamAV volume فقد يحتاج عدة دقائق لتنزيل signatures. لا تستخدم `docker compose down --volumes`، ولا تشارك `.env.local` لمعالجة أي خطأ.
+
+===========================
+### 6. هل ننتقل للمرحلة التالية؟
+===========================
+
+لا تبدأ Phase 3 حتى ينجح push ويكتب المستخدم `تم`.

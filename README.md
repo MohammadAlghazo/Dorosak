@@ -12,6 +12,11 @@ generated yet.
 [`PROJECT_PLAN.md`](PROJECT_PLAN.md) is the single source of truth for product scope, architecture, security, data,
 delivery, and operational decisions.
 
+## Development Setup
+
+Follow [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) to configure Neon access and start the local
+Redis, MinIO, Mailpit, and ClamAV services.
+
 ## Approved Baseline
 
 - .NET 10 LTS and ASP.NET Core 10
