@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dorosak.Api\Dorosak.Api.csproj" />
+    <ProjectReference Include="..\..\src\Dorosak.Application\Dorosak.Application.csproj" />
+    <ProjectReference Include="..\..\src\Dorosak.Domain\Dorosak.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Dorosak.Infrastructure\Dorosak.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Dorosak.Worker\Dorosak.Worker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <Import Project="..\TestProject.Common.props" />
+
+</Project>

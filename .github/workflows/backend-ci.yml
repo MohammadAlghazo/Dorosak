@@ -1,0 +1,129 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - ".editorconfig"
+      - ".dockerignore"
+      - ".github/workflows/backend-ci.yml"
+      - "backend/**"
+      - "deploy/**"
+      - "docker-compose.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".editorconfig"
+      - ".dockerignore"
+      - ".github/workflows/backend-ci.yml"
+      - "backend/**"
+      - "deploy/**"
+      - "docker-compose.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-container:
+    name: Build, test, and containerize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: backend/global.json
+          cache: true
+          cache-dependency-path: backend/**/packages.lock.json
+
+      - name: Restore locked dependencies
+        run: dotnet restore backend/Dorosak.slnx --locked-mode
+
+      - name: Verify formatting
+        run: dotnet format backend/Dorosak.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build backend/Dorosak.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test backend/Dorosak.slnx --configuration Release --no-build --no-restore
+
+      - name: Validate Compose application profile
+        env:
+          ConnectionStrings__Database: Host=127.0.0.1;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci
+          DOROSAK_MINIO_ROOT_PASSWORD: dorosak-ci-minio
+          DOROSAK_REDIS_PASSWORD: dorosak-ci-redis
+        run: docker compose --env-file deploy/env/.env.example --profile app config --quiet
+
+      - name: Build API image
+        run: docker build --file backend/src/Dorosak.Api/Dockerfile --tag dorosak-api:ci .
+
+      - name: Build Worker image
+        run: docker build --file backend/src/Dorosak.Worker/Dockerfile --tag dorosak-worker:ci .
+
+      - name: Smoke test containers
+        shell: bash
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          docker network create dorosak-ci
+          docker run --detach --name dorosak-postgres-ci --network dorosak-ci \
+            --publish 127.0.0.1:54329:5432 \
+            --env POSTGRES_DB=dorosak_ci \
+            --env POSTGRES_PASSWORD=dorosak_ci \
+            --env POSTGRES_USER=dorosak_ci \
+            postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+          docker run --detach --name dorosak-redis-ci --network dorosak-ci \
+            redis:8.10.0@sha256:39353c6a2f310da333374e1290c91805d15a85def073b5090f58e4ac646d284c \
+            redis-server --save '' --appendonly no
+          trap 'docker rm --force dorosak-api-ci dorosak-worker-ci dorosak-postgres-ci dorosak-redis-ci >/dev/null 2>&1 || true; docker network rm dorosak-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..30}; do
+            if docker exec dorosak-postgres-ci pg_isready --username dorosak_ci --dbname dorosak_ci >/dev/null && \
+               docker exec dorosak-redis-ci redis-cli ping >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              exit 1
+            fi
+            sleep 2
+          done
+          export Migrations__ConnectionString='Host=127.0.0.1;Port=54329;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci'
+          dotnet tool restore
+          dotnet tool run dotnet-ef database update \
+            --project src/Dorosak.Infrastructure/Dorosak.Infrastructure.csproj \
+            --startup-project src/Dorosak.Api/Dorosak.Api.csproj \
+            --context DorosakDbContext \
+            --configuration Release \
+            --no-build
+          database='Host=dorosak-postgres-ci;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci'
+          redis='dorosak-redis-ci:6379,abortConnect=false,connectTimeout=100'
+          docker run --detach --name dorosak-api-ci --read-only --tmpfs /tmp \
+            --network dorosak-ci \
+            --publish 127.0.0.1:5053:8080 \
+            --env "ConnectionStrings__Database=$database" \
+            --env "ConnectionStrings__Redis=$redis" \
+            dorosak-api:ci
+          docker run --detach --name dorosak-worker-ci --read-only --tmpfs /tmp \
+            --network dorosak-ci \
+            --env "ConnectionStrings__Database=$database" \
+            --env "ConnectionStrings__Redis=$redis" \
+            dorosak-worker:ci
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 2 \
+            http://127.0.0.1:5053/health/ready >/dev/null
+          test "$(docker inspect dorosak-api-ci --format '{{.Config.User}}')" = "1654"
+          test "$(docker inspect dorosak-worker-ci --format '{{.Config.User}}')" = "1654"
+          test "$(docker inspect dorosak-worker-ci --format '{{.State.Running}}')" = "true"

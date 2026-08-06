@@ -4,8 +4,9 @@ Dorosak is an Arabic-first educational platform for students, instructors, and p
 
 ## Project Status
 
-The repository is in the architecture and engineering-foundation phase. Application source code has not been
-generated yet.
+The repository contains the production backend foundation: Clean Architecture projects, PostgreSQL migrations,
+least-privilege database provisioning, API and Worker hosts, integration tests, and OCI container builds. Product
+modules and the Angular application are delivered in subsequent phases.
 
 ## Architecture
 
@@ -16,6 +17,14 @@ delivery, and operational decisions.
 
 Follow [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) to configure Neon access and start the local
 Redis, MinIO, Mailpit, and ClamAV services.
+
+The backend solution is located at `backend/Dorosak.slnx`. Restore, build, and test it from the repository root:
+
+```powershell
+dotnet restore .\backend\Dorosak.slnx --locked-mode
+dotnet build .\backend\Dorosak.slnx --no-restore
+dotnet test .\backend\Dorosak.slnx --no-build --no-restore
+```
 
 ## Approved Baseline
 

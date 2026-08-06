@@ -112,6 +112,58 @@ services:
       - no-new-privileges:true
     logging: *default-logging
 
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/src/Dorosak.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
+      ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
+      Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
+      Licensing__AutoMapperKey: ${DOROSAK_AUTOMAPPER_LICENSE_KEY:-}
+      OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
+      HOME: /tmp
+    ports:
+      - "127.0.0.1:${DOROSAK_API_PORT:-5053}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    cpus: 1
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: backend/src/Dorosak.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
+      ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
+      Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
+      Licensing__AutoMapperKey: ${DOROSAK_AUTOMAPPER_LICENSE_KEY:-}
+      OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
+      HOME: /tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 384m
+    cpus: 1
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
 volumes:
   redis-data:
   minio-data:

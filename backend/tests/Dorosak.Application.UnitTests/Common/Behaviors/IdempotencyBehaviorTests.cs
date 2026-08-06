@@ -1,0 +1,128 @@
+using Dorosak.Application.Common.Behaviors;
+using Dorosak.Application.Common.Exceptions;
+using Dorosak.Application.Common.Idempotency;
+using Dorosak.Application.Common.Messaging;
+using Dorosak.Application.Common.Results;
+
+namespace Dorosak.Application.UnitTests.Common.Behaviors;
+
+public sealed class IdempotencyBehaviorTests
+{
+    [Fact]
+    public async Task Handle_ReplaysCompletedResponse()
+    {
+        Result<string> completed = Result.Success("completed");
+        var store = new StubIdempotencyStore
+        {
+            LookupStatus = IdempotencyLookupStatus.Completed,
+            LookupResponse = completed,
+        };
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(store);
+        int handlerCalls = 0;
+
+        Result<string> result = await behavior.Handle(
+            new IdempotentRequest("key", "payload"),
+            _ =>
+            {
+                handlerCalls++;
+                return Task.FromResult(Result.Success("new"));
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(completed, result);
+        Assert.Equal(0, handlerCalls);
+        Assert.Equal(0, store.StoreCalls);
+    }
+
+    [Fact]
+    public async Task Handle_RejectsReusedKeyForDifferentRequest()
+    {
+        var store = new StubIdempotencyStore { LookupStatus = IdempotencyLookupStatus.Conflict };
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(store);
+
+        RequestConflictException exception = await Assert.ThrowsAsync<RequestConflictException>(() => behavior.Handle(
+            new IdempotentRequest("key", "changed"),
+            _ => Task.FromResult(Result.Success("new")),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal("IDEMPOTENCY.KEY_REUSED", exception.Code);
+        Assert.Equal(0, store.StoreCalls);
+    }
+
+    [Fact]
+    public async Task Handle_RejectsIncompatibleStoredResponse()
+    {
+        var store = new StubIdempotencyStore
+        {
+            LookupStatus = IdempotencyLookupStatus.ResponseSchemaMismatch,
+        };
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(store);
+
+        RequestConflictException exception = await Assert.ThrowsAsync<RequestConflictException>(() => behavior.Handle(
+            new IdempotentRequest("key", "payload"),
+            _ => Task.FromResult(Result.Success("new")),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal("IDEMPOTENCY.RESPONSE_SCHEMA_MISMATCH", exception.Code);
+    }
+
+    [Fact]
+    public async Task Handle_StoresNewResponse()
+    {
+        var store = new StubIdempotencyStore { LookupStatus = IdempotencyLookupStatus.NotFound };
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(store);
+
+        Result<string> result = await behavior.Handle(
+            new IdempotentRequest("key", "payload"),
+            _ => Task.FromResult(Result.Success("new")),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("new", result.Value);
+        Assert.Equal(1, store.StoreCalls);
+    }
+
+    private sealed record IdempotentRequest(string IdempotencyKey, string Payload) : IIdempotentRequest
+    {
+        public string IdempotencyOperation => "test.operation.v1";
+
+        public string IdempotencyScope => "user-1";
+
+        public object IdempotencyPayload => new { Payload };
+
+        public int ResponseSchemaVersion => 1;
+
+        public TimeSpan Retention => TimeSpan.FromHours(24);
+    }
+
+    private sealed class StubIdempotencyStore : IIdempotencyStore
+    {
+        public IdempotencyLookupStatus LookupStatus { get; init; }
+
+        public object? LookupResponse { get; init; }
+
+        public int StoreCalls { get; private set; }
+
+        public Task<IdempotencyLookup<TResponse>> FindAsync<TResponse>(
+            string scope,
+            string operation,
+            string key,
+            object requestPayload,
+            int responseSchemaVersion,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new IdempotencyLookup<TResponse>(LookupStatus, (TResponse?)LookupResponse));
+
+        public Task StoreAsync<TResponse>(
+            string scope,
+            string operation,
+            string key,
+            object requestPayload,
+            TResponse response,
+            int responseSchemaVersion,
+            TimeSpan retention,
+            CancellationToken cancellationToken)
+        {
+            StoreCalls++;
+            return Task.CompletedTask;
+        }
+    }
+}

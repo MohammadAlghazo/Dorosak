@@ -14,6 +14,7 @@
 | Mailpit SMTP | `127.0.0.1:1026` | التقاط البريد بدل إرساله خارجيًا |
 | Mailpit UI | `http://127.0.0.1:8026` | عرض رسائل البريد المحلية |
 | ClamAV | `127.0.0.1:3311` | فحص الملفات المرفوعة |
+| Dorosak API | `http://127.0.0.1:5053` | ASP.NET Core API عند تشغيل profile التطبيق |
 
 كل المنافذ مرتبطة بـ`127.0.0.1` فقط، ولا تكون متاحة لأجهزة الشبكة المحلية أوالإنترنت.
 
@@ -28,8 +29,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-
 ينشئ الأمر `.env.local` بقيم عشوائية واتصالي Neon pooled/direct. الملف مستبعد من Git، ولا يطبع secrets. على Windows
 تُقيد ACL تلقائيًا بالمستخدم الحالي و`SYSTEM` وAdministrators.
 
-اتصالا Neon في هذه المرحلة يخصان `dorosak_owner` لاختبارات البنية والمigrations فقط. ينشأ runtime role محدود باسم
-`dorosak_app` في Phase 3، ولا يستخدم API حساب المالك.
+اتصالا Neon للمالك مخصصان لاختبارات البنية وتهيئة الصلاحيات فقط. أنشئ schema roles واتصالي migrator/runtime المحدودين:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-NeonDatabase.ps1
+```
+
+يطبق السكربت EF migrations المطلوبة بعد تثبيت الصلاحيات. يستخدم API حساب `dorosak_app` محدود الصلاحيات، بينما
+تستخدم EF migrations حساب `dorosak_migrator` الذي يستطيع التحول إلى `dorosak_schema_owner`. لا يستخدم التطبيق
+حساب المالك.
 
 لا تستخدم `-Force` إلا عند تدوير credentials المحلية عمدًا. التدوير يتطلب إعادة إنشاء containers التي تعتمد عليها.
 
@@ -41,6 +49,13 @@ docker compose --project-name dorosak --env-file .env.local ps
 ```
 
 قد يستغرق ClamAV عدة دقائق في التشغيل الأول لتنزيل virus definitions.
+
+لتشغيل API والـWorker من الصور المحلية مع الخدمات:
+
+```powershell
+docker compose --project-name dorosak --env-file .env.local --profile app up --detach --build --wait --wait-timeout 600
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5053/health/ready
+```
 
 ## إيقاف الخدمات
 

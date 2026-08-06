@@ -16,6 +16,12 @@ dotnet_separate_import_directive_groups = false
 csharp_style_namespace_declarations = file_scoped:suggestion
 csharp_style_prefer_primary_constructors = false:silent
 
+[backend/src/**/Persistence/Migrations/*.cs]
+generated_code = true
+
+[backend/tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+
 [*.{csproj,props,targets,slnx}]
 indent_size = 2
 

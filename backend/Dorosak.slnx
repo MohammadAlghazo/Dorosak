@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dorosak.Api/Dorosak.Api.csproj" />
+    <Project Path="src/Dorosak.Application/Dorosak.Application.csproj" />
+    <Project Path="src/Dorosak.Domain/Dorosak.Domain.csproj" />
+    <Project Path="src/Dorosak.Infrastructure/Dorosak.Infrastructure.csproj" />
+    <Project Path="src/Dorosak.Worker/Dorosak.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dorosak.Api.IntegrationTests/Dorosak.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Dorosak.Application.IntegrationTests/Dorosak.Application.IntegrationTests.csproj" />
+    <Project Path="tests/Dorosak.Application.UnitTests/Dorosak.Application.UnitTests.csproj" />
+    <Project Path="tests/Dorosak.ArchitectureTests/Dorosak.ArchitectureTests.csproj" />
+    <Project Path="tests/Dorosak.Domain.UnitTests/Dorosak.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>

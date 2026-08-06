@@ -1,0 +1,11 @@
+@Dorosak.Api_HostAddress = http://localhost:5053
+
+GET {{Dorosak.Api_HostAddress}}/api/v1/system/status
+Accept: application/json
+
+###
+
+GET {{Dorosak.Api_HostAddress}}/health/ready
+Accept: application/json
+
+###
