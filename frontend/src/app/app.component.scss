@@ -1,0 +1,42 @@
+.navigation-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: var(--z-progress);
+  block-size: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-brand), transparent);
+  animation: progress 1s linear infinite;
+}
+
+.connectivity-banner,
+.update-banner {
+  position: relative;
+  z-index: var(--z-banner);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 44px;
+  padding-inline: var(--space-4);
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+  text-align: center;
+}
+
+.update-banner button {
+  min-block-size: 36px;
+}
+
+@keyframes progress {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation-progress {
+    animation: none;
+  }
+}

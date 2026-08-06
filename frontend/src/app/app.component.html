@@ -1,0 +1,19 @@
+<a class="skip-link" href="#main-content">{{ locale.copy().skipToContent }}</a>
+
+@if (navigation.isVisible()) {
+  <div class="navigation-progress" role="progressbar" aria-label="Loading page"></div>
+}
+
+@if (!connectivity.isOnline()) {
+  <aside class="connectivity-banner" aria-live="polite">{{ locale.copy().offline }}</aside>
+}
+
+@if (updates.isUpdateReady()) {
+  <aside class="update-banner" aria-live="polite">
+    <span>A newer Dorosak release is ready.</span>
+    <button type="button" (click)="updates.activate()">Update safely</button>
+  </aside>
+}
+
+<router-outlet />
+<drs-toast-region />

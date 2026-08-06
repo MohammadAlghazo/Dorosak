@@ -1,0 +1,145 @@
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow">
+      {{
+        locale.locale() === 'ar'
+          ? 'تعلم منظم. تقدم يمكنك رؤيته.'
+          : 'Structured learning. Visible progress.'
+      }}
+    </p>
+    <h1 id="hero-title">
+      {{ locale.locale() === 'ar' ? 'مسارك الواضح' : 'A clear route' }}
+      <span>{{
+        locale.locale() === 'ar' ? 'للمعرفة التي تحتاجها.' : 'to the skills you need.'
+      }}</span>
+    </h1>
+    <p class="hero-summary">
+      {{
+        locale.locale() === 'ar'
+          ? 'دروسك يجمع المسارات، التطبيق، والمتابعة في مساحة هادئة تساعدك على الاستمرار.'
+          : 'Dorosak brings pathways, practice, and progress into one calm place built for consistency.'
+      }}
+    </p>
+    <div class="hero-actions">
+      <a class="primary-action" [routerLink]="['/', locale.locale(), 'courses']">{{
+        locale.copy().browseCourses
+      }}</a>
+      <a class="text-action" [routerLink]="['/', locale.locale(), 'auth', 'sign-in']"
+        >{{ locale.copy().signIn }} <span aria-hidden="true">→</span></a
+      >
+    </div>
+  </div>
+
+  <div class="progress-map" aria-label="Learning pathway illustration">
+    <div class="map-axis"><span>بداية</span><i></i><span>إتقان</span></div>
+    <ol>
+      <li>
+        <strong>01</strong><span>{{ locale.locale() === 'ar' ? 'افهم' : 'Understand' }}</span>
+      </li>
+      <li>
+        <strong>02</strong><span>{{ locale.locale() === 'ar' ? 'طبّق' : 'Practice' }}</span>
+      </li>
+      <li>
+        <strong>03</strong><span>{{ locale.locale() === 'ar' ? 'أنجز' : 'Deliver' }}</span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="pathways" aria-labelledby="pathways-title">
+  <header>
+    <div>
+      <p class="eyebrow">
+        {{ locale.locale() === 'ar' ? 'ابدأ من هدفك' : 'Start from your goal' }}
+      </p>
+      <h2 id="pathways-title">
+        {{ locale.locale() === 'ar' ? 'مسارات مبنية للتقدم' : 'Pathways built for progress' }}
+      </h2>
+    </div>
+    <a [routerLink]="['/', locale.locale(), 'courses']">{{
+      locale.locale() === 'ar' ? 'عرض الكل' : 'View all'
+    }}</a>
+  </header>
+  <ol class="pathway-list">
+    @for (pathway of pathways(); track pathway.id) {
+      <li>
+        <span class="pathway-number">{{ pathway.number }}</span>
+        <div>
+          <h3>{{ pathway.title }}</h3>
+          <p>{{ pathway.description }}</p>
+        </div>
+        <span class="pathway-level">{{ pathway.level }}</span>
+        <a
+          [routerLink]="['/', locale.locale(), 'courses', pathway.id]"
+          [attr.aria-label]="pathway.title"
+          >↗</a
+        >
+      </li>
+    }
+  </ol>
+</section>
+
+<section class="learning-proof" aria-labelledby="proof-title">
+  <p class="eyebrow">
+    {{ locale.locale() === 'ar' ? 'أسلوب عمل واضح' : 'A transparent learning model' }}
+  </p>
+  <h2 id="proof-title">
+    {{
+      locale.locale() === 'ar'
+        ? 'لا عدّاد فيديوهات. بل خطوات لها نتيجة.'
+        : 'Not a video counter. Steps with an outcome.'
+    }}
+  </h2>
+  <div class="proof-grid">
+    <article>
+      <strong>01</strong>
+      <h3>{{ locale.locale() === 'ar' ? 'هدف محدد' : 'Defined outcome' }}</h3>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'تعرف ما ستنجزه قبل أن تبدأ.'
+            : 'Know what you will deliver before you begin.'
+        }}
+      </p>
+    </article>
+    <article>
+      <strong>02</strong>
+      <h3>{{ locale.locale() === 'ar' ? 'تطبيق مستمر' : 'Continuous practice' }}</h3>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'تمرين ومشروع في كل مرحلة.'
+            : 'Practice and a project in every stage.'
+        }}
+      </p>
+    </article>
+    <article>
+      <strong>03</strong>
+      <h3>{{ locale.locale() === 'ar' ? 'متابعة مفيدة' : 'Useful progress' }}</h3>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'تعود مباشرة إلى خطوتك التالية.'
+            : 'Return directly to your next useful step.'
+        }}
+      </p>
+    </article>
+  </div>
+</section>
+
+<aside class="system-note" aria-live="polite">
+  <span class="status-dot" [class.online]="apiStatus() === 'online'"></span>
+  {{
+    apiStatus() === 'online'
+      ? locale.locale() === 'ar'
+        ? 'خدمات دروسك متاحة'
+        : 'Dorosak services are available'
+      : apiStatus() === 'unavailable'
+        ? locale.locale() === 'ar'
+          ? 'تعذر التحقق من الخدمات الآن'
+          : 'Services could not be verified'
+        : locale.locale() === 'ar'
+          ? 'نتحقق من جاهزية الخدمات'
+          : 'Checking service availability'
+  }}
+</aside>
