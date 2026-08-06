@@ -8,6 +8,7 @@ export class ApiProblem extends Error {
     readonly code: string,
     readonly traceId: string | null,
     readonly correlationId: string | null,
+    readonly retryAfter: string | null,
     readonly validationErrors: ValidationErrors,
     message: string,
   ) {
@@ -22,7 +23,8 @@ export const normalizeApiProblem = (response: HttpErrorResponse): ApiProblem => 
     response.status,
     stringValue(body['code']) ?? `HTTP.${String(response.status || 0)}`,
     stringValue(body['traceId']),
-    stringValue(body['correlationId']),
+    stringValue(body['correlationId']) ?? response.headers.get('X-Correlation-ID'),
+    response.headers.get('Retry-After'),
     validationErrors(body['errors']),
     stringValue(body['detail']) ??
       stringValue(body['title']) ??

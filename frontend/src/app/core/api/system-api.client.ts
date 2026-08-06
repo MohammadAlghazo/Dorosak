@@ -1,7 +1,7 @@
 import { HttpClient, HttpContext } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable } from 'rxjs';
-import { API_REQUEST } from './api-context';
+import { API_REQUEST, PUBLIC_API_REQUEST } from './api-context';
 
 interface SystemStatusDto {
   service: string;
@@ -21,7 +21,7 @@ export class SystemApiClient {
   getStatus(): Observable<SystemStatus> {
     return this.http
       .get<SystemStatusDto>('system/status', {
-        context: new HttpContext().set(API_REQUEST, true),
+        context: new HttpContext().set(API_REQUEST, true).set(PUBLIC_API_REQUEST, true),
       })
       .pipe(map((status) => ({ service: status.service, available: Boolean(status.utcTime) })));
   }

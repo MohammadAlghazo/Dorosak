@@ -17,6 +17,7 @@ import { TelemetryService } from '../telemetry/telemetry.service';
 import {
   API_REQUEST,
   DEADLINE_MS,
+  PUBLIC_API_REQUEST,
   RETRY_IDEMPOTENT_GET,
   SKIP_AUTH,
   SKIP_REFRESH,
@@ -37,7 +38,7 @@ export const apiMetadataInterceptor: HttpInterceptorFn = (request, next) => {
   return next(
     request.clone({
       url,
-      credentials: 'same-origin',
+      credentials: request.context.get(PUBLIC_API_REQUEST) ? 'omit' : 'same-origin',
       setHeaders: {
         'Accept-Language': locale,
         'X-Client-Timezone': timezone,
@@ -49,7 +50,7 @@ export const apiMetadataInterceptor: HttpInterceptorFn = (request, next) => {
 
 export const deadlineInterceptor: HttpInterceptorFn = (request, next) =>
   next(request).pipe(
-    timeout({ first: request.context.get(DEADLINE_MS) }),
+    timeout({ each: request.context.get(DEADLINE_MS) }),
     catchError((error: unknown) =>
       error instanceof TimeoutError
         ? throwError(
@@ -65,7 +66,13 @@ export const deadlineInterceptor: HttpInterceptorFn = (request, next) =>
   );
 
 export const bearerInterceptor: HttpInterceptorFn = (request, next) => {
-  if (!request.context.get(API_REQUEST) || request.context.get(SKIP_AUTH)) return next(request);
+  if (
+    !request.context.get(API_REQUEST) ||
+    request.context.get(PUBLIC_API_REQUEST) ||
+    request.context.get(SKIP_AUTH)
+  ) {
+    return next(request);
+  }
   const accessToken = inject(SessionStore).accessToken();
   return next(
     accessToken
@@ -83,6 +90,8 @@ export const refreshInterceptor: HttpInterceptorFn = (request, next) => {
         error instanceof HttpErrorResponse &&
         error.status === 401 &&
         request.context.get(API_REQUEST) &&
+        !request.context.get(PUBLIC_API_REQUEST) &&
+        !request.context.get(SKIP_AUTH) &&
         !request.context.get(SKIP_REFRESH) &&
         session.accessToken() !== null;
       if (!canRefresh) return throwError(() => error);

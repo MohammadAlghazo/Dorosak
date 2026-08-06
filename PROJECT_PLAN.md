@@ -1302,6 +1302,21 @@ app/
 - 2FA إلزامية لـAdmin وموصى بها لـTeacher.
 - تغيير email/password/2FA/permissions وعمليات refund الكبيرة تتطلب recent authentication.
 
+### 14.8 Phase 5 Contract Decisions
+
+لتثبيت العقود غير المحددة في الكتالوج قبل تنفيذ Phase 5:
+
+- تستخدم استجابات النجاح غلافًا بصيغة `{ "data": ... }`، بينما تستخدم عمليات `204` جسمًا فارغًا.
+- مسارات التحقق وإعادة تعيين كلمة المرور تستخدم `userId` opaque و`token` في query مؤقتة؛ يستبدل العميل عنوان المتصفح بعد الاستهلاك.
+- صلاحية verification token هي `24 hours`، وصلاحية password-reset token هي `1 hour`.
+- recent authentication صالحة لمدة `15 minutes`، ونافذة refresh المتزامن هي `10 seconds`.
+- نتيجة تسجيل الدخول إما `authenticated` وتحتوي access token فقط مع ضبط refresh cookie، أو `mfaRequired` وتحتوي challenge opaque قصير العمر دون أي access/refresh token.
+- يملك MFA challenge صلاحية `5 minutes` وحدًا أقصى `5` محاولات، وتستخدم recovery codes مرة واحدة فقط.
+- تستخدم الواجهة `GET /api/v1/me/profile` لاستعادة snapshot الحساب والصلاحيات بعد refresh؛ الصلاحيات في الواجهة إرشاد مرئي فقط، والتفويض النهائي في الخادم.
+- يفحص breached-password adapter خدمة HIBP بأسلوب k-anonymity عند تفعيله في Production، ويكون معطلًا افتراضيًا في Development والاختبارات المحلية.
+- تخزن permission definitions كثوابت كود، وتخزن علاقة role-to-permission في `identity.role_claims` باستخدام claim type ثابت.
+- تطبق حدود التسجيل على IP، وحدود sign-in/password-reset على IP وnormalized identifier، وحد refresh على session token hash؛ يستخدم Redis atomic counters، وتفشل عمليات الأمان الحساسة مغلقًا عند تعذر Redis.
+
 ## 15. Authorization Flow
 
 ### 15.1 Model
@@ -1937,6 +1952,7 @@ app/
 | `ADR-014` | One immutable release manifest for all workload image digests | Accepted |
 | `ADR-015` | Concrete foreign keys instead of generic polymorphic target IDs | Accepted |
 | `ADR-016` | Separate Production Redis services for cache, rate limits, and realtime | Accepted |
+| `ADR-017` | Phase 5 browser identity, session rotation, MFA, and permission contracts | Accepted |
 
 ## 31. Delivery Roadmap
 

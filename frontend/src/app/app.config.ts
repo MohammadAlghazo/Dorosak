@@ -45,12 +45,12 @@ export const appConfig: ApplicationConfig = {
       withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
       withInterceptors([
         apiMetadataInterceptor,
+        problemDetailsInterceptor,
+        telemetryInterceptor,
         deadlineInterceptor,
         bearerInterceptor,
         refreshInterceptor,
         retryInterceptor,
-        problemDetailsInterceptor,
-        telemetryInterceptor,
       ]),
     ),
     provideClientHydration(
@@ -61,6 +61,7 @@ export const appConfig: ApplicationConfig = {
         filter: (request) =>
           request.method === 'GET' &&
           !request.withCredentials &&
+          request.credentials === 'omit' &&
           !request.headers.has('Authorization') &&
           /^\/api\/v1\/(?:system\/status|courses|categories|pages|faqs)(?:\/|\?|$)/u.test(
             request.url,

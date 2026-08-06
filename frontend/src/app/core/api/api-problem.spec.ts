@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { ApiProblem, normalizeApiProblem } from './api-problem';
 
 describe('normalizeApiProblem', () => {
@@ -30,5 +30,21 @@ describe('normalizeApiProblem', () => {
     expect(problem.code).toBe('HTTP.503');
     expect(problem.message).toBe('The request could not be completed.');
     expect(problem.validationErrors).toEqual({});
+  });
+
+  it('retains retry and correlation response headers', () => {
+    const problem = normalizeApiProblem(
+      new HttpErrorResponse({
+        status: 429,
+        error: { code: 'RATE_LIMIT.EXCEEDED', detail: 'Try again later.' },
+        headers: new HttpHeaders({
+          'Retry-After': '30',
+          'X-Correlation-ID': 'correlation-from-header',
+        }),
+      }),
+    );
+
+    expect(problem.retryAfter).toBe('30');
+    expect(problem.correlationId).toBe('correlation-from-header');
   });
 });
