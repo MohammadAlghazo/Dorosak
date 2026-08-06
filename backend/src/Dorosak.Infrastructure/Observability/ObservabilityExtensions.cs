@@ -72,7 +72,8 @@ public static class ObservabilityExtensions
         }
 
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? uri)
-            || uri.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps))
+            || (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("OpenTelemetry:Endpoint must be an absolute HTTP or HTTPS URI.");
         }

@@ -62,11 +62,21 @@ BEGIN
                   'dorosak_migrator',
                   'dorosak_app'
               )
-              OR granted_role.rolname IN ('dorosak_schema_owner', 'dorosak_runtime')
+              OR granted_role.rolname IN (
+                  'dorosak_schema_owner',
+                  'dorosak_runtime',
+                  'dorosak_migrator',
+                  'dorosak_app'
+              )
           )
           AND NOT (
               member_role.rolname = 'dorosak_owner'
-              AND granted_role.rolname IN ('dorosak_schema_owner', 'dorosak_runtime')
+              AND granted_role.rolname IN (
+                  'dorosak_schema_owner',
+                  'dorosak_runtime',
+                  'dorosak_migrator',
+                  'dorosak_app'
+              )
               AND NOT membership.inherit_option
               AND (
                   (membership.admin_option AND NOT membership.set_option)

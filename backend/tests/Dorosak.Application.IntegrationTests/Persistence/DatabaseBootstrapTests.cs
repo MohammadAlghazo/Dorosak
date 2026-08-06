@@ -37,7 +37,7 @@ public sealed class DatabaseBootstrapTests
         await ownerConnection.OpenAsync(TestContext.Current.CancellationToken);
         await ExecuteAsync(ownerConnection, bootstrapSql, TestContext.Current.CancellationToken);
         await ExecuteAsync(
-            ownerConnection,
+            adminConnection,
             "GRANT CREATE ON SCHEMA operations TO dorosak_runtime",
             TestContext.Current.CancellationToken);
         await ExecuteAsync(ownerConnection, bootstrapSql, TestContext.Current.CancellationToken);
@@ -79,8 +79,8 @@ public sealed class DatabaseBootstrapTests
             TestContext.Current.CancellationToken);
 
         await ExecuteAsync(
-            ownerConnection,
-            "CREATE ROLE unexpected_login LOGIN; GRANT dorosak_schema_owner TO unexpected_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE",
+            adminConnection,
+            "CREATE ROLE unexpected_login LOGIN; GRANT dorosak_app TO unexpected_login WITH ADMIN FALSE, INHERIT TRUE, SET TRUE",
             TestContext.Current.CancellationToken);
         PostgresException driftFailure = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
             ownerConnection,
