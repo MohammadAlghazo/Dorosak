@@ -37,7 +37,9 @@ export class AuthRefreshService {
       )
       .pipe(
         map((response) => response.accessToken),
-        tap((accessToken) => this.session.establish(accessToken, this.session.identity())),
+        tap((accessToken) => {
+          this.session.establish(accessToken, this.session.identity());
+        }),
         finalize(() => {
           this.inFlight = undefined;
         }),

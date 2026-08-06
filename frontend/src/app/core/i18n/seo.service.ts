@@ -23,7 +23,9 @@ export class SeoService {
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => this.update());
+      .subscribe(() => {
+        this.update();
+      });
   }
 
   private update(): void {
@@ -31,14 +33,14 @@ export class SeoService {
     while (route.firstChild) route = route.firstChild;
     const data = route.data as DorosakRouteData;
     const localizedTitle = this.locale.locale() === 'ar' ? data.titleAr : data.titleEn;
-    this.title.setTitle(`${localizedTitle || 'Dorosak'} | ${this.locale.copy().brand}`);
+    this.title.setTitle(`${localizedTitle} | ${this.locale.copy().brand}`);
     this.meta.updateTag({
       name: 'robots',
       content: data.indexing === 'index' ? 'index,follow' : 'noindex,follow',
     });
 
-    const currentUrl = this.router.url.split('?')[0] || `/${this.locale.locale()}`;
-    const origin = this.document.location?.origin ?? '';
+    const currentUrl = this.router.url.split('?')[0] ?? `/${this.locale.locale()}`;
+    const origin = this.document.location.origin;
     this.setLink('canonical', undefined, `${origin}${currentUrl}`);
     this.setLink('alternate', 'ar', `${origin}${swapLocale(currentUrl, 'ar')}`);
     this.setLink('alternate', 'en', `${origin}${swapLocale(currentUrl, 'en')}`);

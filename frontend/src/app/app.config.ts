@@ -4,8 +4,8 @@ import {
   withInterceptors,
   withXsrfConfiguration,
 } from '@angular/common/http';
+import type { ApplicationConfig } from '@angular/core';
 import {
-  ApplicationConfig,
   ErrorHandler,
   inject,
   isDevMode,

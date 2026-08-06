@@ -12,8 +12,12 @@ export class ConnectivityStore {
   constructor() {
     if (!isPlatformBrowser(this.platformId)) return;
     this.connected.set(navigator.onLine);
-    const online = () => this.connected.set(true);
-    const offline = () => this.connected.set(false);
+    const online = () => {
+      this.connected.set(true);
+    };
+    const offline = () => {
+      this.connected.set(false);
+    };
     addEventListener('online', online);
     addEventListener('offline', offline);
     this.destroyRef.onDestroy(() => {

@@ -28,7 +28,9 @@ export default tseslint.config(
         ...globals.node,
       },
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['playwright.config.ts', 'e2e/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -47,6 +49,7 @@ export default tseslint.config(
       '@angular-eslint/prefer-standalone': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-extraneous-class': 'off',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
     },

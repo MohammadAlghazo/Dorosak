@@ -43,33 +43,49 @@ export class IndexedDbService {
           store.createIndex('expiresAt', 'expiresAt', { unique: false });
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB could not be opened.'));
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error('IndexedDB could not be opened.'));
+      };
     });
     return this.databasePromise;
   }
 
   private complete(request: IDBRequest): Promise<void> {
     return new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB write failed.'));
+      request.onsuccess = () => {
+        resolve();
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error('IndexedDB write failed.'));
+      };
     });
   }
 
   private request<T>(request: IDBRequest<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed.'));
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error('IndexedDB request failed.'));
+      };
     });
   }
 
   private transactionComplete(transaction: IDBTransaction): Promise<void> {
     return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () =>
+      transaction.oncomplete = () => {
+        resolve();
+      };
+      transaction.onerror = () => {
         reject(transaction.error ?? new Error('IndexedDB transaction failed.'));
-      transaction.onabort = () =>
+      };
+      transaction.onabort = () => {
         reject(transaction.error ?? new Error('IndexedDB transaction was aborted.'));
+      };
     });
   }
 }

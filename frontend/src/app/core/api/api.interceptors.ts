@@ -134,9 +134,9 @@ export const telemetryInterceptor: HttpInterceptorFn = (request, next) => {
       status = error instanceof HttpErrorResponse ? error.status : 0;
       return throwError(() => error);
     }),
-    finalize(() =>
-      telemetry.recordRequest(request.method, status || 200, performance.now() - started),
-    ),
+    finalize(() => {
+      telemetry.recordRequest(request.method, status || 200, performance.now() - started);
+    }),
   );
 };
 

@@ -231,8 +231,32 @@ export const routes: Routes = [
           renderMode: 'server',
         },
       },
-      { path: '**', redirectTo: 'not-found' },
+      {
+        path: '**',
+        loadComponent: () =>
+          import('./features/system-pages/not-found-page.component').then(
+            (module) => module.NotFoundPageComponent,
+          ),
+        data: {
+          titleAr: 'الصفحة غير موجودة',
+          titleEn: 'Page not found',
+          indexing: 'noindex',
+          renderMode: 'server',
+        },
+      },
     ],
   },
-  { path: '**', redirectTo: 'ar/not-found' },
+  {
+    path: '**',
+    loadComponent: () =>
+      import('./features/system-pages/not-found-page.component').then(
+        (module) => module.NotFoundPageComponent,
+      ),
+    data: {
+      titleAr: 'الصفحة غير موجودة',
+      titleEn: 'Page not found',
+      indexing: 'noindex',
+      renderMode: 'server',
+    },
+  },
 ];

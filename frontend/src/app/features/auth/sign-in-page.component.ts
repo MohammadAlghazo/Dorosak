@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  type AbstractControl,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { ToastService } from '../../shared/ui/toast/toast.service';
 
@@ -93,9 +99,9 @@ export class SignInPageComponent {
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.email],
+      validators: [requiredValidator, emailValidator],
     }),
-    password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    password: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
   });
 
   protected submit(): void {
@@ -103,3 +109,6 @@ export class SignInPageComponent {
     if (this.form.valid) this.toasts.announce('Identity endpoints arrive in Phase 5.');
   }
 }
+
+const requiredValidator = (control: AbstractControl) => Validators.required(control);
+const emailValidator = (control: AbstractControl) => Validators.email(control);

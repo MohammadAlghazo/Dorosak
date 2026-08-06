@@ -1,9 +1,13 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { access, readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 const browserDirectory = join(import.meta.dirname, '..', 'dist', 'dorosak-web', 'browser');
-const index = await readFile(join(browserDirectory, 'index.html'), 'utf8');
+const indexPath = await firstExisting([
+  join(browserDirectory, 'index.html'),
+  join(browserDirectory, 'index.csr.html'),
+]);
+const index = await readFile(indexPath, 'utf8');
 const initialFiles = new Set(
   [...index.matchAll(/(?:src|href)="([^"?]+\.(?:js|css))(?:\?[^\"]*)?"/g)].map((match) =>
     match[1].replace(/^\//, ''),
@@ -77,4 +81,16 @@ console.log(`Initial CSS: ${kibibytes(initialCssSize).toFixed(1)} KiB gzip`);
 console.log(`Fonts: ${kibibytes(fontSize).toFixed(1)} KiB`);
 if (failures.length > 0) {
   throw new Error(failures.join('\n'));
+}
+
+async function firstExisting(paths) {
+  for (const path of paths) {
+    try {
+      await access(path);
+      return path;
+    } catch {
+      // Continue to the next known Angular output filename.
+    }
+  }
+  throw new Error('Angular browser index output was not found.');
 }

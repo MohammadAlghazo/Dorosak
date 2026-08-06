@@ -38,7 +38,9 @@ export class RuntimeConfigService {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
     });
-    if (!response.ok) throw new Error(`Runtime configuration failed with HTTP ${response.status}.`);
+    if (!response.ok) {
+      throw new Error(`Runtime configuration failed with HTTP ${String(response.status)}.`);
+    }
 
     const config: unknown = await response.json();
     if (!this.isRuntimeConfig(config)) throw new Error('Runtime configuration is invalid.');

@@ -1,4 +1,5 @@
-import { ErrorHandler, inject, Injectable } from '@angular/core';
+import type { ErrorHandler } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { TelemetryService } from '../telemetry/telemetry.service';
 
 @Injectable()

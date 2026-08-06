@@ -21,7 +21,9 @@ export class NavigationProgressService {
       .events.pipe(takeUntilDestroyed(destroyRef))
       .subscribe((event) => {
         if (event instanceof NavigationStart) {
-          this.timer = setTimeout(() => this.visible.set(true), 150);
+          this.timer = setTimeout(() => {
+            this.visible.set(true);
+          }, 150);
         }
         if (
           event instanceof NavigationEnd ||

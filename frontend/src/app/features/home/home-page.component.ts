@@ -88,8 +88,12 @@ export class HomePageComponent {
         .getStatus()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: () => this.apiStatus.set('online'),
-          error: () => this.apiStatus.set('unavailable'),
+          next: () => {
+            this.apiStatus.set('online');
+          },
+          error: () => {
+            this.apiStatus.set('unavailable');
+          },
         });
     });
   }

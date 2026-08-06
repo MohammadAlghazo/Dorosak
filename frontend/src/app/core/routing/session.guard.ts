@@ -11,7 +11,7 @@ export const sessionGuard: CanActivateFn = (_route, state) => {
 };
 
 export const permissionGuard: CanActivateFn = (route) => {
-  const required = route.data['permission'];
+  const required: unknown = route.data['permission'];
   const identity = inject(SessionStore).identity();
   if (typeof required === 'string' && identity?.permissions.includes(required)) return true;
   return inject(Router).createUrlTree([inject(LocaleService).locale(), 'not-found']);

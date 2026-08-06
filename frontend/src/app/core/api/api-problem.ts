@@ -1,8 +1,6 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import type { HttpErrorResponse } from '@angular/common/http';
 
-export interface ValidationErrors {
-  readonly [field: string]: readonly string[];
-}
+export type ValidationErrors = Readonly<Record<string, readonly string[]>>;
 
 export class ApiProblem extends Error {
   constructor(
@@ -22,7 +20,7 @@ export const normalizeApiProblem = (response: HttpErrorResponse): ApiProblem => 
   const body = isRecord(response.error) ? response.error : {};
   return new ApiProblem(
     response.status,
-    stringValue(body['code']) ?? `HTTP.${response.status || 0}`,
+    stringValue(body['code']) ?? `HTTP.${String(response.status || 0)}`,
     stringValue(body['traceId']),
     stringValue(body['correlationId']),
     validationErrors(body['errors']),

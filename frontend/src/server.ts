@@ -122,13 +122,15 @@ app.use((request, response, next) => {
   );
   angularApp
     .handle(request)
-    .then((angularResponse) =>
-      angularResponse ? writeResponseToNodeResponse(angularResponse, response) : next(),
-    )
+    .then(async (angularResponse) => {
+      if (angularResponse) await writeResponseToNodeResponse(angularResponse, response);
+      else next();
+    })
     .catch(next);
 });
 
-app.use((_error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+app.use((_error: unknown, _request: Request, response: Response, next: NextFunction) => {
+  void next;
   if (!response.headersSent) {
     response.status(500).type('application/problem+json').send({
       status: 500,
@@ -142,7 +144,7 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = validatedPort(process.env['PORT'] ?? '4000');
   const server = app.listen(port, '0.0.0.0', (error) => {
     if (error) throw error;
-    console.log(`Dorosak Web listening on http://0.0.0.0:${port}`);
+    console.log(`Dorosak Web listening on http://0.0.0.0:${String(port)}`);
   });
 
   const shutdown = () => {

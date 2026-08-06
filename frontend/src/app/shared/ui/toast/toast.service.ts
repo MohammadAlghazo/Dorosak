@@ -15,7 +15,9 @@ export class ToastService {
   announce(message: string): void {
     const toast = { id: this.nextId++, message };
     this.activeMessages.update((messages) => [...messages, toast]);
-    setTimeout(() => this.dismiss(toast.id), 5000);
+    setTimeout(() => {
+      this.dismiss(toast.id);
+    }, 5000);
   }
 
   dismiss(id: number): void {

@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { type CanMatchFn, Router } from '@angular/router';
+import type { CanMatchFn } from '@angular/router';
 import { isLocale } from './locale';
 import { LocaleService } from './locale.service';
 
@@ -10,5 +10,5 @@ export const localeGuard: CanMatchFn = (_route, segments) => {
     return true;
   }
 
-  return inject(Router).createUrlTree(['/ar/not-found']);
+  return false;
 };

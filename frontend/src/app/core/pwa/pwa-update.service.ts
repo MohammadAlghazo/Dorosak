@@ -1,5 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import type { VersionReadyEvent } from '@angular/service-worker';
+import { SwUpdate } from '@angular/service-worker';
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -17,7 +18,9 @@ export class PwaUpdateService {
         filter((event): event is VersionReadyEvent => event.type === 'VERSION_READY'),
         takeUntilDestroyed(),
       )
-      .subscribe(() => this.updateReady.set(true));
+      .subscribe(() => {
+        this.updateReady.set(true);
+      });
   }
 
   async activate(): Promise<void> {
