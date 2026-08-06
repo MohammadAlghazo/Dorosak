@@ -1,0 +1,55 @@
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" [routerLink]="['/', locale.locale()]" aria-label="Dorosak home">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <strong>{{ locale.copy().brand }}</strong>
+    </a>
+
+    <nav class="primary-navigation" aria-label="Primary navigation">
+      <a [routerLink]="['/', locale.locale(), 'courses']" routerLinkActive="active">{{
+        locale.copy().browseCourses
+      }}</a>
+      <a [routerLink]="['/', locale.locale(), 'search']" routerLinkActive="active">
+        {{ locale.locale() === 'ar' ? 'البحث' : 'Search' }}
+      </a>
+    </nav>
+
+    <div class="header-actions">
+      <button type="button" class="quiet-action" (click)="locale.switchLocale()">
+        {{ locale.copy().switchLocale }}
+      </button>
+      <button
+        type="button"
+        class="theme-action"
+        [attr.aria-label]="locale.copy().switchTheme"
+        (click)="theme.cycle()"
+      >
+        <span aria-hidden="true">◐</span>
+      </button>
+      <a class="sign-in-action" [routerLink]="['/', locale.locale(), 'auth', 'sign-in']">
+        {{ locale.copy().signIn }}
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="main-content" tabindex="-1">
+  <router-outlet />
+</main>
+
+<footer class="site-footer">
+  <div>
+    <strong>{{ locale.copy().brand }}</strong>
+    <p>
+      {{
+        locale.locale() === 'ar' ? 'تعلم متدرج، بلا ضوضاء.' : 'Progressive learning, without noise.'
+      }}
+    </p>
+  </div>
+  <nav aria-label="Footer navigation">
+    <a [routerLink]="['/', locale.locale(), 'courses']">{{ locale.copy().browseCourses }}</a>
+    <a [routerLink]="['/', locale.locale(), 'offline']">{{
+      locale.locale() === 'ar' ? 'وضع عدم الاتصال' : 'Offline mode'
+    }}</a>
+  </nav>
+</footer>

@@ -1,0 +1,141 @@
+@use 'bootstrap/scss/bootstrap';
+
+:root {
+  color-scheme: light;
+  --color-canvas: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-subtle: #eef1f5;
+  --color-text: #101828;
+  --color-muted: #667085;
+  --color-border: #d8dee8;
+  --color-brand: #0f766e;
+  --color-on-brand: #ffffff;
+  --color-link: #2563eb;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-warning-text: #713f12;
+  --color-warning-surface: #fef3c7;
+  --color-danger: #b42318;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-10: 6rem;
+  --space-12: 8rem;
+  --radius-1: 4px;
+  --radius-2: 8px;
+  --shadow-1: 0 10px 30px rgb(16 24 40 / 8%);
+  --shadow-2: 0 18px 48px rgb(16 24 40 / 16%);
+  --content: 74rem;
+  --content-wide: 90rem;
+  --page-gutter: clamp(1rem, 4vw, 4rem);
+  --motion-fast: 120ms ease;
+  --motion-normal: 200ms ease;
+  --z-header: 20;
+  --z-banner: 30;
+  --z-overlay: 40;
+  --z-progress: 60;
+  --z-toast: 70;
+  --offcanvas-sign: -1;
+}
+
+:root[data-bs-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #0b1220;
+  --color-surface: #121c2d;
+  --color-subtle: #17243a;
+  --color-text: #f1f5f9;
+  --color-muted: #94a3b8;
+  --color-border: #2a3a52;
+  --color-brand: #2dd4bf;
+  --color-on-brand: #042f2e;
+  --color-link: #60a5fa;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-warning-text: #fef3c7;
+  --color-warning-surface: #713f12;
+  --color-danger: #f87171;
+  --shadow-1: 0 10px 30px rgb(0 0 0 / 24%);
+  --shadow-2: 0 18px 48px rgb(0 0 0 / 38%);
+}
+
+:root[dir='rtl'] {
+  --offcanvas-sign: 1;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  min-inline-size: 320px;
+  scroll-behavior: smooth;
+}
+body {
+  min-block-size: 100dvh;
+  margin: 0;
+  color: var(--color-text);
+  background: var(--color-canvas);
+  font-family: Inter, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+html[lang='ar'] body {
+  font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+a {
+  color: var(--color-link);
+}
+img,
+svg,
+video {
+  display: block;
+  max-inline-size: 100%;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-link);
+  outline-offset: 3px;
+}
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  z-index: 100;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  transform: translateY(-180%);
+  transition: transform var(--motion-fast);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
