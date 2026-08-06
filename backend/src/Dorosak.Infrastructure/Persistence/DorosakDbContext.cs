@@ -1,10 +1,25 @@
 using Dorosak.Application.Common.Persistence;
+using Dorosak.Domain.Identity;
 using Dorosak.Domain.Operations;
+using Dorosak.Domain.Profiles;
+using Dorosak.Infrastructure.Identity;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Dorosak.Infrastructure.Persistence;
 
-public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options) : DbContext(options), IUnitOfWork
+public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
+    : IdentityDbContext<
+        ApplicationUser,
+        ApplicationRole,
+        Guid,
+        IdentityUserClaim<Guid>,
+        IdentityUserRole<Guid>,
+        IdentityUserLogin<Guid>,
+        IdentityRoleClaim<Guid>,
+        IdentityUserToken<Guid>>(options), IUnitOfWork, IDataProtectionKeyContext
 {
     public const string DefaultSchema = "app";
 
@@ -14,11 +29,25 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
 
     internal DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    internal DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
+
+    internal DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    internal DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+
+    internal DbSet<MfaChallenge> MfaChallenges => Set<MfaChallenge>();
+
+    internal DbSet<MfaRecoveryCode> MfaRecoveryCodes => Set<MfaRecoveryCode>();
+
+    internal DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        modelBuilder.HasDefaultSchema(DefaultSchema);
-        modelBuilder.ApplyConfigurationsFromAssembly(AssemblyReference.Assembly);
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
+        builder.HasDefaultSchema(DefaultSchema);
+        builder.ApplyConfigurationsFromAssembly(AssemblyReference.Assembly);
     }
 
     public async Task<TResponse> ExecuteInTransactionAsync<TResponse>(

@@ -7,11 +7,17 @@ using Asp.Versioning;
 using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
+using Dorosak.Infrastructure.Identity;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
 namespace Dorosak.Api;
@@ -23,7 +29,75 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.AddControllers();
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer();
+        services
+            .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IJwtKeyProvider, IOptions<JwtOptions>>((options, keyProvider, jwtOptions) =>
+            {
+                options.MapInboundClaims = false;
+                options.RequireHttpsMetadata = true;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtOptions.Value.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwtOptions.Value.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = keyProvider.ValidationKey,
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
+                    ValidateLifetime = true,
+                    RequireExpirationTime = true,
+                    RequireSignedTokens = true,
+                    ClockSkew = TimeSpan.FromSeconds(60),
+                    ValidTypes = ["at+jwt"],
+                    NameClaimType = "sub",
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        IIdentitySessionValidator validator = context.HttpContext.RequestServices
+                            .GetRequiredService<IIdentitySessionValidator>();
+                        if (!await validator.IsValidAsync(context.Principal!, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("The server-side session is invalid.");
+                        }
+                    },
+                    OnChallenge = async context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        IProblemDetailsService problemDetailsService = context.HttpContext.RequestServices
+                            .GetRequiredService<IProblemDetailsService>();
+                        await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+                        {
+                            HttpContext = context.HttpContext,
+                            ProblemDetails = new ProblemDetails
+                            {
+                                Status = StatusCodes.Status401Unauthorized,
+                                Title = "Unauthorized",
+                                Type = "https://dorosak.com/problems/authentication-required",
+                                Detail = "Authentication is required.",
+                                Extensions = { ["code"] = "AUTH.AUTHENTICATION_REQUIRED" },
+                            },
+                        });
+                    },
+                };
+            });
         services.AddAuthorization();
+        services.AddAntiforgery(options =>
+        {
+            options.Cookie.Name = "XSRF-TOKEN";
+            options.Cookie.HttpOnly = false;
+            options.Cookie.IsEssential = true;
+            options.Cookie.Path = "/";
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.HeaderName = "X-XSRF-TOKEN";
+            options.SuppressXFrameOptionsHeader = true;
+        });
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails(options =>
         {
@@ -126,6 +200,8 @@ public static class DependencyInjection
                         AutoReplenishment = true,
                     }));
         });
+
+        services.AddTransient<OriginValidationMiddleware>();
 
         string[] allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(ApiConstants.CorsPolicy, policy =>

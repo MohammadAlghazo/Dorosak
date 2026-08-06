@@ -12,4 +12,5 @@ public enum ErrorType
     Failure = 7,
     BusinessRule = 8,
     PreconditionFailed = 9,
+    ServiceUnavailable = 10,
 }

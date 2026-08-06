@@ -1,12 +1,18 @@
 using Dorosak.Application.Common.Caching;
+using Dorosak.Application.Common.Identity;
 using Dorosak.Application.Common.Idempotency;
 using Dorosak.Application.Common.Persistence;
 using Dorosak.Infrastructure.Caching;
+using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Persistence;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace Dorosak.Infrastructure;
 
@@ -22,14 +28,76 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DorosakDbContext>());
         services.AddScoped<IIdempotencyStore, EfCoreIdempotencyStore>();
 
+        services
+            .AddOptions<IdentitySecurityOptions>()
+            .Bind(configuration.GetSection(IdentitySecurityOptions.SectionName))
+            .Validate(options => options.AccessTokenMinutes is >= 5 and <= 15, "Access token lifetime must be 5-15 minutes.")
+            .Validate(options => options.RefreshIdleDays > 0 && options.RefreshAbsoluteDays >= options.RefreshIdleDays,
+                "Refresh lifetimes are invalid.")
+            .Validate(options => options.RefreshRaceWindowSeconds is >= 1 and <= 30,
+                "Refresh race window must be 1-30 seconds.")
+            .Validate(options => options.RecentAuthenticationMinutes is >= 5 and <= 30,
+                "Recent authentication lifetime must be 5-30 minutes.")
+            .ValidateOnStart();
+        services.AddOptions<JwtOptions>().Bind(configuration.GetSection(JwtOptions.SectionName)).ValidateOnStart();
+        services.AddOptions<ApplicationOptions>().Bind(configuration.GetSection(ApplicationOptions.SectionName)).ValidateOnStart();
+        services.AddOptions<SecurityRateLimitOptions>()
+            .Bind(configuration.GetSection(SecurityRateLimitOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.KeyPrefix), "Rate-limit key prefix is required.")
+            .ValidateOnStart();
+        services.AddOptions<PasswordBreachOptions>()
+            .Bind(configuration.GetSection(PasswordBreachOptions.SectionName))
+            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Password breach URL is invalid.")
+            .ValidateOnStart();
+
+        services
+            .AddDataProtection()
+            .SetApplicationName("Dorosak")
+            .PersistKeysToDbContext<DorosakDbContext>();
+        services
+            .AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+                options.Password.RequiredLength = 12;
+                options.Password.RequiredUniqueChars = 1;
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.SignIn.RequireConfirmedEmail = true;
+            })
+            .AddRoles<ApplicationRole>()
+            .AddEntityFrameworkStores<DorosakDbContext>()
+            .AddDefaultTokenProviders();
+        services.Configure<PasswordHasherOptions>(options =>
+            options.IterationCount = configuration.GetValue("Identity:PasswordHashIterations", 210000));
+        services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(24));
+        services.AddSingleton<IJwtKeyProvider, JwtKeyProvider>();
+        services.AddSingleton<JwtTokenIssuer>();
+        services.AddSingleton<SecurityRateLimiter>();
+        services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IIdentitySessionValidator, IdentitySessionValidator>();
+
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnection;
             options.InstanceName = "dorosak:";
         });
+        services.AddSingleton<IConnectionMultiplexer>(_ =>
+            ConnectionMultiplexer.Connect(
+                configuration.GetConnectionString("RedisSecurity") ?? redisConnection));
         services.AddScoped<IQueryCache, DistributedQueryCache>();
 
         services.ConfigureHttpClientDefaults(httpClient => httpClient.AddStandardResilienceHandler());
+        services.AddHttpClient<BreachedPasswordService>((provider, client) =>
+        {
+            PasswordBreachOptions options = provider.GetRequiredService<IOptions<PasswordBreachOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Dorosak-Security/1.0");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
         return services;
     }
 

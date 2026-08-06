@@ -1,4 +1,5 @@
 using Dorosak.Application.Common.Exceptions;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,6 +27,11 @@ public sealed class GlobalExceptionHandler(
         ProblemDetails problemDetails = exception switch
         {
             ApplicationValidationException validation => CreateValidationProblem(validation),
+            AntiforgeryValidationException => CreateProblem(
+                StatusCodes.Status400BadRequest,
+                "SECURITY.ANTIFORGERY_INVALID",
+                "Bad Request",
+                "The antiforgery token is missing or invalid."),
             ForbiddenAccessException forbidden => CreateProblem(
                 StatusCodes.Status403Forbidden,
                 forbidden.Code,

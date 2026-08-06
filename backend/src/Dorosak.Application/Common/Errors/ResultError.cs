@@ -24,6 +24,9 @@ public sealed record ResultError(
     public static ResultError PreconditionFailed(string code, string description) =>
         new(code, description, ErrorType.PreconditionFailed);
 
+    public static ResultError ServiceUnavailable(string code, string description, TimeSpan? retryAfter = null) =>
+        new(code, description, ErrorType.ServiceUnavailable, RetryAfter: retryAfter);
+
     public static ResultError RateLimited(string code, string description, TimeSpan retryAfter)
     {
         if (retryAfter <= TimeSpan.Zero)

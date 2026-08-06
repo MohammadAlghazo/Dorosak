@@ -54,7 +54,9 @@ try
     app.UseResponseCompression();
     app.UseRouting();
     app.UseCors(ApiConstants.CorsPolicy);
+    app.UseAuthentication();
     app.UseRateLimiter();
+    app.UseMiddleware<OriginValidationMiddleware>();
     app.UseAuthorization();
     app.UseOutputCache();
 

@@ -12,7 +12,7 @@ public static class ResultExtensions
     {
         if (result.IsSuccess)
         {
-            return controller.Ok(result.Value);
+            return controller.Ok(new ApiResponse<T>(result.Value));
         }
 
         int status = result.Failure.Type switch
@@ -25,6 +25,7 @@ public static class ResultExtensions
             ErrorType.BusinessRule => StatusCodes.Status422UnprocessableEntity,
             ErrorType.PreconditionFailed => StatusCodes.Status412PreconditionFailed,
             ErrorType.RateLimited => StatusCodes.Status429TooManyRequests,
+            ErrorType.ServiceUnavailable => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest,
         };
 
@@ -56,3 +57,5 @@ public static class ResultExtensions
         return new ObjectResult(problem) { StatusCode = status };
     }
 }
+
+public sealed record ApiResponse<T>(T Data);
