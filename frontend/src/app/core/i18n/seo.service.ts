@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Meta, Title } from '@angular/platform-browser';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
+import type { PublicCourseDetail } from '../api/discovery-api.types';
 import type { DorosakRouteData } from '../routing/route-data';
 import { LocaleService } from './locale.service';
 
@@ -28,6 +29,44 @@ export class SeoService {
       });
   }
 
+  setCourseMetadata(course: PublicCourseDetail): void {
+    this.title.setTitle(`${course.title} | ${this.locale.copy().brand}`);
+    this.meta.updateTag({ name: 'description', content: course.description });
+    this.meta.updateTag({ name: 'robots', content: 'index,follow' });
+
+    const origin = this.document.location.origin;
+    const pathFor = (locale: 'ar' | 'en', slug: string) =>
+      `${origin}/${locale}/courses/${encodeURIComponent(slug)}`;
+    this.setLink('canonical', undefined, pathFor(course.locale, course.slug));
+    for (const locale of ['ar', 'en'] as const) {
+      const localization = course.localizations.find((item) => item.locale === locale);
+      this.setLink(
+        'alternate',
+        locale,
+        localization ? pathFor(localization.locale, localization.slug) : null,
+      );
+    }
+    const fallback =
+      course.localizations.find((item) => item.locale === course.defaultLocale) ??
+      course.localizations.find((item) => item.locale === course.locale);
+    this.setLink(
+      'alternate',
+      'x-default',
+      fallback ? pathFor(fallback.locale, fallback.slug) : pathFor(course.locale, course.slug),
+    );
+  }
+
+  setCourseNotFoundMetadata(): void {
+    const title = this.locale.locale() === 'ar' ? 'المقرر غير موجود' : 'Course not found';
+    this.title.setTitle(`${title} | ${this.locale.copy().brand}`);
+    this.meta.updateTag({ name: 'robots', content: 'noindex,follow' });
+    this.meta.removeTag('name="description"');
+    this.setLink('canonical', undefined, null);
+    this.setLink('alternate', 'ar', null);
+    this.setLink('alternate', 'en', null);
+    this.setLink('alternate', 'x-default', null);
+  }
+
   private update(): void {
     let route = this.activatedRoute.snapshot;
     while (route.firstChild) route = route.firstChild;
@@ -38,6 +77,7 @@ export class SeoService {
       name: 'robots',
       content: data.indexing === 'index' ? 'index,follow' : 'noindex,follow',
     });
+    this.meta.removeTag('name="description"');
 
     const currentUrl = this.router.url.split('?')[0] ?? `/${this.locale.locale()}`;
     const origin = this.document.location.origin;
@@ -47,11 +87,15 @@ export class SeoService {
     this.setLink('alternate', 'x-default', `${origin}${swapLocale(currentUrl, 'ar')}`);
   }
 
-  private setLink(rel: string, language: string | undefined, href: string): void {
+  private setLink(rel: string, language: string | undefined, href: string | null): void {
     const selector = language
       ? `link[rel="${rel}"][hreflang="${language}"]`
       : `link[rel="${rel}"]:not([hreflang])`;
     let link = this.document.head.querySelector<HTMLLinkElement>(selector);
+    if (href === null) {
+      link?.remove();
+      return;
+    }
     if (!link) {
       link = this.document.createElement('link');
       link.rel = rel;

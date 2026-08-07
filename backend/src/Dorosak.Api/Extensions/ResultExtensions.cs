@@ -24,6 +24,7 @@ public static class ResultExtensions
             ErrorType.Forbidden => StatusCodes.Status403Forbidden,
             ErrorType.BusinessRule => StatusCodes.Status422UnprocessableEntity,
             ErrorType.PreconditionFailed => StatusCodes.Status412PreconditionFailed,
+            ErrorType.PreconditionRequired => StatusCodes.Status428PreconditionRequired,
             ErrorType.RateLimited => StatusCodes.Status429TooManyRequests,
             ErrorType.ServiceUnavailable => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest,
@@ -52,6 +53,10 @@ public static class ResultExtensions
         {
             int seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
             controller.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+        }
+        if (result.Failure.ETag is { } etag)
+        {
+            controller.Response.Headers.ETag = etag;
         }
 
         return new ObjectResult(problem) { StatusCode = status };

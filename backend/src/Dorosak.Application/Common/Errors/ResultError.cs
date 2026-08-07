@@ -24,6 +24,14 @@ public sealed record ResultError(
     public static ResultError PreconditionFailed(string code, string description) =>
         new(code, description, ErrorType.PreconditionFailed);
 
+    public static ResultError PreconditionFailed(string code, string description, string etag) =>
+        new(code, description, ErrorType.PreconditionFailed, RetryAfter: null) with { ETag = etag };
+
+    public static ResultError PreconditionRequired(string code, string description) =>
+        new(code, description, ErrorType.PreconditionRequired);
+
+    public string? ETag { get; init; }
+
     public static ResultError ServiceUnavailable(string code, string description, TimeSpan? retryAfter = null) =>
         new(code, description, ErrorType.ServiceUnavailable, RetryAfter: retryAfter);
 
