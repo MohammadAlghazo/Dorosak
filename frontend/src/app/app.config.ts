@@ -63,7 +63,7 @@ export const appConfig: ApplicationConfig = {
           !request.withCredentials &&
           request.credentials === 'omit' &&
           !request.headers.has('Authorization') &&
-          /^\/api\/v1\/(?:system\/status|courses|categories|pages|faqs)(?:\/|\?|$)/u.test(
+          /^\/api\/v1\/(?:system\/status|catalog\/(?:courses(?:\/[^/?]+)?|categories|tags|featured|popular)|search(?:\/suggestions)?|pages(?:\/[^/?]+)?|faqs)(?:\?|$)/u.test(
             request.url,
           ),
       }),

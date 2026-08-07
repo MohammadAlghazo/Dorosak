@@ -1,0 +1,293 @@
+<section class="catalog-page" aria-labelledby="catalog-title">
+  <header class="catalog-heading">
+    <div>
+      <p class="eyebrow">{{ locale.locale() === 'ar' ? 'الكتالوج العام' : 'Public catalog' }}</p>
+      <h1 id="catalog-title">
+        {{
+          locale.locale() === 'ar'
+            ? 'اختر نتيجة، لا مجرد عنوان.'
+            : 'Choose an outcome, not just a title.'
+        }}
+      </h1>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'استكشف المقررات المنشورة والمتاحة بلغتك.'
+            : 'Explore published courses available in your language.'
+        }}
+      </p>
+    </div>
+    <button
+      #filterTrigger
+      class="mobile-filter-trigger"
+      type="button"
+      [attr.aria-expanded]="filtersOpen()"
+      aria-controls="catalog-filters"
+      (click)="openFilters(filterTrigger)"
+    >
+      {{ locale.locale() === 'ar' ? 'التصفية' : 'Filters' }}
+      @if (store.activeFilterCount()) {
+        <span>{{ store.activeFilterCount() }}</span>
+      }
+    </button>
+  </header>
+
+  @if (mobileFilters() && filtersOpen()) {
+    <button
+      class="filter-backdrop"
+      type="button"
+      [attr.aria-label]="locale.locale() === 'ar' ? 'إغلاق عوامل التصفية' : 'Close filters'"
+      (click)="closeFilters()"
+    ></button>
+  }
+
+  <div class="catalog-layout">
+    <aside
+      id="catalog-filters"
+      class="filter-panel"
+      [class.filter-panel-open]="filtersOpen()"
+      [attr.aria-hidden]="filterPanelHidden() ? 'true' : null"
+      [attr.inert]="filterPanelHidden() ? '' : null"
+      [attr.role]="mobileFilters() ? 'dialog' : null"
+      [attr.aria-modal]="mobileFilters() && filtersOpen() ? 'true' : null"
+      [attr.tabindex]="mobileFilters() ? '-1' : null"
+      aria-labelledby="catalog-filters-title"
+      [cdkTrapFocusAutoCapture]="mobileFilters() && filtersOpen()"
+      [cdkTrapFocus]="mobileFilters() && filtersOpen()"
+      (keydown.escape)="closeFilters()"
+    >
+      <form [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+        <header>
+          <h2 id="catalog-filters-title">
+            {{ locale.locale() === 'ar' ? 'صفّ النتائج' : 'Refine results' }}
+          </h2>
+          <button
+            #closeFilterButton
+            class="filter-close"
+            type="button"
+            [attr.aria-label]="locale.locale() === 'ar' ? 'إغلاق' : 'Close'"
+            (click)="closeFilters()"
+          >
+            ×
+          </button>
+        </header>
+
+        <label for="catalog-category">{{
+          locale.locale() === 'ar' ? 'التصنيف' : 'Category'
+        }}</label>
+        <select id="catalog-category" formControlName="category">
+          <option value="">
+            {{ locale.locale() === 'ar' ? 'كل التصنيفات' : 'All categories' }}
+          </option>
+          @for (category of store.categories(); track category.id) {
+            <option [value]="category.code">{{ category.name }}</option>
+          }
+        </select>
+
+        <label for="catalog-tag">{{ locale.locale() === 'ar' ? 'الوسم' : 'Tag' }}</label>
+        <select id="catalog-tag" formControlName="tag">
+          <option value="">{{ locale.locale() === 'ar' ? 'كل الوسوم' : 'All tags' }}</option>
+          @for (tag of store.tags(); track tag.id) {
+            <option [value]="tag.code">{{ tag.name }}</option>
+          }
+        </select>
+
+        @if (store.taxonomyStatus() === 'error' || store.taxonomyStatus() === 'offline') {
+          <button class="inline-retry" type="button" (click)="store.retryTaxonomy()">
+            {{ locale.locale() === 'ar' ? 'إعادة تحميل التصنيفات' : 'Reload categories and tags' }}
+          </button>
+        }
+
+        <label for="catalog-language">{{
+          locale.locale() === 'ar' ? 'لغة المقرر' : 'Course language'
+        }}</label>
+        <select id="catalog-language" formControlName="language">
+          <option value="">{{ locale.locale() === 'ar' ? 'كل اللغات' : 'All languages' }}</option>
+          <option value="ar">العربية</option>
+          <option value="en">English</option>
+        </select>
+
+        <label for="catalog-level">{{ locale.locale() === 'ar' ? 'المستوى' : 'Level' }}</label>
+        <select id="catalog-level" formControlName="level">
+          <option value="">{{ locale.locale() === 'ar' ? 'كل المستويات' : 'All levels' }}</option>
+          <option value="beginner">{{ locale.locale() === 'ar' ? 'مبتدئ' : 'Beginner' }}</option>
+          <option value="intermediate">
+            {{ locale.locale() === 'ar' ? 'متوسط' : 'Intermediate' }}
+          </option>
+          <option value="advanced">{{ locale.locale() === 'ar' ? 'متقدم' : 'Advanced' }}</option>
+        </select>
+
+        <label for="catalog-price">{{ locale.locale() === 'ar' ? 'السعر' : 'Price' }}</label>
+        <select id="catalog-price" formControlName="price">
+          <option value="">{{ locale.locale() === 'ar' ? 'كل الأسعار' : 'Any price' }}</option>
+          <option value="free">{{ locale.locale() === 'ar' ? 'مجاني' : 'Free' }}</option>
+          <option value="paid">{{ locale.locale() === 'ar' ? 'مدفوع' : 'Paid' }}</option>
+        </select>
+
+        <label for="catalog-duration">{{ locale.locale() === 'ar' ? 'المدة' : 'Duration' }}</label>
+        <select id="catalog-duration" formControlName="duration">
+          <option value="">{{ locale.locale() === 'ar' ? 'أي مدة' : 'Any duration' }}</option>
+          <option value="short">{{ locale.locale() === 'ar' ? 'قصير' : 'Short' }}</option>
+          <option value="medium">{{ locale.locale() === 'ar' ? 'متوسط' : 'Medium' }}</option>
+          <option value="long">{{ locale.locale() === 'ar' ? 'طويل' : 'Long' }}</option>
+        </select>
+
+        <label for="catalog-instructor">{{
+          locale.locale() === 'ar' ? 'المدرس' : 'Instructor'
+        }}</label>
+        <input id="catalog-instructor" formControlName="instructor" maxlength="100" />
+
+        <label for="catalog-sort">{{ locale.locale() === 'ar' ? 'الترتيب' : 'Sort by' }}</label>
+        <select id="catalog-sort" formControlName="sort">
+          <option value="newest">{{ locale.locale() === 'ar' ? 'الأحدث' : 'Newest' }}</option>
+          <option value="title">{{ locale.locale() === 'ar' ? 'العنوان' : 'Title' }}</option>
+          <option value="popular">
+            {{ locale.locale() === 'ar' ? 'الأكثر رواجاً' : 'Popular' }}
+          </option>
+        </select>
+
+        <div class="filter-actions">
+          <button class="apply-filters" type="submit">
+            {{ locale.locale() === 'ar' ? 'تطبيق' : 'Apply' }}
+          </button>
+          <button type="button" (click)="clearFilters()">
+            {{ locale.locale() === 'ar' ? 'مسح' : 'Clear' }}
+          </button>
+        </div>
+      </form>
+    </aside>
+
+    <div
+      class="catalog-results"
+      aria-live="polite"
+      [attr.aria-busy]="store.state().status === 'loading' || store.state().status === 'refreshing'"
+    >
+      @if (store.state().status === 'refreshing') {
+        <p class="refresh-note" role="status">
+          {{ locale.locale() === 'ar' ? 'نحدّث النتائج…' : 'Refreshing results…' }}
+        </p>
+      }
+
+      @if (store.state().status === 'loading' || store.state().status === 'idle') {
+        <div class="course-skeletons" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="visually-hidden">{{
+          locale.locale() === 'ar' ? 'جار تحميل المقررات' : 'Loading courses'
+        }}</span>
+      } @else if (store.state().status === 'offline') {
+        <div class="catalog-message">
+          <h2>{{ locale.locale() === 'ar' ? 'أنت غير متصل' : 'You are offline' }}</h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'اتصل بالشبكة ثم أعد المحاولة.'
+                : 'Reconnect, then try again.'
+            }}
+          </p>
+          <button type="button" (click)="store.retry()">
+            {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Try again' }}
+          </button>
+        </div>
+      } @else if (store.state().status === 'error') {
+        <div class="catalog-message" role="alert">
+          <h2>
+            {{
+              locale.locale() === 'ar' ? 'تعذر تحميل الكتالوج' : 'The catalog could not be loaded'
+            }}
+          </h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'لم تتغير عوامل التصفية. حاول مرة أخرى.'
+                : 'Your filters are unchanged. Please retry.'
+            }}
+          </p>
+          <button type="button" (click)="store.retry()">
+            {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Retry' }}
+          </button>
+        </div>
+      } @else if (store.state().status === 'empty') {
+        <div class="catalog-message empty">
+          <h2>
+            {{
+              locale.locale() === 'ar'
+                ? 'لا توجد مقررات منشورة هنا بعد'
+                : 'No published courses here yet'
+            }}
+          </h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'جرّب إزالة بعض عوامل التصفية.'
+                : 'Try removing some filters.'
+            }}
+          </p>
+          @if (store.activeFilterCount()) {
+            <button type="button" (click)="clearFilters()">
+              {{ locale.locale() === 'ar' ? 'مسح التصفية' : 'Clear filters' }}
+            </button>
+          }
+        </div>
+      } @else {
+        <ol class="course-list">
+          @for (course of store.state().items; track course.releaseId; let index = $index) {
+            <li>
+              <span class="course-number">{{ courseNumber(index) }}</span>
+              <article>
+                <p>
+                  {{ levelLabel(course.level) }}
+                  <span aria-hidden="true">/</span>
+                  {{ durationLabel(course.durationMinutes) }}
+                </p>
+                <h2>
+                  <a [routerLink]="['/', locale.locale(), 'courses', course.slug]">{{
+                    course.title
+                  }}</a>
+                </h2>
+                <p>{{ course.summary }}</p>
+                <div class="course-meta">
+                  @for (instructor of course.instructors; track instructor.id) {
+                    <span>{{ instructor.displayName }}</span>
+                  }
+                  @if (course.price) {
+                    <span>{{ priceLabel(course.price.type) }}</span>
+                  }
+                </div>
+              </article>
+              <a
+                class="course-arrow"
+                [routerLink]="['/', locale.locale(), 'courses', course.slug]"
+                [attr.aria-label]="course.title"
+                >↗</a
+              >
+            </li>
+          }
+        </ol>
+
+        @if (store.state().hasMore) {
+          <div class="load-more">
+            <button type="button" [disabled]="store.loadingMore()" (click)="store.loadMore()">
+              {{
+                store.loadingMore()
+                  ? locale.locale() === 'ar'
+                    ? 'جار التحميل…'
+                    : 'Loading…'
+                  : locale.locale() === 'ar'
+                    ? 'تحميل المزيد'
+                    : 'Load more'
+              }}
+            </button>
+            @if (store.loadMoreFailed()) {
+              <p role="alert">
+                {{
+                  locale.locale() === 'ar'
+                    ? 'تعذر تحميل نتائج إضافية.'
+                    : 'More results could not be loaded.'
+                }}
+              </p>
+            }
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>

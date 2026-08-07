@@ -1,0 +1,194 @@
+<section class="search-page" aria-labelledby="search-title">
+  <header>
+    <p class="eyebrow">{{ locale.locale() === 'ar' ? 'بحث عام' : 'Public search' }}</p>
+    <h1 id="search-title">
+      {{ locale.locale() === 'ar' ? 'ما الذي تريد إتقانه؟' : 'What do you want to master?' }}
+    </h1>
+  </header>
+
+  <form class="search-form" role="search" (ngSubmit)="submit()">
+    <label for="course-search">{{
+      locale.locale() === 'ar' ? 'ابحث في المقررات المنشورة' : 'Search published courses'
+    }}</label>
+    <div>
+      <input
+        id="course-search"
+        type="search"
+        [formControl]="query"
+        maxlength="200"
+        autocomplete="off"
+        aria-describedby="search-help"
+        [attr.aria-controls]="store.suggestions().items.length ? 'search-suggestions' : null"
+        [attr.aria-expanded]="store.suggestions().items.length > 0"
+      />
+      <button type="submit">{{ locale.locale() === 'ar' ? 'بحث' : 'Search' }}</button>
+    </div>
+    <p id="search-help">
+      {{
+        locale.locale() === 'ar'
+          ? 'تظهر الاقتراحات بعد حرفين.'
+          : 'Suggestions appear after two characters.'
+      }}
+    </p>
+  </form>
+
+  <div class="suggestion-region" aria-live="polite">
+    @if (store.suggestions().status === 'loading') {
+      <p role="status">
+        {{ locale.locale() === 'ar' ? 'نبحث عن اقتراحات…' : 'Finding suggestions…' }}
+      </p>
+    } @else if (
+      store.suggestions().status === 'error' || store.suggestions().status === 'offline'
+    ) {
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'الاقتراحات غير متاحة الآن.'
+            : 'Suggestions are unavailable right now.'
+        }}
+      </p>
+    } @else if (store.suggestions().items.length) {
+      <ul id="search-suggestions" class="suggestions">
+        @for (
+          suggestion of store.suggestions().items;
+          track suggestion.slug ?? suggestionText(suggestion)
+        ) {
+          <li>
+            @if (suggestion.slug) {
+              <a [routerLink]="['/', locale.locale(), 'courses', suggestion.slug]">
+                @for (segment of suggestion.segments; track trackSegment($index, segment)) {
+                  @if (segment.matched) {
+                    <mark>{{ segment.text }}</mark>
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
+                }
+              </a>
+            } @else {
+              <button type="button" (click)="useSuggestion(suggestion)">
+                @for (segment of suggestion.segments; track trackSegment($index, segment)) {
+                  @if (segment.matched) {
+                    <mark>{{ segment.text }}</mark>
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
+                }
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <div
+    class="search-results"
+    aria-live="polite"
+    [attr.aria-busy]="
+      store.results().status === 'loading' || store.results().status === 'refreshing'
+    "
+  >
+    @if (store.results().correction; as correction) {
+      <p class="correction">
+        {{ locale.locale() === 'ar' ? 'هل تقصد' : 'Did you mean' }}
+        <button type="button" (click)="useCorrection(correction)">{{ correction }}</button>؟
+      </p>
+    }
+
+    @if (store.results().status === 'refreshing') {
+      <p class="result-status" role="status">
+        {{ locale.locale() === 'ar' ? 'نحدّث النتائج…' : 'Refreshing results…' }}
+      </p>
+    }
+
+    @if (store.results().status === 'loading' || store.results().status === 'idle') {
+      <div class="result-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span class="visually-hidden">{{
+        locale.locale() === 'ar' ? 'جار تحميل نتائج البحث' : 'Loading search results'
+      }}</span>
+    } @else if (store.results().status === 'offline') {
+      <div class="search-message">
+        <h2>
+          {{
+            locale.locale() === 'ar' ? 'البحث غير متاح دون اتصال' : 'Search is unavailable offline'
+          }}
+        </h2>
+        <button type="button" (click)="store.retry()">
+          {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Try again' }}
+        </button>
+      </div>
+    } @else if (store.results().status === 'error') {
+      <div class="search-message" role="alert">
+        <h2>
+          {{ locale.locale() === 'ar' ? 'تعذر إكمال البحث' : 'Search could not be completed' }}
+        </h2>
+        <p>
+          {{
+            locale.locale() === 'ar' ? 'لم يتم حفظ نص البحث.' : 'Your search text was not stored.'
+          }}
+        </p>
+        <button type="button" (click)="store.retry()">
+          {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Retry' }}
+        </button>
+      </div>
+    } @else if (store.results().status === 'empty') {
+      <div class="search-message empty">
+        @if (store.query()) {
+          <h2>{{ locale.locale() === 'ar' ? 'لا توجد نتائج' : 'No results found' }}</h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'جرّب كلمات أقل أو تهجئة مختلفة.'
+                : 'Try fewer words or a different spelling.'
+            }}
+          </p>
+        } @else {
+          <h2>
+            {{
+              locale.locale() === 'ar' ? 'لا توجد مقررات منشورة بعد' : 'No published courses yet'
+            }}
+          </h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'ستظهر المقررات هنا بعد إصدارها.'
+                : 'Courses will appear here after they are released.'
+            }}
+          </p>
+        }
+      </div>
+    } @else {
+      <p class="result-count">{{ locale.locale() === 'ar' ? 'نتائج البحث' : 'Search results' }}</p>
+      <ol class="result-list">
+        @for (result of store.results().items; track result.releaseId) {
+          <li>
+            <p>
+              {{ result.level }} <span aria-hidden="true">/</span>
+              {{ result.language === 'ar' ? 'العربية' : 'English' }}
+            </p>
+            <h2>
+              <a [routerLink]="['/', locale.locale(), 'courses', result.slug]">
+                @for (segment of result.titleHighlight; track trackSegment($index, segment)) {
+                  @if (segment.matched) {
+                    <mark>{{ segment.text }}</mark>
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
+                }
+              </a>
+            </h2>
+            <p>
+              @for (segment of result.summaryHighlight; track trackSegment($index, segment)) {
+                @if (segment.matched) {
+                  <mark>{{ segment.text }}</mark>
+                } @else {
+                  <span>{{ segment.text }}</span>
+                }
+              }
+            </p>
+          </li>
+        }
+      </ol>
+    }
+  </div>
+</section>

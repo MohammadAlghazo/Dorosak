@@ -10,10 +10,10 @@ import {
   of,
   startWith,
   Subject,
-  Subscription,
   switchMap,
   tap,
 } from 'rxjs';
+import type { Subscription } from 'rxjs';
 import { ApiProblem } from '../../core/api/api-problem';
 import { DiscoveryApiClient } from '../../core/api/discovery-api.client';
 import type {
@@ -117,19 +117,17 @@ export class CatalogPageStore {
         }),
         switchMap(([nextFilters]) => {
           if (!this.connectivity.isOnline()) return of(failedCatalogState('offline'));
-          return this.api
-            .getCourses({ ...nextFilters, cursor: null, limit: 24 })
-            .pipe(
-              map((page): CatalogPageState => ({
-                status: page.items.length === 0 ? 'empty' : 'success',
-                items: page.items,
-                nextCursor: page.nextCursor,
-                hasMore: page.hasMore,
-                errorCode: null,
-                traceId: null,
-              })),
-              catchError((error: unknown) => of(failedCatalogState(errorStatus(error), error))),
-            );
+          return this.api.getCourses({ ...nextFilters, cursor: null, limit: 24 }).pipe(
+            map((page): CatalogPageState => ({
+              status: page.items.length === 0 ? 'empty' : 'success',
+              items: page.items,
+              nextCursor: page.nextCursor,
+              hasMore: page.hasMore,
+              errorCode: null,
+              traceId: null,
+            })),
+            catchError((error: unknown) => of(failedCatalogState(errorStatus(error), error))),
+          );
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -142,7 +140,10 @@ export class CatalogPageStore {
         startWith(0),
         tap(() => {
           const current = this.taxonomyState();
-          this.taxonomyState.set({ ...current, status: current.categories.length ? 'refreshing' : 'loading' });
+          this.taxonomyState.set({
+            ...current,
+            status: current.categories.length ? 'refreshing' : 'loading',
+          });
         }),
         switchMap(() => {
           if (!this.connectivity.isOnline()) {
@@ -154,9 +155,7 @@ export class CatalogPageStore {
               categories,
               tags,
             })),
-            catchError(() =>
-              of<TaxonomyState>({ status: 'error', categories: [], tags: [] }),
-            ),
+            catchError(() => of<TaxonomyState>({ status: 'error', categories: [], tags: [] })),
           );
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -219,10 +218,7 @@ export class CatalogPageStore {
   }
 }
 
-const failedCatalogState = (
-  status: 'error' | 'offline',
-  error?: unknown,
-): CatalogPageState => ({
+const failedCatalogState = (status: 'error' | 'offline', error?: unknown): CatalogPageState => ({
   ...initialCatalogState,
   status,
   errorCode: error instanceof ApiProblem ? error.code : null,

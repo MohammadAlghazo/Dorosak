@@ -1,0 +1,164 @@
+:host {
+  display: block;
+}
+.search-page {
+  max-inline-size: 64rem;
+  min-block-size: 72dvh;
+  margin-inline: auto;
+  padding: clamp(var(--space-7), 7vw, var(--space-12)) var(--page-gutter);
+}
+.eyebrow {
+  color: var(--color-brand);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.search-page header h1 {
+  max-inline-size: 14ch;
+  margin-block: var(--space-3) var(--space-7);
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  line-height: 1;
+}
+.search-form label {
+  display: block;
+  margin-block-end: var(--space-2);
+  font-weight: 650;
+}
+.search-form > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.search-form input {
+  min-block-size: 62px;
+  padding-inline: var(--space-4);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-inline-end: 0;
+  font-size: 1.15rem;
+}
+.search-form button {
+  min-inline-size: 7rem;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+}
+.search-form > p,
+.suggestion-region > p,
+.result-status,
+.result-count {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.suggestion-region {
+  min-block-size: 2rem;
+}
+.suggestions {
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-block-start: 0;
+  list-style: none;
+}
+.suggestions li + li {
+  border-block-start: 1px solid var(--color-border);
+}
+.suggestions a,
+.suggestions button {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  text-align: start;
+  text-decoration: none;
+}
+mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--color-brand) 22%, transparent);
+}
+.search-results {
+  margin-block-start: var(--space-8);
+}
+.correction {
+  padding: var(--space-4);
+  border-inline-start: 3px solid var(--color-brand);
+  background: var(--color-surface);
+}
+.correction button {
+  padding: 0;
+  color: var(--color-link);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+}
+.result-list {
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--color-border);
+  list-style: none;
+}
+.result-list li {
+  padding-block: var(--space-6);
+  border-block-end: 1px solid var(--color-border);
+}
+.result-list li > p:first-child {
+  color: var(--color-brand);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.result-list h2 {
+  margin-block: var(--space-2);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+.result-list h2 a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+.result-list li > p:last-child {
+  max-inline-size: 48rem;
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+.search-message {
+  padding: clamp(var(--space-6), 8vw, var(--space-10));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+.search-message p {
+  color: var(--color-muted);
+}
+.search-message button {
+  min-block-size: 44px;
+  padding-inline: var(--space-4);
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 0;
+  border-radius: var(--radius-2);
+}
+.result-skeleton {
+  display: grid;
+}
+.result-skeleton i {
+  block-size: 9rem;
+  border-block-end: 1px solid var(--color-border);
+  background: linear-gradient(100deg, transparent, var(--color-subtle), transparent);
+}
+@media (max-width: 520px) {
+  .search-form > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+  .search-form input {
+    border-inline-end: 1px solid var(--color-border);
+  }
+  .search-form button {
+    min-block-size: 50px;
+  }
+}

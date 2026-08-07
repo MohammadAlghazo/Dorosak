@@ -62,11 +62,10 @@ export class SearchPageStore {
   readonly suggestions = this.suggestionsState.asReadonly();
 
   constructor() {
-    const queries = this.route.queryParamMap
-      .pipe(
-        map((params) => safeQuery(params.get('q'))),
-        distinctUntilChanged(),
-      );
+    const queries = this.route.queryParamMap.pipe(
+      map((params) => safeQuery(params.get('q'))),
+      distinctUntilChanged(),
+    );
     combineLatest([queries, this.reloadRequests.pipe(startWith(undefined))])
       .pipe(
         map(([query]) => query),
@@ -92,15 +91,13 @@ export class SearchPageStore {
               limit: 20,
             })
             .pipe(
-              map(
-                (page): SearchResultsState => ({
-                  status: page.items.length === 0 ? 'empty' : 'success',
-                  items: page.items,
-                  correction: page.correction,
-                  errorCode: null,
-                  traceId: null,
-                }),
-              ),
+              map((page): SearchResultsState => ({
+                status: page.items.length === 0 ? 'empty' : 'success',
+                items: page.items,
+                correction: page.correction,
+                errorCode: null,
+                traceId: null,
+              })),
               catchError((error: unknown) => of(searchFailure(errorStatus(error), error))),
             );
         }),
@@ -127,12 +124,10 @@ export class SearchPageStore {
           }
           this.suggestionsState.set({ status: 'loading', items: [] });
           return this.api.getSuggestions(query).pipe(
-            map(
-              (items): SuggestionsState => ({
-                status: items.length > 0 ? 'success' : 'empty',
-                items: items.slice(0, 8),
-              }),
-            ),
+            map((items): SuggestionsState => ({
+              status: items.length > 0 ? 'success' : 'empty',
+              items: items.slice(0, 8),
+            })),
             catchError((error: unknown) =>
               of<SuggestionsState>({ status: errorStatus(error), items: [] }),
             ),
@@ -178,10 +173,7 @@ export const safeQuery = (value: string | null): string => {
   return normalized.slice(0, 200);
 };
 
-const searchFailure = (
-  status: 'error' | 'offline',
-  error?: unknown,
-): SearchResultsState => ({
+const searchFailure = (status: 'error' | 'offline', error?: unknown): SearchResultsState => ({
   ...initialResults,
   status,
   errorCode: error instanceof ApiProblem ? error.code : null,

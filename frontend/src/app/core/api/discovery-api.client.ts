@@ -119,7 +119,7 @@ const publicReadContext = (deadlineMs = 15_000): HttpContext =>
 
 const discoveryParams = (request: CatalogCoursesRequest | SearchRequest): HttpParams => {
   let params = new HttpParams().set('limit', clampLimit(request.limit)).set('sort', request.sort);
-  const filters: ReadonlyArray<readonly [string, string | null]> = [
+  const filters: readonly (readonly [string, string | null])[] = [
     ['category', request.category],
     ['tag', request.tag],
     ['language', request.language],

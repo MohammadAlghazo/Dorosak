@@ -47,7 +47,9 @@ export class FeaturedCoursesStore {
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((state) => this.featuredState.set(state));
+      .subscribe((state) => {
+        this.featuredState.set(state);
+      });
   }
 
   retry(): void {

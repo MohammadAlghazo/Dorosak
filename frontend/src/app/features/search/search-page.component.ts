@@ -1,100 +1,54 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, startWith } from 'rxjs';
+import { RouterLink } from '@angular/router';
+import type { HighlightSegment, PublicSearchSuggestion } from '../../core/api/discovery-api.types';
 import { LocaleService } from '../../core/i18n/locale.service';
+import { SearchPageStore } from './search-page.store';
 
 @Component({
   selector: 'drs-search-page',
-  imports: [ReactiveFormsModule],
-  template: `
-    <section class="search-page">
-      <p>{{ locale.locale() === 'ar' ? 'بحث عام' : 'Public search' }}</p>
-      <h1>
-        {{ locale.locale() === 'ar' ? 'ما الذي تريد إتقانه؟' : 'What do you want to master?' }}
-      </h1>
-      <label for="course-search">{{
-        locale.locale() === 'ar' ? 'اكتب حرفين على الأقل' : 'Enter at least two characters'
-      }}</label>
-      <input id="course-search" type="search" [formControl]="query" autocomplete="off" />
-      <div aria-live="polite">
-        @if (term().length < 2) {
-          <p class="hint">
-            {{
-              locale.locale() === 'ar'
-                ? 'ابدأ بكلمة واضحة مثل ويب أو بيانات.'
-                : 'Start with a clear term such as web or data.'
-            }}
-          </p>
-        } @else if (results().length === 0) {
-          <p>
-            {{ locale.locale() === 'ar' ? 'لا توجد نتائج تمهيدية.' : 'No foundation results.' }}
-          </p>
-        } @else {
-          <ul>
-            @for (result of results(); track result) {
-              <li>{{ result }}</li>
-            }
-          </ul>
-        }
-      </div>
-    </section>
-  `,
-  styles: `
-    .search-page {
-      max-inline-size: 52rem;
-      min-block-size: 70dvh;
-      margin-inline: auto;
-      padding: var(--space-12) var(--page-gutter);
-    }
-    .search-page > p {
-      color: var(--color-brand);
-    }
-    .search-page h1 {
-      font-size: clamp(2.5rem, 6vw, 5rem);
-    }
-    .search-page label {
-      display: block;
-      margin-block: var(--space-8) var(--space-2);
-      font-weight: 650;
-    }
-    .search-page input {
-      inline-size: 100%;
-      min-block-size: 60px;
-      padding-inline: var(--space-4);
-      color: var(--color-text);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      font-size: 1.2rem;
-    }
-    .hint {
-      color: var(--color-muted);
-    }
-    .search-page ul {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .search-page li {
-      padding-block: var(--space-4);
-      border-block-end: 1px solid var(--color-border);
-    }
-  `,
+  imports: [ReactiveFormsModule, RouterLink],
+  providers: [SearchPageStore],
+  templateUrl: './search-page.component.html',
+  styleUrl: './search-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SearchPageComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly store = inject(SearchPageStore);
   protected readonly query = new FormControl('', { nonNullable: true });
-  protected readonly term = toSignal(
-    this.query.valueChanges.pipe(startWith(''), debounceTime(250), distinctUntilChanged()),
-    { initialValue: '' },
-  );
-  protected readonly results = computed(() => {
-    const term = this.term().trim().toLocaleLowerCase();
-    return term.length < 2
-      ? []
-      : ['Web systems', 'Data reasoning', 'Practical communication']
-          .filter((item) => item.toLocaleLowerCase().includes(term))
-          .slice(0, 8);
-  });
+
+  constructor() {
+    this.query.valueChanges.pipe(takeUntilDestroyed()).subscribe((query) => {
+      this.store.updateDraftQuery(query);
+    });
+    effect(() => {
+      const query = this.store.query();
+      if (query !== this.query.value) this.query.setValue(query, { emitEvent: false });
+    });
+  }
+
+  protected submit(): void {
+    this.store.submitQuery(this.query.value);
+  }
+
+  protected useCorrection(correction: string): void {
+    this.query.setValue(correction, { emitEvent: false });
+    this.store.useCorrection(correction);
+  }
+
+  protected useSuggestion(suggestion: PublicSearchSuggestion): void {
+    const query = this.suggestionText(suggestion);
+    this.query.setValue(query, { emitEvent: false });
+    this.store.submitQuery(query);
+  }
+
+  protected suggestionText(suggestion: PublicSearchSuggestion): string {
+    return suggestion.segments.map((segment) => segment.text).join('');
+  }
+
+  protected trackSegment(index: number, segment: HighlightSegment): string {
+    return `${String(index)}:${segment.matched ? '1' : '0'}:${segment.text}`;
+  }
 }

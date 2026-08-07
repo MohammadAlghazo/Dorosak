@@ -1,0 +1,151 @@
+<section
+  class="course-detail"
+  aria-live="polite"
+  [attr.aria-busy]="store.state().status === 'loading'"
+>
+  <a class="back-link" [routerLink]="['/', locale.locale(), 'courses']"
+    >← {{ locale.copy().browseCourses }}</a
+  >
+
+  @if (store.state().status === 'loading' || store.state().status === 'idle') {
+    <div class="detail-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
+    <span class="visually-hidden">{{
+      locale.locale() === 'ar' ? 'جار تحميل المقرر' : 'Loading course'
+    }}</span>
+  } @else if (store.state().status === 'notFound' || store.state().status === 'empty') {
+    <div class="detail-message not-found">
+      <span>404</span>
+      <h1>
+        {{
+          locale.locale() === 'ar'
+            ? 'هذا المقرر غير منشور أو غير موجود.'
+            : 'This course is not published or does not exist.'
+        }}
+      </h1>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'لا نعرض المسودات في الكتالوج العام.'
+            : 'Drafts are never shown in the public catalog.'
+        }}
+      </p>
+      <a [routerLink]="['/', locale.locale(), 'courses']">{{ locale.copy().browseCourses }}</a>
+    </div>
+  } @else if (store.state().status === 'offline') {
+    <div class="detail-message">
+      <h1>
+        {{
+          locale.locale() === 'ar'
+            ? 'تعذر فتح المقرر دون اتصال'
+            : 'This course is unavailable offline'
+        }}
+      </h1>
+      <p>
+        {{
+          locale.locale() === 'ar' ? 'اتصل بالشبكة ثم أعد المحاولة.' : 'Reconnect, then try again.'
+        }}
+      </p>
+      <button type="button" (click)="store.retry()">
+        {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Try again' }}
+      </button>
+    </div>
+  } @else if (store.state().status === 'error') {
+    <div class="detail-message" role="alert">
+      <h1>
+        {{
+          locale.locale() === 'ar'
+            ? 'تعذر تحميل تفاصيل المقرر'
+            : 'Course details could not be loaded'
+        }}
+      </h1>
+      <p>
+        {{ locale.locale() === 'ar' ? 'حاول مرة أخرى بعد قليل.' : 'Please try again shortly.' }}
+      </p>
+      <button type="button" (click)="store.retry()">
+        {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Retry' }}
+      </button>
+    </div>
+  } @else if (store.state().course; as course) {
+    <article>
+      <p class="eyebrow">
+        {{
+          course.categories[0]?.name ??
+            (locale.locale() === 'ar' ? 'مقرر منشور' : 'Published course')
+        }}
+      </p>
+      <h1>{{ course.title }}</h1>
+      <p class="course-summary">{{ course.summary }}</p>
+
+      <dl class="course-facts">
+        <div>
+          <dt>{{ locale.locale() === 'ar' ? 'المستوى' : 'Level' }}</dt>
+          <dd>{{ course.level }}</dd>
+        </div>
+        <div>
+          <dt>{{ locale.locale() === 'ar' ? 'المدة' : 'Duration' }}</dt>
+          <dd>{{ durationLabel(course.durationMinutes) }}</dd>
+        </div>
+        <div>
+          <dt>{{ locale.locale() === 'ar' ? 'السعر' : 'Price' }}</dt>
+          <dd>{{ priceLabel(course.price) }}</dd>
+        </div>
+        <div>
+          <dt>{{ locale.locale() === 'ar' ? 'لغة المقرر' : 'Course language' }}</dt>
+          <dd>{{ course.language === 'ar' ? 'العربية' : 'English' }}</dd>
+        </div>
+      </dl>
+
+      <div class="course-body">
+        <section aria-labelledby="about-course">
+          <p class="section-number">01</p>
+          <h2 id="about-course">
+            {{ locale.locale() === 'ar' ? 'عن هذا المقرر' : 'About this course' }}
+          </h2>
+          <p>{{ course.description }}</p>
+        </section>
+
+        @if (course.learningOutcomes.length) {
+          <section aria-labelledby="course-outcomes">
+            <p class="section-number">02</p>
+            <h2 id="course-outcomes">
+              {{ locale.locale() === 'ar' ? 'ما الذي ستنجزه' : 'What you will accomplish' }}
+            </h2>
+            <ul>
+              @for (outcome of course.learningOutcomes; track outcome) {
+                <li>{{ outcome }}</li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (course.instructors.length) {
+          <section aria-labelledby="course-instructors">
+            <p class="section-number">03</p>
+            <h2 id="course-instructors">
+              {{ locale.locale() === 'ar' ? 'المدرسون' : 'Instructors' }}
+            </h2>
+            <ul class="instructor-list">
+              @for (instructor of course.instructors; track instructor.id) {
+                <li>{{ instructor.displayName }}</li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
+
+      @if (course.localizations.length > 1) {
+        <nav class="course-languages" aria-label="Course languages">
+          <span>{{ locale.locale() === 'ar' ? 'لغة الصفحة:' : 'Page language:' }}</span>
+          @for (localization of course.localizations; track localization.locale) {
+            <a
+              [routerLink]="['/', localization.locale, 'courses', localization.slug]"
+              [attr.hreflang]="localization.locale"
+            >
+              {{ localization.locale === 'ar' ? 'العربية' : 'English' }}
+            </a>
+          }
+        </nav>
+      }
+    </article>
+  }
+</section>

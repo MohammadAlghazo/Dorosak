@@ -1,13 +1,7 @@
 import type { Locale } from '../i18n/locale';
 
 export type PublicLoadStatus =
-  | 'idle'
-  | 'loading'
-  | 'refreshing'
-  | 'success'
-  | 'empty'
-  | 'error'
-  | 'offline';
+  'idle' | 'loading' | 'refreshing' | 'success' | 'empty' | 'error' | 'offline';
 
 export const catalogSorts = ['newest', 'title', 'popular'] as const;
 export type CatalogSort = (typeof catalogSorts)[number];

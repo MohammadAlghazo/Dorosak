@@ -60,23 +60,61 @@
       locale.locale() === 'ar' ? 'عرض الكل' : 'View all'
     }}</a>
   </header>
-  <ol class="pathway-list">
-    @for (pathway of pathways(); track pathway.id) {
-      <li>
-        <span class="pathway-number">{{ pathway.number }}</span>
-        <div>
-          <h3>{{ pathway.title }}</h3>
-          <p>{{ pathway.description }}</p>
-        </div>
-        <span class="pathway-level">{{ pathway.level }}</span>
-        <a
-          [routerLink]="['/', locale.locale(), 'courses', pathway.id]"
-          [attr.aria-label]="pathway.title"
-          >↗</a
-        >
-      </li>
+  <div
+    aria-live="polite"
+    [attr.aria-busy]="
+      featured.state().status === 'loading' || featured.state().status === 'refreshing'
+    "
+  >
+    @if (featured.state().status === 'loading' || featured.state().status === 'idle') {
+      <div class="pathway-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span class="visually-hidden">{{
+        locale.locale() === 'ar' ? 'جار تحميل المقررات المميزة' : 'Loading featured courses'
+      }}</span>
+    } @else if (featured.state().status === 'empty') {
+      <div class="pathway-empty">
+        <h3>
+          {{
+            locale.locale() === 'ar' ? 'المسارات المنشورة قادمة' : 'Published pathways are coming'
+          }}
+        </h3>
+        <p>
+          {{
+            locale.locale() === 'ar'
+              ? 'ستظهر هنا بعد اكتمال أول إصدار.'
+              : 'They will appear here after the first release is ready.'
+          }}
+        </p>
+      </div>
+    } @else if (featured.state().status === 'offline' || featured.state().status === 'error') {
+      <div class="pathway-empty" role="alert">
+        <h3>
+          {{ locale.locale() === 'ar' ? 'تعذر تحميل المسارات' : 'Pathways could not be loaded' }}
+        </h3>
+        <button type="button" (click)="featured.retry()">
+          {{ locale.locale() === 'ar' ? 'إعادة المحاولة' : 'Retry' }}
+        </button>
+      </div>
+    } @else {
+      <ol class="pathway-list">
+        @for (pathway of featured.state().items; track pathway.releaseId; let index = $index) {
+          <li>
+            <span class="pathway-number">0{{ index + 1 }}</span>
+            <div>
+              <h3>{{ pathway.title }}</h3>
+              <p>{{ pathway.summary }}</p>
+            </div>
+            <span class="pathway-level">{{ pathway.level }}</span>
+            <a
+              [routerLink]="['/', locale.locale(), 'courses', pathway.slug]"
+              [attr.aria-label]="pathway.title"
+              >↗</a
+            >
+          </li>
+        }
+      </ol>
     }
-  </ol>
+  </div>
 </section>
 
 <section class="learning-proof" aria-labelledby="proof-title">

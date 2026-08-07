@@ -113,6 +113,12 @@ public sealed class Course
         UpdatedAt = now;
     }
 
+    public void ChangeDefaultLocale(string locale, DateTimeOffset now)
+    {
+        DefaultLocale = NormalizeLocale(locale);
+        UpdatedAt = now;
+    }
+
     private void EnsureStatus(CourseStatus expected)
     {
         if (Status != expected)

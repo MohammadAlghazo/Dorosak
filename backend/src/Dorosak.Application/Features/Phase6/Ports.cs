@@ -123,7 +123,7 @@ public enum CourseAccess
     Owner,
 }
 
-public interface IPhase6AuthorizedRequest
+public interface IPhase6AuthorizedRequest : Common.Authorization.IAuthorizedRequest
 {
     Guid UserId { get; }
 

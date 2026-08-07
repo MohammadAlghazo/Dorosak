@@ -27,6 +27,24 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(AssemblyReference.Assembly, includeInternalTypes: true);
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.ArchiveCourseCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.ArchiveCourseCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCurriculumQuery>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCurriculumQuery>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCurriculumCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.UpdateCurriculumCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.AddCollaboratorCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.AddCollaboratorCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.RemoveCollaboratorCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.RemoveCollaboratorCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.RequestPublicationCommand>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.RequestPublicationCommand>));
+        services.AddScoped(typeof(Common.Authorization.IRequestAuthorizer<Features.Phase6.GetPublicationStatusQuery>),
+            typeof(Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetPublicationStatusQuery>));
         services.AddAutoMapper(
             configuration => configuration.LicenseKey = autoMapperLicenseKey,
             AssemblyReference.Assembly);

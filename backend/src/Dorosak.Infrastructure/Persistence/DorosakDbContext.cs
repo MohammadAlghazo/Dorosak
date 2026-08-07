@@ -1,5 +1,7 @@
 using Dorosak.Application.Common.Persistence;
 using Dorosak.Domain.Identity;
+using Dorosak.Domain.Authoring;
+using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Operations;
 using Dorosak.Domain.Profiles;
 using Dorosak.Infrastructure.Identity;
@@ -40,6 +42,44 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<MfaRecoveryCode> MfaRecoveryCodes => Set<MfaRecoveryCode>();
 
     internal DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+
+    internal DbSet<TeacherApplication> TeacherApplications => Set<TeacherApplication>();
+
+    internal DbSet<TeacherProfile> TeacherProfiles => Set<TeacherProfile>();
+
+    internal DbSet<Course> Courses => Set<Course>();
+
+    internal DbSet<CourseLocalization> CourseLocalizations => Set<CourseLocalization>();
+
+    internal DbSet<CourseSlug> CourseSlugs => Set<CourseSlug>();
+
+    internal DbSet<CourseInstructor> CourseInstructors => Set<CourseInstructor>();
+
+    internal DbSet<Category> Categories => Set<Category>();
+
+    internal DbSet<CategoryLocalization> CategoryLocalizations => Set<CategoryLocalization>();
+
+    internal DbSet<Tag> Tags => Set<Tag>();
+
+    internal DbSet<TagLocalization> TagLocalizations => Set<TagLocalization>();
+
+    internal DbSet<CourseCategory> CourseCategories => Set<CourseCategory>();
+
+    internal DbSet<CourseTag> CourseTags => Set<CourseTag>();
+
+    internal DbSet<CourseDraft> CourseDrafts => Set<CourseDraft>();
+
+    internal DbSet<CourseSection> CourseSections => Set<CourseSection>();
+
+    internal DbSet<SectionRevision> SectionRevisions => Set<SectionRevision>();
+
+    internal DbSet<CourseLesson> CourseLessons => Set<CourseLesson>();
+
+    internal DbSet<LessonRevision> LessonRevisions => Set<LessonRevision>();
+
+    internal DbSet<PublicationReview> PublicationReviews => Set<PublicationReview>();
+
+    internal DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

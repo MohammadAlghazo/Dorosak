@@ -52,7 +52,9 @@ export const sameCatalogFilters = (left: CatalogFilters, right: CatalogFilters):
 
 const safeToken = (value: string | null): string | null => {
   const normalized = value?.trim() ?? '';
-  return normalized.length > 0 && normalized.length <= 100 && !/[\u0000-\u001f\u007f]/u.test(normalized)
+  return normalized.length > 0 &&
+    normalized.length <= 100 &&
+    !/\p{Cc}/u.test(normalized)
     ? normalized
     : null;
 };

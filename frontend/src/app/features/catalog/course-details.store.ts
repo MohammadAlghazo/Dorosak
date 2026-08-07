@@ -1,7 +1,16 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, distinctUntilChanged, map, of, Subject, startWith, switchMap, tap } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  of,
+  Subject,
+  startWith,
+  switchMap,
+  tap,
+} from 'rxjs';
 import { ApiProblem } from '../../core/api/api-problem';
 import { DiscoveryApiClient } from '../../core/api/discovery-api.client';
 import type { PublicCourseDetail, PublicLoadStatus } from '../../core/api/discovery-api.types';

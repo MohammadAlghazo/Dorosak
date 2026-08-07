@@ -179,6 +179,7 @@ public sealed record GetTagsQuery(string Locale, int Limit, string? Cursor)
 public sealed record TaxonomyLocalizationInput(string Locale, string Name);
 
 public sealed record UpsertCategoryCommand(
+    Guid UserId,
     Guid? CategoryId,
     string Code,
     Guid? ParentId,
@@ -186,6 +187,7 @@ public sealed record UpsertCategoryCommand(
     IReadOnlyList<TaxonomyLocalizationInput> Localizations) : ITransactionalCommand<CategoryResponse>;
 
 public sealed record UpsertTagCommand(
+    Guid UserId,
     Guid? TagId,
     string Code,
     bool IsActive,

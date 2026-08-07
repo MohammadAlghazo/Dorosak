@@ -27,6 +27,15 @@ export class LocaleService {
 
   async switchLocale(): Promise<boolean> {
     const target: Locale = this.activeLocale() === 'ar' ? 'en' : 'ar';
+    const alternate = this.document.head.querySelector<HTMLLinkElement>(
+      `link[rel="alternate"][hreflang="${target}"]`,
+    );
+    if (alternate) {
+      const url = new URL(alternate.href, this.document.location.origin);
+      if (url.origin === this.document.location.origin) {
+        return this.router.navigateByUrl(`${url.pathname}${url.search}${url.hash}`);
+      }
+    }
     const tree = this.router.parseUrl(this.router.url);
     const primary = tree.root.children['primary'];
     if (primary?.segments[0]) {

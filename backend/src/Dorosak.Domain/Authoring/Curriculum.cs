@@ -18,7 +18,7 @@ public sealed class CourseSection
 
     public Guid DraftId { get; private set; }
 
-    public Guid CurrentRevisionId { get; private set; }
+    public Guid? CurrentRevisionId { get; private set; }
 
     public int Position { get; private set; }
 
@@ -96,7 +96,7 @@ public sealed class CourseLesson
 
     public Guid SectionId { get; private set; }
 
-    public Guid CurrentRevisionId { get; private set; }
+    public Guid? CurrentRevisionId { get; private set; }
 
     public int Position { get; private set; }
 

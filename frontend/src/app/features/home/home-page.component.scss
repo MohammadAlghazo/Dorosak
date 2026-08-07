@@ -130,6 +130,33 @@ h2 {
   border-block-start: 1px solid var(--color-border);
   list-style: none;
 }
+.pathway-skeleton {
+  display: grid;
+  border-block-start: 1px solid var(--color-border);
+}
+.pathway-skeleton i {
+  block-size: 8rem;
+  border-block-end: 1px solid var(--color-border);
+  background: linear-gradient(100deg, transparent, var(--color-subtle), transparent);
+}
+.pathway-empty {
+  padding: var(--space-7);
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+.pathway-empty h3 {
+  color: var(--color-text);
+}
+.pathway-empty button {
+  min-block-size: 44px;
+  padding-inline: var(--space-4);
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 0;
+  border-radius: var(--radius-2);
+}
 .pathway-list li {
   display: grid;
   grid-template-columns: 4rem minmax(0, 1fr) auto 52px;
