@@ -1,4 +1,9 @@
-import { Validators, type AbstractControl, type ValidationErrors, type ValidatorFn } from '@angular/forms';
+import {
+  Validators,
+  type AbstractControl,
+  type ValidationErrors,
+  type ValidatorFn,
+} from '@angular/forms';
 import { ApiProblem } from '../../core/api/api-problem';
 import type { Locale } from '../../core/i18n/locale';
 
@@ -41,7 +46,8 @@ const errorCopy: Readonly<Record<string, Readonly<Record<Locale, string>>>> = {
   },
 };
 
-export const matchingFields = (first: string, second: string): ValidatorFn =>
+export const matchingFields =
+  (first: string, second: string): ValidatorFn =>
   (control: AbstractControl): ValidationErrors | null =>
     control.get(first)?.value === control.get(second)?.value ? null : { fieldsMismatch: true };
 

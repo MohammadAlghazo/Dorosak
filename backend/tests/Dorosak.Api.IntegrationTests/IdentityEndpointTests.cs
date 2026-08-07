@@ -130,7 +130,7 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
         string secondRefreshCookie = GetCookie(refreshed, "__Secure-dorosak-refresh");
         Assert.NotEqual(firstRefreshCookie, secondRefreshCookie);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(1100), cancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(2500), cancellationToken);
         using HttpResponseMessage replay = await SendAuthAsync(
             HttpMethod.Post,
             "/api/v1/auth/refresh",
@@ -221,6 +221,33 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("SECURITY.RATE_LIMIT_UNAVAILABLE", await ReadProblemCodeAsync(response, cancellationToken));
         Assert.True(response.Headers.RetryAfter is not null);
+    }
+
+    [Fact]
+    public async Task InvalidSignIn_PersistsAccountLockoutState()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ConfirmedAccount account = await CreateConfirmedAccountAsync(cancellationToken);
+        CsrfSession csrf = await GetCsrfAsync(cancellationToken);
+
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            using HttpResponseMessage response = await SendAuthAsync(
+                HttpMethod.Post,
+                "/api/v1/auth/sign-in",
+                new { email = account.Email, password = "wrong password value" },
+                csrf,
+                cancellationToken: cancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal("AUTH.INVALID_CREDENTIALS", await ReadProblemCodeAsync(response, cancellationToken));
+        }
+
+        await using AsyncServiceScope scope = fixture.Factory.Services.CreateAsyncScope();
+        UserManager<ApplicationUser> userManager = scope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>();
+        ApplicationUser user = Assert.IsType<ApplicationUser>(
+            await userManager.FindByIdAsync(account.UserId.ToString("D")));
+        Assert.True(user.LockoutEnd > DateTimeOffset.UtcNow);
     }
 
     [Fact]

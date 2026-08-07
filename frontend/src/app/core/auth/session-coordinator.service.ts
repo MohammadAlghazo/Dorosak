@@ -12,11 +12,7 @@ import {
   throwError,
 } from 'rxjs';
 import { IdentityApiClient } from '../api/identity-api.client';
-import type {
-  AuthSession,
-  SignInRequest,
-  SignInResult,
-} from '../api/identity-api.types';
+import type { AuthSession, SignInRequest, SignInResult } from '../api/identity-api.types';
 import { RuntimeConfigService } from '../api/runtime-config.service';
 import { IndexedDbService } from '../pwa/indexed-db.service';
 import { AuthRefreshService } from './auth-refresh.service';

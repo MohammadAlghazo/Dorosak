@@ -3,7 +3,12 @@ import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IdentityApiClient } from '../../core/api/identity-api.client';
 import { LocaleService } from '../../core/i18n/locale.service';
-import { authErrorMessage, emailValidator, matchingFields, requiredValidator } from './auth-form.helpers';
+import {
+  authErrorMessage,
+  emailValidator,
+  matchingFields,
+  requiredValidator,
+} from './auth-form.helpers';
 
 @Component({
   selector: 'drs-register-page',
@@ -11,9 +16,9 @@ import { authErrorMessage, emailValidator, matchingFields, requiredValidator } f
   template: `
     <section class="identity-page" aria-labelledby="register-title">
       <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'ابدأ بهدوء' : 'Start clearly' }}</p>
-      <h1 id="register-title">{{
-        locale.locale() === 'ar' ? 'أنشئ حسابك' : 'Create your account'
-      }}</h1>
+      <h1 id="register-title">
+        {{ locale.locale() === 'ar' ? 'أنشئ حسابك' : 'Create your account' }}
+      </h1>
 
       @if (accepted()) {
         <div class="form-success" role="status">
@@ -38,13 +43,15 @@ import { authErrorMessage, emailValidator, matchingFields, requiredValidator } f
             id="register-name"
             formControlName="displayName"
             autocomplete="name"
-            [attr.aria-invalid]="form.controls.displayName.touched && form.controls.displayName.invalid"
+            [attr.aria-invalid]="
+              form.controls.displayName.touched && form.controls.displayName.invalid
+            "
             aria-describedby="register-name-error"
           />
           @if (form.controls.displayName.touched && form.controls.displayName.invalid) {
-            <p id="register-name-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'الاسم مطلوب.' : 'Display name is required.'
-            }}</p>
+            <p id="register-name-error" class="field-error">
+              {{ locale.locale() === 'ar' ? 'الاسم مطلوب.' : 'Display name is required.' }}
+            </p>
           }
 
           <label for="register-email">{{
@@ -59,9 +66,11 @@ import { authErrorMessage, emailValidator, matchingFields, requiredValidator } f
             aria-describedby="register-email-error"
           />
           @if (form.controls.email.touched && form.controls.email.invalid) {
-            <p id="register-email-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
-            }}</p>
+            <p id="register-email-error" class="field-error">
+              {{
+                locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
+              }}
+            </p>
           }
 
           <label for="register-password">{{
@@ -75,15 +84,17 @@ import { authErrorMessage, emailValidator, matchingFields, requiredValidator } f
             [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
             aria-describedby="register-password-help register-password-error"
           />
-          <p id="register-password-help" class="field-help">{{
-            locale.locale() === 'ar'
-              ? 'استخدم كلمة مرور طويلة وفريدة.'
-              : 'Use a long, unique password.'
-          }}</p>
+          <p id="register-password-help" class="field-help">
+            {{
+              locale.locale() === 'ar'
+                ? 'استخدم كلمة مرور طويلة وفريدة.'
+                : 'Use a long, unique password.'
+            }}
+          </p>
           @if (form.controls.password.touched && form.controls.password.invalid) {
-            <p id="register-password-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'كلمة المرور مطلوبة.' : 'Password is required.'
-            }}</p>
+            <p id="register-password-error" class="field-error">
+              {{ locale.locale() === 'ar' ? 'كلمة المرور مطلوبة.' : 'Password is required.' }}
+            </p>
           }
 
           <label for="register-confirm">{{
@@ -94,24 +105,30 @@ import { authErrorMessage, emailValidator, matchingFields, requiredValidator } f
             type="password"
             formControlName="confirmPassword"
             autocomplete="new-password"
-            [attr.aria-invalid]="form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')"
+            [attr.aria-invalid]="
+              form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')
+            "
             aria-describedby="register-confirm-error"
           />
           @if (form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')) {
-            <p id="register-confirm-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.'
-            }}</p>
+            <p id="register-confirm-error" class="field-error">
+              {{
+                locale.locale() === 'ar' ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.'
+              }}
+            </p>
           }
 
-          <button type="submit" [disabled]="submitting()" [attr.aria-busy]="submitting()">{{
-            submitting()
-              ? locale.locale() === 'ar'
-                ? 'جارٍ إنشاء الحساب…'
-                : 'Creating account…'
-              : locale.locale() === 'ar'
-                ? 'إنشاء الحساب'
-                : 'Create account'
-          }}</button>
+          <button type="submit" [disabled]="submitting()" [attr.aria-busy]="submitting()">
+            {{
+              submitting()
+                ? locale.locale() === 'ar'
+                  ? 'جارٍ إنشاء الحساب…'
+                  : 'Creating account…'
+                : locale.locale() === 'ar'
+                  ? 'إنشاء الحساب'
+                  : 'Create account'
+            }}
+          </button>
         </form>
       }
 
@@ -131,15 +148,15 @@ export class RegisterPageComponent {
   protected readonly submitting = signal(false);
   protected readonly form = new FormGroup(
     {
-       displayName: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
+      displayName: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
       email: new FormControl('', {
         nonNullable: true,
         validators: [requiredValidator, emailValidator],
       }),
-       password: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
+      password: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
       confirmPassword: new FormControl('', {
         nonNullable: true,
-         validators: [requiredValidator],
+        validators: [requiredValidator],
       }),
     },
     { validators: [matchingFields('password', 'confirmPassword')] },

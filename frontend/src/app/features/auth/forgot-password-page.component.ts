@@ -10,22 +10,28 @@ import { authErrorMessage, emailValidator, requiredValidator } from './auth-form
   imports: [ReactiveFormsModule, RouterLink],
   template: `
     <section class="identity-page" aria-labelledby="forgot-title">
-      <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'استعادة آمنة' : 'Secure recovery' }}</p>
-      <h1 id="forgot-title">{{
-        locale.locale() === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot your password?'
-      }}</h1>
-      <p>{{
-        locale.locale() === 'ar'
-          ? 'سنرسل تعليمات الاستعادة إذا كان البريد مسجلًا.'
-          : 'We will send recovery instructions if the address is registered.'
-      }}</p>
+      <p class="identity-kicker">
+        {{ locale.locale() === 'ar' ? 'استعادة آمنة' : 'Secure recovery' }}
+      </p>
+      <h1 id="forgot-title">
+        {{ locale.locale() === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot your password?' }}
+      </h1>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'سنرسل تعليمات الاستعادة إذا كان البريد مسجلًا.'
+            : 'We will send recovery instructions if the address is registered.'
+        }}
+      </p>
 
       @if (accepted()) {
-        <div class="form-success" role="status">{{
-          locale.locale() === 'ar'
-            ? 'تحقق من بريدك الإلكتروني للمتابعة.'
-            : 'Check your email to continue.'
-        }}</div>
+        <div class="form-success" role="status">
+          {{
+            locale.locale() === 'ar'
+              ? 'تحقق من بريدك الإلكتروني للمتابعة.'
+              : 'Check your email to continue.'
+          }}
+        </div>
       } @else {
         @if (error()) {
           <div class="form-alert" role="alert">{{ error() }}</div>
@@ -43,13 +49,15 @@ import { authErrorMessage, emailValidator, requiredValidator } from './auth-form
             aria-describedby="forgot-email-error"
           />
           @if (form.controls.email.touched && form.controls.email.invalid) {
-            <p id="forgot-email-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
-            }}</p>
+            <p id="forgot-email-error" class="field-error">
+              {{
+                locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
+              }}
+            </p>
           }
-          <button type="submit" [disabled]="submitting()">{{
-            locale.locale() === 'ar' ? 'إرسال رابط الاستعادة' : 'Send recovery link'
-          }}</button>
+          <button type="submit" [disabled]="submitting()">
+            {{ locale.locale() === 'ar' ? 'إرسال رابط الاستعادة' : 'Send recovery link' }}
+          </button>
         </form>
       }
       <p class="identity-alternative">

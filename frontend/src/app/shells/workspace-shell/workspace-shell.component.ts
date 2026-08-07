@@ -22,7 +22,10 @@ import { LocaleService } from '../../core/i18n/locale.service';
         </button>
         <a class="brand" [routerLink]="['/', locale.locale()]">{{ locale.copy().brand }}</a>
         <span>{{ session.identity()?.displayName ?? locale.copy().dashboard }}</span>
-        <a class="header-security-link" [routerLink]="['/', locale.locale(), 'settings', 'security']">
+        <a
+          class="header-security-link"
+          [routerLink]="['/', locale.locale(), 'settings', 'security']"
+        >
           {{ locale.locale() === 'ar' ? 'الأمان' : 'Security' }}
         </a>
         <button type="button" class="header-logout" (click)="logout()">
@@ -53,12 +56,16 @@ import { LocaleService } from '../../core/i18n/locale.service';
           <a [routerLink]="['/', locale.locale(), 'instructor']" (click)="closeNavigation()">{{
             locale.locale() === 'ar' ? 'التدريس' : 'Teaching'
           }}</a>
-          <a [routerLink]="['/', locale.locale(), 'settings', 'security']" (click)="closeNavigation()">{{
-            locale.locale() === 'ar' ? 'الأمان' : 'Security'
-          }}</a>
-          <a [routerLink]="['/', locale.locale(), 'settings', 'sessions']" (click)="closeNavigation()">{{
-            locale.locale() === 'ar' ? 'الجلسات' : 'Sessions'
-          }}</a>
+          <a
+            [routerLink]="['/', locale.locale(), 'settings', 'security']"
+            (click)="closeNavigation()"
+            >{{ locale.locale() === 'ar' ? 'الأمان' : 'Security' }}</a
+          >
+          <a
+            [routerLink]="['/', locale.locale(), 'settings', 'sessions']"
+            (click)="closeNavigation()"
+            >{{ locale.locale() === 'ar' ? 'الجلسات' : 'Sessions' }}</a
+          >
           @if (session.hasPermission('User.ReadAny')) {
             <a [routerLink]="['/', locale.locale(), 'admin']" (click)="closeNavigation()">{{
               locale.locale() === 'ar' ? 'الإدارة' : 'Administration'

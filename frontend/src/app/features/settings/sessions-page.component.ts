@@ -12,26 +12,37 @@ import { authErrorMessage } from '../auth/auth-form.helpers';
       <div class="settings-heading">
         <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'الوصول' : 'Access' }}</p>
         <h1 id="sessions-title">{{ locale.locale() === 'ar' ? 'جلساتك' : 'Your sessions' }}</h1>
-        <p>{{
-          locale.locale() === 'ar'
-            ? 'راجع الأجهزة التي تستخدم حسابك وأنهِ الجلسات غير المعروفة.'
-            : 'Review devices using your account and end sessions you do not recognize.'
-        }}</p>
+        <p>
+          {{
+            locale.locale() === 'ar'
+              ? 'راجع الأجهزة التي تستخدم حسابك وأنهِ الجلسات غير المعروفة.'
+              : 'Review devices using your account and end sessions you do not recognize.'
+          }}
+        </p>
       </div>
 
       @if (error()) {
         <div class="form-alert" role="alert">{{ error() }}</div>
       }
       @if (loading()) {
-        <p role="status">{{ locale.locale() === 'ar' ? 'جارٍ تحميل الجلسات…' : 'Loading sessions…' }}</p>
+        <p role="status">
+          {{ locale.locale() === 'ar' ? 'جارٍ تحميل الجلسات…' : 'Loading sessions…' }}
+        </p>
       } @else if (sessions().length === 0) {
-        <p class="empty-state">{{ locale.locale() === 'ar' ? 'لا توجد جلسات.' : 'No sessions found.' }}</p>
+        <p class="empty-state">
+          {{ locale.locale() === 'ar' ? 'لا توجد جلسات.' : 'No sessions found.' }}
+        </p>
       } @else {
         <div class="session-list" role="list">
           @for (session of sessions(); track session.sessionId) {
             <article class="session-card" role="listitem">
               <div>
-                <h2>{{ session.deviceName || (locale.locale() === 'ar' ? 'جهاز غير معروف' : 'Unknown device') }}</h2>
+                <h2>
+                  {{
+                    session.deviceName ||
+                      (locale.locale() === 'ar' ? 'جهاز غير معروف' : 'Unknown device')
+                  }}
+                </h2>
                 <p>
                   @if (session.isCurrent) {
                     <span class="status-chip status-chip-active">{{
@@ -42,15 +53,27 @@ import { authErrorMessage } from '../auth/auth-form.helpers';
                 <dl class="session-details">
                   <div>
                     <dt>{{ locale.locale() === 'ar' ? 'آخر استخدام' : 'Last used' }}</dt>
-                    <dd><time [attr.datetime]="session.lastUsedAt">{{ formatDate(session.lastUsedAt) }}</time></dd>
+                    <dd>
+                      <time [attr.datetime]="session.lastUsedAt">{{
+                        formatDate(session.lastUsedAt)
+                      }}</time>
+                    </dd>
                   </div>
                   <div>
                     <dt>{{ locale.locale() === 'ar' ? 'أُنشئت' : 'Created' }}</dt>
-                    <dd><time [attr.datetime]="session.createdAt">{{ formatDate(session.createdAt) }}</time></dd>
+                    <dd>
+                      <time [attr.datetime]="session.createdAt">{{
+                        formatDate(session.createdAt)
+                      }}</time>
+                    </dd>
                   </div>
                   <div>
                     <dt>{{ locale.locale() === 'ar' ? 'تنتهي نهائيًا' : 'Absolute expiry' }}</dt>
-                    <dd><time [attr.datetime]="session.absoluteExpiresAt">{{ formatDate(session.absoluteExpiresAt) }}</time></dd>
+                    <dd>
+                      <time [attr.datetime]="session.absoluteExpiresAt">{{
+                        formatDate(session.absoluteExpiresAt)
+                      }}</time>
+                    </dd>
                   </div>
                 </dl>
               </div>
@@ -59,7 +82,9 @@ import { authErrorMessage } from '../auth/auth-form.helpers';
                 type="button"
                 [disabled]="revokingId() === session.sessionId"
                 (click)="revoke(session)"
-              >{{ locale.locale() === 'ar' ? 'إنهاء الجلسة' : 'End session' }}</button>
+              >
+                {{ locale.locale() === 'ar' ? 'إنهاء الجلسة' : 'End session' }}
+              </button>
             </article>
           }
         </div>
@@ -68,7 +93,9 @@ import { authErrorMessage } from '../auth/auth-form.helpers';
           type="button"
           [disabled]="revokingAll()"
           (click)="revokeAll()"
-        >{{ locale.locale() === 'ar' ? 'إنهاء كل الجلسات' : 'End all sessions' }}</button>
+        >
+          {{ locale.locale() === 'ar' ? 'إنهاء كل الجلسات' : 'End all sessions' }}
+        </button>
       }
     </section>
   `,
@@ -108,7 +135,9 @@ export class SessionsPageComponent implements OnInit {
           this.coordinator.endLocalSession().subscribe(() => undefined);
           return;
         }
-        this.sessions.update((items) => items.filter((item) => item.sessionId !== session.sessionId));
+        this.sessions.update((items) =>
+          items.filter((item) => item.sessionId !== session.sessionId),
+        );
       },
       error: (requestError: unknown) => {
         this.revokingId.set(null);

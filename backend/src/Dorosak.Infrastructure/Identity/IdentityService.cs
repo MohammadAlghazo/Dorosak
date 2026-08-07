@@ -98,10 +98,7 @@ internal sealed class IdentityService(
         IdentityResult roleAssigned = await userManager.AddToRoleAsync(user, IdentityConstants.StudentRole);
         if (!roleAssigned.Succeeded)
         {
-            return Result.Failure<RegistrationAcceptedResponse>(MapIdentityFailure(
-                roleAssigned,
-                "AUTH.ROLE_ASSIGNMENT_FAILED",
-                "The account could not be registered."));
+            throw new InvalidOperationException("The default Student role could not be assigned.");
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -222,10 +219,7 @@ internal sealed class IdentityService(
         IdentityResult updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
-            return Result.Failure<AuthenticatedSessionResponse>(MapIdentityFailure(
-                updated,
-                "MFA.UPDATE_FAILED",
-                "The MFA challenge could not be completed."));
+            throw new InvalidOperationException("The MFA replay marker could not be updated.");
         }
 
         return Result.Success(await CreateSessionAsync(user, request.Context, ["pwd", "otp"], cancellationToken));
@@ -483,6 +477,10 @@ internal sealed class IdentityService(
         IdentityResult confirmed = await userManager.ConfirmEmailAsync(user, request.Token);
         if (!confirmed.Succeeded)
         {
+            if (confirmed.Errors.Any(error => error.Code != "InvalidToken"))
+            {
+                throw new InvalidOperationException("Email verification failed after token validation.");
+            }
             return Result.Failure<OperationCompletedResponse>(ResultError.BusinessRule(
                 "AUTH.EMAIL_VERIFICATION_INVALID",
                 "The email verification link is invalid or expired."));
@@ -553,10 +551,7 @@ internal sealed class IdentityService(
         IdentityResult updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
-            return Result.Failure<NeutralAcceptedResponse>(MapIdentityFailure(
-                updated,
-                "AUTH.EMAIL_CHANGE_REJECTED",
-                "The email change could not be requested."));
+            throw new InvalidOperationException("The pending email address could not be saved.");
         }
 
         QueueIdentityEmail(user.Id, EmailChangeEvent, request.Locale);
@@ -583,13 +578,17 @@ internal sealed class IdentityService(
         IdentityResult changed = await userManager.ChangeEmailAsync(user, pendingEmail, request.Token);
         if (!changed.Succeeded)
         {
+            if (changed.Errors.Any(error => error.Code != "InvalidToken"))
+            {
+                throw new InvalidOperationException("The email address could not be changed after token validation.");
+            }
             return Result.Failure<OperationCompletedResponse>(EmailChangeInvalid());
         }
 
         IdentityResult userNameChanged = await userManager.SetUserNameAsync(user, pendingEmail);
         if (!userNameChanged.Succeeded)
         {
-            return Result.Failure<OperationCompletedResponse>(EmailChangeInvalid());
+            throw new InvalidOperationException("The username could not be synchronized with the verified email address.");
         }
 
         user.PendingEmail = null;
@@ -649,6 +648,10 @@ internal sealed class IdentityService(
         IdentityResult reset = await userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
         if (!reset.Succeeded)
         {
+            if (reset.Errors.Any(error => error.Code != "InvalidToken"))
+            {
+                throw new InvalidOperationException("The password could not be reset after token validation.");
+            }
             return Result.Failure<OperationCompletedResponse>(ResultError.BusinessRule(
                 "AUTH.PASSWORD_RESET_INVALID",
                 "The password reset link is invalid or expired."));
@@ -689,6 +692,10 @@ internal sealed class IdentityService(
             request.NewPassword);
         if (!changed.Succeeded)
         {
+            if (changed.Errors.Any(error => error.Code != "PasswordMismatch"))
+            {
+                throw new InvalidOperationException("The password could not be changed after credential validation.");
+            }
             return Result.Failure<OperationCompletedResponse>(ResultError.Unauthorized(
                 "AUTH.CURRENT_PASSWORD_INVALID",
                 "The current password is invalid."));
@@ -727,10 +734,7 @@ internal sealed class IdentityService(
         IdentityResult updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
-            return Result.Failure<MfaSetupResponse>(MapIdentityFailure(
-                updated,
-                "MFA.SETUP_FAILED",
-                "MFA setup could not be started."));
+            throw new InvalidOperationException("The pending MFA secret could not be saved.");
         }
 
         string label = Uri.EscapeDataString($"Dorosak:{user.Email}");
@@ -797,10 +801,7 @@ internal sealed class IdentityService(
         IdentityResult updated = await userManager.UpdateAsync(user);
         if (!updated.Succeeded)
         {
-            return Result.Failure<MfaConfirmationResponse>(MapIdentityFailure(
-                updated,
-                "MFA.CONFIRMATION_FAILED",
-                "MFA could not be enabled."));
+            throw new InvalidOperationException("MFA could not be enabled after code validation.");
         }
 
         dbContext.SecurityEvents.Add(SecurityEvent.Create(user.Id, request.SessionId, "mfa.enabled", now));

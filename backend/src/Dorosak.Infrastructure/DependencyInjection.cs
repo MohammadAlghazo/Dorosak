@@ -1,10 +1,10 @@
 using Dorosak.Application.Common.Caching;
-using Dorosak.Application.Common.Identity;
 using Dorosak.Application.Common.Idempotency;
+using Dorosak.Application.Common.Identity;
 using Dorosak.Application.Common.Persistence;
 using Dorosak.Infrastructure.Caching;
-using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Idempotency;
+using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;

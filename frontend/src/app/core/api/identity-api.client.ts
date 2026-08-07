@@ -36,19 +36,19 @@ export class IdentityApiClient {
 
   bootstrapCsrf(): Observable<undefined> {
     this.csrfBootstrapRequest ??= this.http
-        .get<unknown>('auth/csrf', {
-          observe: 'response',
-          context: csrfContext(this.session.isAuthenticated()),
-        })
-        .pipe(
-          map(() => undefined),
-          tap({
-            error: () => {
-              this.csrfBootstrapRequest = undefined;
-            },
-          }),
-          shareReplay({ bufferSize: 1, refCount: false }),
-        );
+      .get<unknown>('auth/csrf', {
+        observe: 'response',
+        context: csrfContext(this.session.isAuthenticated()),
+      })
+      .pipe(
+        map(() => undefined),
+        tap({
+          error: () => {
+            this.csrfBootstrapRequest = undefined;
+          },
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
     return this.csrfBootstrapRequest;
   }
 
@@ -73,24 +73,22 @@ export class IdentityApiClient {
   }
 
   refreshSession(): Observable<AuthSession> {
-    return this.unsafeMutation(
-      () =>
-        this.http.post<ApiEnvelope<AuthSession>>('auth/refresh', null, {
-          context: refreshContext(10_000),
-          credentials: 'include',
-          withCredentials: true,
-        }),
+    return this.unsafeMutation(() =>
+      this.http.post<ApiEnvelope<AuthSession>>('auth/refresh', null, {
+        context: refreshContext(10_000),
+        credentials: 'include',
+        withCredentials: true,
+      }),
     ).pipe(map((response) => response.data));
   }
 
   signOut(): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .post<unknown>('auth/sign-out', null, {
-            context: privateMutationContext(),
-          })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .post<unknown>('auth/sign-out', null, {
+          context: privateMutationContext(),
+        })
+        .pipe(map(() => undefined)),
     );
   }
 
@@ -121,51 +119,51 @@ export class IdentityApiClient {
   }
 
   resetPassword(request: PasswordResetRequest): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .post<unknown>('auth/password/reset', request, { context: guestContext() })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .post<unknown>('auth/password/reset', request, { context: guestContext() })
+        .pipe(map(() => undefined)),
     );
   }
 
   changePassword(request: CredentialsChangeRequest): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .post<unknown>('auth/password/change', request, {
-            context: privateMutationContext(),
-          })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .post<unknown>('auth/password/change', request, {
+          context: privateMutationContext(),
+        })
+        .pipe(map(() => undefined)),
     );
   }
 
   setupMfa(): Observable<MfaSetupResult> {
-    return this.unsafeMutation(
-      () => this.http.post<ApiEnvelope<MfaSetupResult>>('auth/mfa/setup', null, {
+    return this.unsafeMutation(() =>
+      this.http.post<ApiEnvelope<MfaSetupResult>>('auth/mfa/setup', null, {
         context: privateMutationContext(),
       }),
     ).pipe(map((response) => response.data));
   }
 
   confirmMfa(code: string): Observable<MfaConfirmResult> {
-    return this.unsafeMutation(
-      () =>
-        this.http.post<ApiEnvelope<MfaConfirmResult>>('auth/mfa/confirm', { code }, {
+    return this.unsafeMutation(() =>
+      this.http.post<ApiEnvelope<MfaConfirmResult>>(
+        'auth/mfa/confirm',
+        { code },
+        {
           context: privateMutationContext(),
-        }),
+        },
+      ),
     ).pipe(map((response) => response.data));
   }
 
   disableMfa(currentPassword: string): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .delete<unknown>('auth/mfa', {
-            body: { currentPassword },
-            context: privateMutationContext(),
-          })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .delete<unknown>('auth/mfa', {
+          body: { currentPassword },
+          context: privateMutationContext(),
+        })
+        .pipe(map(() => undefined)),
     );
   }
 
@@ -186,31 +184,28 @@ export class IdentityApiClient {
   }
 
   revokeSession(sessionId: string): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .delete<unknown>(`me/sessions/${encodeURIComponent(sessionId)}`, {
-            context: privateMutationContext(),
-          })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .delete<unknown>(`me/sessions/${encodeURIComponent(sessionId)}`, {
+          context: privateMutationContext(),
+        })
+        .pipe(map(() => undefined)),
     );
   }
 
   revokeAllSessions(): Observable<undefined> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .delete<unknown>('me/sessions', { context: privateMutationContext() })
-          .pipe(map(() => undefined)),
+    return this.unsafeMutation(() =>
+      this.http
+        .delete<unknown>('me/sessions', { context: privateMutationContext() })
+        .pipe(map(() => undefined)),
     );
   }
 
   private guestMutation<T>(path: string, body: unknown): Observable<T> {
-    return this.unsafeMutation(
-      () =>
-        this.http
-          .post<ApiEnvelope<T>>(path, body, { context: guestContext() })
-          .pipe(map((response) => response.data)),
+    return this.unsafeMutation(() =>
+      this.http
+        .post<ApiEnvelope<T>>(path, body, { context: guestContext() })
+        .pipe(map((response) => response.data)),
     );
   }
 
@@ -232,9 +227,7 @@ const refreshContext = (deadlineMs: number): HttpContext =>
   baseContext(deadlineMs).set(SKIP_AUTH, true).set(SKIP_REFRESH, true);
 
 const csrfContext = (authenticated: boolean): HttpContext =>
-  authenticated
-    ? baseContext(5_000).set(SKIP_REFRESH, true)
-    : guestContext(5_000);
+  authenticated ? baseContext(5_000).set(SKIP_REFRESH, true) : guestContext(5_000);
 
 const privateReadContext = (): HttpContext => baseContext(15_000);
 

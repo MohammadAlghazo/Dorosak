@@ -56,7 +56,7 @@ export class SeoService {
       link = this.document.createElement('link');
       link.rel = rel;
       if (language) link.hreflang = language;
-      this.document.head.append(link);
+      this.document.head.appendChild(link);
     }
     link.href = href;
   }

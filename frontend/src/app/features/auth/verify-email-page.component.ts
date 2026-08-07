@@ -3,7 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-   type OnInit,
+  type OnInit,
   PLATFORM_ID,
   signal,
 } from '@angular/core';
@@ -20,23 +20,27 @@ type VerificationStatus = 'idle' | 'confirming' | 'confirmed' | 'failed';
   imports: [ReactiveFormsModule, RouterLink],
   template: `
     <section class="identity-page" aria-labelledby="verify-title">
-      <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'تحقق من هويتك' : 'Confirm it is you' }}</p>
-      <h1 id="verify-title">{{
-        locale.locale() === 'ar' ? 'تأكيد البريد الإلكتروني' : 'Verify your email'
-      }}</h1>
+      <p class="identity-kicker">
+        {{ locale.locale() === 'ar' ? 'تحقق من هويتك' : 'Confirm it is you' }}
+      </p>
+      <h1 id="verify-title">
+        {{ locale.locale() === 'ar' ? 'تأكيد البريد الإلكتروني' : 'Verify your email' }}
+      </h1>
 
       @switch (status()) {
         @case ('confirming') {
-          <p role="status">{{
-            locale.locale() === 'ar' ? 'جارٍ التحقق من الرابط…' : 'Verifying your link…'
-          }}</p>
+          <p role="status">
+            {{ locale.locale() === 'ar' ? 'جارٍ التحقق من الرابط…' : 'Verifying your link…' }}
+          </p>
         }
         @case ('confirmed') {
-          <div class="form-success" role="status">{{
-            locale.locale() === 'ar'
-              ? 'تم تأكيد بريدك الإلكتروني.'
-              : 'Your email address is verified.'
-          }}</div>
+          <div class="form-success" role="status">
+            {{
+              locale.locale() === 'ar'
+                ? 'تم تأكيد بريدك الإلكتروني.'
+                : 'Your email address is verified.'
+            }}
+          </div>
         }
         @case ('failed') {
           <div class="form-alert" role="alert">{{ confirmationError() }}</div>
@@ -44,19 +48,27 @@ type VerificationStatus = 'idle' | 'confirming' | 'confirmed' | 'failed';
       }
 
       <div class="identity-divider" aria-hidden="true"></div>
-      <h2>{{
-        locale.locale() === 'ar' ? 'هل تحتاج إلى رسالة جديدة؟' : 'Need a new verification email?'
-      }}</h2>
-      <p>{{
-        locale.locale() === 'ar'
-          ? 'أدخل بريدك وسنرسل رسالة إذا كان الحساب مؤهلًا.'
-          : 'Enter your address and we will send a message if the account is eligible.'
-      }}</p>
+      <h2>
+        {{
+          locale.locale() === 'ar' ? 'هل تحتاج إلى رسالة جديدة؟' : 'Need a new verification email?'
+        }}
+      </h2>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'أدخل بريدك وسنرسل رسالة إذا كان الحساب مؤهلًا.'
+            : 'Enter your address and we will send a message if the account is eligible.'
+        }}
+      </p>
 
       @if (resent()) {
-        <div class="form-success" role="status">{{
-          locale.locale() === 'ar' ? 'تم استلام الطلب. تحقق من بريدك.' : 'Request accepted. Check your inbox.'
-        }}</div>
+        <div class="form-success" role="status">
+          {{
+            locale.locale() === 'ar'
+              ? 'تم استلام الطلب. تحقق من بريدك.'
+              : 'Request accepted. Check your inbox.'
+          }}
+        </div>
       } @else {
         @if (resendError()) {
           <div class="form-alert" role="alert">{{ resendError() }}</div>
@@ -74,13 +86,15 @@ type VerificationStatus = 'idle' | 'confirming' | 'confirmed' | 'failed';
             aria-describedby="verification-email-error"
           />
           @if (form.controls.email.touched && form.controls.email.invalid) {
-            <p id="verification-email-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
-            }}</p>
+            <p id="verification-email-error" class="field-error">
+              {{
+                locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.'
+              }}
+            </p>
           }
-          <button type="submit" [disabled]="sending()">{{
-            locale.locale() === 'ar' ? 'إرسال رسالة التحقق' : 'Send verification email'
-          }}</button>
+          <button type="submit" [disabled]="sending()">
+            {{ locale.locale() === 'ar' ? 'إرسال رسالة التحقق' : 'Send verification email' }}
+          </button>
         </form>
       }
 
@@ -104,7 +118,7 @@ export class VerifyEmailPageComponent implements OnInit {
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
-       validators: [requiredValidator, emailValidator],
+      validators: [requiredValidator, emailValidator],
     }),
   });
 

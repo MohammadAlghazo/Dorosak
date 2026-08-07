@@ -2203,7 +2203,54 @@ git status
 إذا كان أول تشغيل بعد حذف ClamAV volume فقد يحتاج عدة دقائق لتنزيل signatures. لا تستخدم `docker compose down --volumes`، ولا تشارك `.env.local` لمعالجة أي خطأ.
 
 ===========================
-### 6. هل ننتقل للمرحلة التالية؟
+### 6. حالة التسليم الحالية
 ===========================
 
-لا تبدأ Phase 3 حتى ينجح push ويكتب المستخدم `تم`.
+هذا القسم تاريخي خاص بإغلاق Phase 2. تم تنفيذ Phase 3 وPhase 4 بعده، ثم أغلقت Phase 5 بعد تحققها في
+`2026-08-07`. لا تبدأ Phase 6 حتى يؤكد المستخدم بكتابة `تم`.
+
+===========================
+### 7. Phase 5 Identity and Security Report
+===========================
+
+#### المنجز
+
+- ASP.NET Core Identity مع users/roles/claims، profile واحد لكل user، seeded Student/Teacher/Admin roles، وثوابت
+  permissions من catalog.
+- تسجيل محايد، password policy بطول `12-64`، lockout، HIBP k-anonymity adapter، email verification، email change
+  pending flow، password reset/change، وoutbox email worker مع Mailpit SMTP وretry/lock.
+- access JWT غير متماثل RSA (`10 minutes`) مع session validation مقابل DB، وrefresh tokens opaque hashed تدور في كل
+  استخدام (`14/30 days`) مع `FOR UPDATE` وreplay detection وsecurity events.
+- refresh cookie باسم `__Secure-dorosak-refresh`، `HttpOnly/Secure/SameSite=Lax/Path=/api/v1/auth`، فصل CSRF cookie
+  الداخلية عن `XSRF-TOKEN`، وorigin validation لمسارات الهوية والجلسات.
+- MFA TOTP secrets محمية بـData Protection، تحدي MFA قصير العمر قبل إصدار credentials، replay-resistant time-step،
+  recovery codes hashed single-use، وتعطيل MFA مع recent authentication وAdmin enforcement.
+- dynamic permission authorization من `identity.role_claims`، admin high-risk policy، bootstrap تشغيلي لمرة واحدة
+  يتطلب secrets من secret manager ويتوقف بعد التنفيذ.
+- Angular identity client/session coordinator، memory-only access token، CSRF single-flight، refresh single-flight
+  داخل tab وWeb Locks/BroadcastChannel عبر tabs، guards وreturnUrl validation، صفحات التسجيل والدخول/MFA والتحقق
+  والاستعادة وتغيير البريد وإعدادات الأمان والجلسات.
+
+#### مخطط البيانات والترحيلات
+
+- `20260806223946_Phase5IdentitySecurity`: identity tables, profiles, sessions, refresh tokens, MFA, security events,
+  roles/permission seed, Data Protection key storage.
+- `20260807113555_AddPendingEmailChange`: pending email state for verified email-change links.
+- security events append-only privilege is applied in migration/bootstrap; migration compatibility maximum is updated
+  by each Phase 5 migration.
+
+#### بوابات التحقق المنفذة
+
+- `dotnet build .\backend\Dorosak.slnx --configuration Release --no-restore`
+- `dotnet test .\backend\Dorosak.slnx --configuration Release --no-build --no-restore`
+- `npm run lint`, `npm run test`, `npm run build`, `npm run format:check`
+- `dotnet list .\backend\Dorosak.slnx package --vulnerable --include-transitive`
+- `npm audit --audit-level=high`
+- PostgreSQL/Redis integration journeys: CSRF, neutral registration, email verification/change, lockout, password
+  reset invalidation, MFA/recovery single-use, refresh rotation/replay, session revoke, permission denial, Redis
+  fail-closed, outbox retry, and admin bootstrap.
+
+#### القرار
+
+Phase 5 مكتملة من ناحية التنفيذ والاختبارات المحلية. المرحلة التالية هي Phase 6 (Course Catalog and Discovery)، ولا
+تبدأ قبل تأكيد المستخدم بكلمة `تم`.

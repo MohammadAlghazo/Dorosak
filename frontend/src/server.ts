@@ -10,7 +10,6 @@ import { join } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
-const angularApp = new AngularNodeAppEngine();
 const internalApiOrigin = validatedOrigin(
   process.env['DOROSAK_INTERNAL_API_ORIGIN'] ?? 'http://127.0.0.1:5053',
 );
@@ -21,6 +20,7 @@ const allowedHosts = new Set(
     .map((host) => host.trim().toLowerCase())
     .filter(Boolean),
 );
+const angularApp = new AngularNodeAppEngine({ allowedHosts: [...allowedHosts] });
 
 app.disable('x-powered-by');
 app.set('trust proxy', false);

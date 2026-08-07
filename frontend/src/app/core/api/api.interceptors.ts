@@ -35,9 +35,7 @@ export const apiMetadataInterceptor: HttpInterceptorFn = (request, next) => {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const correlationId = globalThis.crypto.randomUUID();
   const url = inject(RuntimeConfigService).apiUrl(request.url);
-  const credentials = request.context.get(PUBLIC_API_REQUEST)
-    ? 'omit'
-    : request.credentials;
+  const credentials = request.context.get(PUBLIC_API_REQUEST) ? 'omit' : request.credentials;
   return next(
     request.clone({
       url,

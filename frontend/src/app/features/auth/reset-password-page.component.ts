@@ -11,22 +11,26 @@ import { authErrorMessage, matchingFields, requiredValidator } from './auth-form
   template: `
     <section class="identity-page" aria-labelledby="reset-title">
       <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'خطوة أخيرة' : 'One last step' }}</p>
-      <h1 id="reset-title">{{
-        locale.locale() === 'ar' ? 'عيّن كلمة مرور جديدة' : 'Set a new password'
-      }}</h1>
+      <h1 id="reset-title">
+        {{ locale.locale() === 'ar' ? 'عيّن كلمة مرور جديدة' : 'Set a new password' }}
+      </h1>
 
       @if (!hasResetLink) {
-        <div class="form-alert" role="alert">{{
-          locale.locale() === 'ar'
-            ? 'رابط الاستعادة غير مكتمل.'
-            : 'The recovery link is incomplete.'
-        }}</div>
+        <div class="form-alert" role="alert">
+          {{
+            locale.locale() === 'ar'
+              ? 'رابط الاستعادة غير مكتمل.'
+              : 'The recovery link is incomplete.'
+          }}
+        </div>
       } @else if (completed()) {
-        <div class="form-success" role="status">{{
-          locale.locale() === 'ar'
-            ? 'تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن.'
-            : 'Your password was changed. You can sign in now.'
-        }}</div>
+        <div class="form-success" role="status">
+          {{
+            locale.locale() === 'ar'
+              ? 'تم تغيير كلمة المرور. يمكنك تسجيل الدخول الآن.'
+              : 'Your password was changed. You can sign in now.'
+          }}
+        </div>
       } @else {
         @if (error()) {
           <div class="form-alert" role="alert">{{ error() }}</div>
@@ -44,9 +48,9 @@ import { authErrorMessage, matchingFields, requiredValidator } from './auth-form
             aria-describedby="reset-password-error"
           />
           @if (form.controls.password.touched && form.controls.password.invalid) {
-            <p id="reset-password-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'كلمة المرور مطلوبة.' : 'Password is required.'
-            }}</p>
+            <p id="reset-password-error" class="field-error">
+              {{ locale.locale() === 'ar' ? 'كلمة المرور مطلوبة.' : 'Password is required.' }}
+            </p>
           }
 
           <label for="reset-confirm">{{
@@ -57,17 +61,21 @@ import { authErrorMessage, matchingFields, requiredValidator } from './auth-form
             type="password"
             formControlName="confirmPassword"
             autocomplete="new-password"
-            [attr.aria-invalid]="form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')"
+            [attr.aria-invalid]="
+              form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')
+            "
             aria-describedby="reset-confirm-error"
           />
           @if (form.controls.confirmPassword.touched && form.hasError('fieldsMismatch')) {
-            <p id="reset-confirm-error" class="field-error">{{
-              locale.locale() === 'ar' ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.'
-            }}</p>
+            <p id="reset-confirm-error" class="field-error">
+              {{
+                locale.locale() === 'ar' ? 'كلمتا المرور غير متطابقتين.' : 'Passwords do not match.'
+              }}
+            </p>
           }
-          <button type="submit" [disabled]="submitting()">{{
-            locale.locale() === 'ar' ? 'حفظ كلمة المرور' : 'Save password'
-          }}</button>
+          <button type="submit" [disabled]="submitting()">
+            {{ locale.locale() === 'ar' ? 'حفظ كلمة المرور' : 'Save password' }}
+          </button>
         </form>
       }
 
@@ -90,10 +98,10 @@ export class ResetPasswordPageComponent {
   protected readonly submitting = signal(false);
   protected readonly form = new FormGroup(
     {
-       password: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
+      password: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
       confirmPassword: new FormControl('', {
         nonNullable: true,
-         validators: [requiredValidator],
+        validators: [requiredValidator],
       }),
     },
     { validators: [matchingFields('password', 'confirmPassword')] },

@@ -51,7 +51,9 @@ describe('SessionCoordinator', () => {
     const coordinator = TestBed.inject(SessionCoordinator);
     const store = TestBed.inject(SessionStore);
 
-    await firstValueFrom(coordinator.signIn({ email: 'learner@example.test', password: 'password' }));
+    await firstValueFrom(
+      coordinator.signIn({ email: 'learner@example.test', password: 'password' }),
+    );
 
     expect(store.isAuthenticated()).toBe(false);
     expect(coordinator.pendingMfaChallenge()?.challengeToken).toBe('challenge-token');

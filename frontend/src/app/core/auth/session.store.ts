@@ -28,7 +28,9 @@ export class SessionStore {
   readonly accessTokenExpiresAt = computed(() => this.state().accessTokenExpiresAt);
   readonly identity = computed(() => this.state().identity);
   readonly roles = computed<readonly string[]>(() => this.state().identity?.roles ?? []);
-  readonly permissions = computed<readonly string[]>(() => this.state().identity?.permissions ?? []);
+  readonly permissions = computed<readonly string[]>(
+    () => this.state().identity?.permissions ?? [],
+  );
   readonly isAuthenticated = computed(() => this.state().status === 'authenticated');
   readonly isRestoring = computed(() => this.state().status === 'restoring');
 
@@ -73,7 +75,10 @@ export class SessionStore {
 
   isAccessTokenExpired(now = Date.now()): boolean {
     const expiresAt = this.accessTokenExpiresAt();
-    return expiresAt !== null && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= now);
+    return (
+      expiresAt !== null &&
+      (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= now)
+    );
   }
 
   hasPermission(permission: string): boolean {

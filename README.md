@@ -4,9 +4,10 @@ Dorosak is an Arabic-first educational platform for students, instructors, and p
 
 ## Project Status
 
-The repository contains the production backend foundation: Clean Architecture projects, PostgreSQL migrations,
-least-privilege database provisioning, API and Worker hosts, integration tests, and OCI container builds. Product
-modules and the Angular application are delivered in subsequent phases.
+The repository contains the production backend foundation plus the Phase 5 identity and security slice: registration,
+email verification/change, password recovery, asymmetric JWT access tokens, rotating refresh sessions, MFA/recovery
+codes, role permissions, session management, Angular auth/settings flows, and PostgreSQL/Redis integration coverage.
+Learning, catalog, commerce, and administration product modules remain in subsequent phases.
 
 ## Architecture
 

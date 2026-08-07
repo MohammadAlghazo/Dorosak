@@ -118,12 +118,16 @@ describe('API interceptors', () => {
 
   it('keeps anonymous auth requests cookie-enabled without adding bearer credentials', async () => {
     const responsePromise = firstValueFrom(
-      http.post<{ ok: boolean }>('auth/sign-in', {}, {
-        context: new HttpContext()
-          .set(API_REQUEST, true)
-          .set(SKIP_AUTH, true)
-          .set(SKIP_REFRESH, true),
-      }),
+      http.post<{ ok: boolean }>(
+        'auth/sign-in',
+        {},
+        {
+          context: new HttpContext()
+            .set(API_REQUEST, true)
+            .set(SKIP_AUTH, true)
+            .set(SKIP_REFRESH, true),
+        },
+      ),
     );
     const request = controller.expectOne('/api/v1/auth/sign-in');
 
@@ -207,9 +211,7 @@ describe('API interceptors', () => {
   it('normalizes final API failures into ApiProblem', async () => {
     const responsePromise = firstValueFrom(
       http.get('system/status', {
-        context: new HttpContext()
-          .set(API_REQUEST, true)
-          .set(RETRY_IDEMPOTENT_GET, false),
+        context: new HttpContext().set(API_REQUEST, true).set(RETRY_IDEMPOTENT_GET, false),
       }),
     );
     controller

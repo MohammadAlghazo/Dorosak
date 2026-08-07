@@ -20,18 +20,22 @@ type ConfirmationStatus = 'confirming' | 'confirmed' | 'failed';
   template: `
     <section class="identity-page" aria-labelledby="email-change-title">
       <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'عنوان جديد' : 'New address' }}</p>
-      <h1 id="email-change-title">{{
-        locale.locale() === 'ar' ? 'تأكيد البريد الجديد' : 'Confirm your new email'
-      }}</h1>
+      <h1 id="email-change-title">
+        {{ locale.locale() === 'ar' ? 'تأكيد البريد الجديد' : 'Confirm your new email' }}
+      </h1>
 
       @if (status() === 'confirming') {
-        <p role="status">{{ locale.locale() === 'ar' ? 'جارٍ تأكيد التغيير…' : 'Confirming the change…' }}</p>
+        <p role="status">
+          {{ locale.locale() === 'ar' ? 'جارٍ تأكيد التغيير…' : 'Confirming the change…' }}
+        </p>
       } @else if (status() === 'confirmed') {
-        <div class="form-success" role="status">{{
-          locale.locale() === 'ar'
-            ? 'تم تغيير البريد وإنهاء جلساتك. سجل الدخول بالبريد الجديد.'
-            : 'Your email changed and your sessions ended. Sign in with the new address.'
-        }}</div>
+        <div class="form-success" role="status">
+          {{
+            locale.locale() === 'ar'
+              ? 'تم تغيير البريد وإنهاء جلساتك. سجل الدخول بالبريد الجديد.'
+              : 'Your email changed and your sessions ended. Sign in with the new address.'
+          }}
+        </div>
       } @else {
         <div class="form-alert" role="alert">{{ error() }}</div>
       }
@@ -57,7 +61,9 @@ export class ConfirmEmailChangePageComponent implements OnInit {
     if (!isPlatformBrowser(this.platformId) || !userId || !token) {
       this.status.set('failed');
       this.error.set(
-        this.locale.locale() === 'ar' ? 'رابط تغيير البريد غير صالح.' : 'The email change link is invalid.',
+        this.locale.locale() === 'ar'
+          ? 'رابط تغيير البريد غير صالح.'
+          : 'The email change link is invalid.',
       );
       return;
     }

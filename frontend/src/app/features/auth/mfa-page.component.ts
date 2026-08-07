@@ -11,36 +11,44 @@ import { authErrorMessage, requiredValidator } from './auth-form.helpers';
   imports: [ReactiveFormsModule, RouterLink],
   template: `
     <section class="identity-page" aria-labelledby="mfa-title">
-      <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'حماية إضافية' : 'One more check' }}</p>
-      <h1 id="mfa-title">{{
-        recovery
-          ? locale.locale() === 'ar'
-            ? 'استخدم رمز الاسترداد'
-            : 'Use a recovery code'
-          : locale.locale() === 'ar'
-            ? 'أدخل رمز التحقق'
-            : 'Enter your verification code'
-      }}</h1>
+      <p class="identity-kicker">
+        {{ locale.locale() === 'ar' ? 'حماية إضافية' : 'One more check' }}
+      </p>
+      <h1 id="mfa-title">
+        {{
+          recovery
+            ? locale.locale() === 'ar'
+              ? 'استخدم رمز الاسترداد'
+              : 'Use a recovery code'
+            : locale.locale() === 'ar'
+              ? 'أدخل رمز التحقق'
+              : 'Enter your verification code'
+        }}
+      </h1>
 
       @if (!coordinator.pendingMfaChallenge()) {
-        <div class="form-alert" role="alert">{{
-          locale.locale() === 'ar'
-            ? 'انتهت محاولة تسجيل الدخول أو فُقدت بعد إعادة تحميل الصفحة.'
-            : 'The sign-in attempt expired or was lost when the page reloaded.'
-        }}</div>
+        <div class="form-alert" role="alert">
+          {{
+            locale.locale() === 'ar'
+              ? 'انتهت محاولة تسجيل الدخول أو فُقدت بعد إعادة تحميل الصفحة.'
+              : 'The sign-in attempt expired or was lost when the page reloaded.'
+          }}
+        </div>
         <a class="primary-link" [routerLink]="['/', locale.locale(), 'auth', 'sign-in']">{{
           locale.copy().signIn
         }}</a>
       } @else {
-        <p>{{
-          recovery
-            ? locale.locale() === 'ar'
-              ? 'أدخل أحد رموز الاسترداد غير المستخدمة.'
-              : 'Enter one of your unused recovery codes.'
-            : locale.locale() === 'ar'
-              ? 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.'
-              : 'Enter the 6-digit code from your authenticator app.'
-        }}</p>
+        <p>
+          {{
+            recovery
+              ? locale.locale() === 'ar'
+                ? 'أدخل أحد رموز الاسترداد غير المستخدمة.'
+                : 'Enter one of your unused recovery codes.'
+              : locale.locale() === 'ar'
+                ? 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.'
+                : 'Enter the 6-digit code from your authenticator app.'
+          }}
+        </p>
         @if (error()) {
           <div class="form-alert" role="alert">{{ error() }}</div>
         }
@@ -63,19 +71,21 @@ import { authErrorMessage, requiredValidator } from './auth-form.helpers';
             aria-describedby="mfa-code-error"
           />
           @if (form.controls.code.touched && form.controls.code.invalid) {
-            <p id="mfa-code-error" class="field-error">{{
-              recovery
-                ? locale.locale() === 'ar'
-                  ? 'أدخل رمز الاسترداد.'
-                  : 'Enter a recovery code.'
-                : locale.locale() === 'ar'
-                  ? 'أدخل رمزًا من 6 أرقام.'
-                  : 'Enter a 6-digit code.'
-            }}</p>
+            <p id="mfa-code-error" class="field-error">
+              {{
+                recovery
+                  ? locale.locale() === 'ar'
+                    ? 'أدخل رمز الاسترداد.'
+                    : 'Enter a recovery code.'
+                  : locale.locale() === 'ar'
+                    ? 'أدخل رمزًا من 6 أرقام.'
+                    : 'Enter a 6-digit code.'
+              }}
+            </p>
           }
-          <button type="submit" [disabled]="submitting()">{{
-            locale.locale() === 'ar' ? 'متابعة' : 'Continue'
-          }}</button>
+          <button type="submit" [disabled]="submitting()">
+            {{ locale.locale() === 'ar' ? 'متابعة' : 'Continue' }}
+          </button>
         </form>
 
         <p class="identity-alternative">
@@ -114,8 +124,8 @@ export class MfaPageComponent {
     code: new FormControl('', {
       nonNullable: true,
       validators: this.recovery
-         ? [requiredValidator]
-         : [requiredValidator, Validators.pattern(/^\d{6}$/u)],
+        ? [requiredValidator]
+        : [requiredValidator, Validators.pattern(/^\d{6}$/u)],
     }),
   });
 

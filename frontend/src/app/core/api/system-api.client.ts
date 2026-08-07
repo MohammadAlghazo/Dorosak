@@ -27,6 +27,11 @@ export class SystemApiClient {
       .get<ApiEnvelope<SystemStatusDto>>('system/status', {
         context: new HttpContext().set(API_REQUEST, true).set(PUBLIC_API_REQUEST, true),
       })
-      .pipe(map((response) => ({ service: response.data.service, available: Boolean(response.data.utcTime) })));
+      .pipe(
+        map((response) => ({
+          service: response.data.service,
+          available: Boolean(response.data.utcTime),
+        })),
+      );
   }
 }

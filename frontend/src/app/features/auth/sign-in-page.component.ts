@@ -11,7 +11,9 @@ import { authErrorMessage, emailValidator, requiredValidator } from './auth-form
   imports: [ReactiveFormsModule, RouterLink],
   template: `
     <section class="identity-page" aria-labelledby="sign-in-title">
-      <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back' }}</p>
+      <p class="identity-kicker">
+        {{ locale.locale() === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back' }}
+      </p>
       <h1 id="sign-in-title">{{ locale.copy().signIn }}</h1>
       <p>
         {{
