@@ -1,7 +1,7 @@
 using Dorosak.Application.Common.Persistence;
-using Dorosak.Domain.Identity;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Identity;
 using Dorosak.Domain.Operations;
 using Dorosak.Domain.Profiles;
 using Dorosak.Infrastructure.Identity;

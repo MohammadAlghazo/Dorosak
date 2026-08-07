@@ -42,8 +42,12 @@ public static class DependencyInjection
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.AddCollaboratorCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.RemoveCollaboratorCommand>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.RemoveCollaboratorCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.TransferCourseOwnershipCommand>,
+            Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.TransferCourseOwnershipCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.RequestPublicationCommand>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.RequestPublicationCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.WithdrawPublicationCommand>,
+            Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.WithdrawPublicationCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetPublicationStatusQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetPublicationStatusQuery>>();
         services.AddAutoMapper(
@@ -65,7 +69,9 @@ public static class DependencyInjection
         AddCommandHandler<Features.Phase6.UpdateCurriculumCommand, Features.Phase6.CourseMutationResponse>(services);
         AddCommandHandler<Features.Phase6.AddCollaboratorCommand, Features.Phase6.CourseCollaboratorResponse>(services);
         AddCommandHandler<Features.Phase6.RemoveCollaboratorCommand, Features.Phase6.OperationCompleted>(services);
+        AddCommandHandler<Features.Phase6.TransferCourseOwnershipCommand, Features.Phase6.CourseMutationResponse>(services);
         AddCommandHandler<Features.Phase6.RequestPublicationCommand, Features.Phase6.PublicationStatusResponse>(services);
+        AddCommandHandler<Features.Phase6.WithdrawPublicationCommand, Features.Phase6.PublicationStatusResponse>(services);
         AddCommandHandler<Features.Phase6.ReviewPublicationCommand, Features.Phase6.PublicationReviewResponse>(services);
         AddCommandHandler<Features.Phase6.UpsertCategoryCommand, Features.Phase6.CategoryResponse>(services);
         AddCommandHandler<Features.Phase6.UpsertTagCommand, Features.Phase6.TagResponse>(services);

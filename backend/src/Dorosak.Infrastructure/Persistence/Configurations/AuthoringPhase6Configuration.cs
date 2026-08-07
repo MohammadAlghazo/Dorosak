@@ -151,6 +151,9 @@ internal sealed class PublicationReviewConfiguration : IEntityTypeConfiguration<
         builder.Property(review => review.ReviewerReason).HasMaxLength(2000);
         builder.HasIndex(review => new { review.CourseId, review.RequestedAt, review.Id })
             .HasDatabaseName("ix_publication_reviews_course_requested_id");
+        builder.HasIndex(review => new { review.RequestedAt, review.Id })
+            .IsDescending()
+            .HasDatabaseName("ix_publication_reviews_requested_id");
         builder.HasIndex(review => review.CourseId)
             .IsUnique()
             .HasDatabaseName("uq_publication_reviews_pending_course")

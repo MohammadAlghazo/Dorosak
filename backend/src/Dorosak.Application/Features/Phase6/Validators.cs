@@ -150,7 +150,18 @@ internal sealed class AddCollaboratorCommandValidator : AbstractValidator<AddCol
 
 internal sealed class RemoveCollaboratorCommandValidator : AbstractValidator<RemoveCollaboratorCommand>;
 
+internal sealed class TransferCourseOwnershipCommandValidator : AbstractValidator<TransferCourseOwnershipCommand>
+{
+    public TransferCourseOwnershipCommandValidator()
+    {
+        RuleFor(request => request.NewOwnerUserId).NotEmpty();
+        RuleFor(request => request.ExpectedVersion).NotNull().GreaterThanOrEqualTo(1);
+    }
+}
+
 internal sealed class RequestPublicationCommandValidator : AbstractValidator<RequestPublicationCommand>;
+
+internal sealed class WithdrawPublicationCommandValidator : AbstractValidator<WithdrawPublicationCommand>;
 
 internal sealed class ReviewPublicationCommandValidator : AbstractValidator<ReviewPublicationCommand>
 {

@@ -37,6 +37,9 @@ public sealed record CourseDetailsResponse(
     string DefaultLocale,
     string Status,
     long DraftVersion,
+    string Level,
+    IReadOnlyList<string> CategoryCodes,
+    IReadOnlyList<string> TagCodes,
     IReadOnlyList<CourseLocalizationResponse> Localizations,
     IReadOnlyList<CourseCollaboratorResponse> Collaborators,
     DateTimeOffset CreatedAt,
@@ -94,6 +97,7 @@ public sealed record CategoryResponse(
     string Code,
     Guid? ParentId,
     int DisplayOrder,
+    bool IsActive,
     IReadOnlyList<TaxonomyLocalizationResponse> Localizations);
 
 public sealed record TagResponse(
@@ -105,23 +109,50 @@ public sealed record TagResponse(
 public sealed record TaxonomyLocalizationResponse(string Locale, string Name);
 
 public sealed record CatalogCourseResponse(
-    Guid Id,
+    Guid CourseId,
+    Guid ReleaseId,
     string Locale,
     string Slug,
     string Title,
-    string Subtitle,
-    string Description);
+    string Summary,
+    string Language,
+    string Level,
+    int DurationMinutes,
+    IReadOnlyList<PublicInstructorResponse> Instructors,
+    IReadOnlyList<PublicTaxonomyTermResponse> Categories,
+    IReadOnlyList<PublicTaxonomyTermResponse> Tags,
+    PublicCoursePriceResponse? Price);
+
+public sealed record PublicInstructorResponse(Guid Id, string DisplayName);
+
+public sealed record PublicTaxonomyTermResponse(Guid Id, string Code, string Name);
+
+public sealed record PublicCoursePriceResponse(string Type, string? Amount, string? Currency);
 
 public sealed record HighlightSegment(string Text, bool Matched);
 
 public sealed record SearchCourseResponse(
-    Guid Id,
+    Guid CourseId,
+    Guid ReleaseId,
     string Locale,
     string Slug,
     string Title,
-    IReadOnlyList<HighlightSegment> Highlights);
+    string Summary,
+    string Language,
+    string Level,
+    int DurationMinutes,
+    IReadOnlyList<PublicInstructorResponse> Instructors,
+    IReadOnlyList<PublicTaxonomyTermResponse> Categories,
+    IReadOnlyList<PublicTaxonomyTermResponse> Tags,
+    PublicCoursePriceResponse? Price,
+    IReadOnlyList<HighlightSegment> TitleHighlight,
+    IReadOnlyList<HighlightSegment> SummaryHighlight);
 
 public sealed record CatalogFilterContract(
     string? CategoryCode = null,
+    string? Tag = null,
     string? Language = null,
-    string? Level = null);
+    string? Level = null,
+    string? Price = null,
+    string? Duration = null,
+    string? Instructor = null);

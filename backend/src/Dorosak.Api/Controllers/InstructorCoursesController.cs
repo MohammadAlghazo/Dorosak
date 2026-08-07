@@ -199,6 +199,28 @@ public sealed class InstructorCoursesController(ISender sender) : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpPut("{courseId:guid}/owner")]
+    [PermissionPolicy(Permissions.CourseUpdateOwn)]
+    public async Task<IActionResult> TransferOwnership(
+        Guid courseId,
+        TransferCourseOwnershipRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        if (!TryReadIfMatch(out long? expectedVersion))
+        {
+            return InvalidEtag();
+        }
+        Result<CourseMutationResponse> result = await sender.Send(
+            new TransferCourseOwnershipCommand(userId, courseId, request.NewOwnerUserId, expectedVersion),
+            cancellationToken);
+        SetEtag(result);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost("{courseId:guid}/publication-requests")]
     [PermissionPolicy(Permissions.CourseSubmitOwn)]
     public async Task<IActionResult> RequestPublication(Guid courseId, CancellationToken cancellationToken)
@@ -209,6 +231,24 @@ public sealed class InstructorCoursesController(ISender sender) : ControllerBase
         }
         Result<PublicationStatusResponse> result = await sender.Send(
             new RequestPublicationCommand(userId, courseId),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            Response.Headers.ETag = FormatEtag(result.Value.DraftVersion);
+        }
+        return this.ToActionResult(result);
+    }
+
+    [HttpDelete("{courseId:guid}/publication-requests/current")]
+    [PermissionPolicy(Permissions.CourseSubmitOwn)]
+    public async Task<IActionResult> WithdrawPublication(Guid courseId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<PublicationStatusResponse> result = await sender.Send(
+            new WithdrawPublicationCommand(userId, courseId),
             cancellationToken);
         if (result.IsSuccess)
         {

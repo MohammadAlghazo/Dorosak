@@ -374,6 +374,437 @@ code {
   text-align: center;
 }
 
+.workflow-page {
+  max-inline-size: 68rem;
+  margin-inline: auto;
+}
+.workflow-page-wide {
+  max-inline-size: 86rem;
+}
+.workflow-heading {
+  margin-block-end: var(--space-6);
+}
+.workflow-heading h1 {
+  max-inline-size: 22ch;
+  margin-block: var(--space-2) var(--space-3);
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  line-height: 1.08;
+}
+.workflow-heading > p:last-child,
+.workflow-heading > div > p:last-child,
+.muted {
+  color: var(--color-muted);
+}
+.workflow-heading-row,
+.workflow-card-heading,
+.curriculum-section-heading,
+.curriculum-toolbar,
+.action-row,
+.dialog-actions,
+.inline-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+.workflow-heading-row {
+  align-items: end;
+}
+.workflow-card,
+.review-card,
+.course-draft-card,
+.curriculum-section {
+  margin-block-end: var(--space-5);
+  padding: clamp(var(--space-4), 3vw, var(--space-6));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  box-shadow: var(--shadow-1);
+}
+.workflow-card h2,
+.review-card h2,
+.course-draft-card h2,
+.curriculum-section h2 {
+  margin-block-start: 0;
+}
+.workflow-card-heading {
+  align-items: start;
+  margin-block-end: var(--space-4);
+}
+.workflow-card-heading h2,
+.workflow-card-heading p {
+  margin-block: 0 var(--space-1);
+}
+.eyebrow,
+.version-label {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.workflow-state {
+  min-block-size: 5rem;
+  padding: var(--space-5);
+  color: var(--color-muted);
+  background: var(--color-surface);
+  border-inline-start: 4px solid var(--color-brand);
+}
+.workflow-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.workflow-form label,
+.workflow-form legend {
+  font-weight: 650;
+}
+.workflow-form input,
+.workflow-form select,
+.workflow-form textarea,
+.section-title-input,
+.lesson-fields input,
+.lesson-fields select,
+.lesson-fields textarea {
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: var(--space-3);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+.workflow-form textarea,
+.lesson-fields textarea {
+  resize: vertical;
+}
+.workflow-form input[aria-invalid='true'],
+.workflow-form select[aria-invalid='true'],
+.workflow-form textarea[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+.workflow-form fieldset {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+.form-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+.form-grid > div {
+  display: grid;
+  gap: var(--space-2);
+}
+.two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.primary-button,
+.text-button,
+.icon-button,
+.back-link,
+.section-tabs a,
+.admin-action-card,
+.course-draft-card > a {
+  min-block-size: 44px;
+}
+.primary-button {
+  display: inline-grid;
+  place-items: center;
+  padding-inline: var(--space-4);
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-2);
+}
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.text-button {
+  padding-inline: var(--space-2);
+  color: var(--color-link);
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  margin-block-end: var(--space-5);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.detail-grid > div {
+  min-inline-size: 0;
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.detail-grid dt {
+  margin-block-end: var(--space-1);
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+.detail-grid dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-note,
+.conflict-panel {
+  margin-block: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-subtle);
+  border-inline-start: 4px solid var(--color-warning);
+}
+.review-note p,
+.conflict-panel p {
+  margin-block-end: 0;
+  white-space: pre-wrap;
+}
+.conflict-panel {
+  background: var(--color-warning-surface);
+}
+.conflict-panel h2 {
+  margin-block-start: 0;
+  color: var(--color-warning-text);
+}
+.save-indicator {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+.course-grid,
+.admin-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.course-draft-card {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  margin: 0;
+}
+.course-draft-card > a {
+  display: inline-flex;
+  align-items: center;
+  margin-block-start: auto;
+  font-weight: 650;
+}
+.load-more {
+  display: block;
+  margin-inline: auto;
+}
+.section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.section-tabs a {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-3);
+  color: var(--color-muted);
+  border-block-end: 2px solid transparent;
+  text-decoration: none;
+}
+.section-tabs a[aria-current='page'] {
+  color: var(--color-text);
+  border-color: var(--color-brand);
+}
+.localized-editor {
+  margin-block-start: var(--space-4);
+}
+.plain-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.plain-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 52px;
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+}
+.plain-list li > div {
+  display: grid;
+  min-inline-size: 0;
+}
+.plain-list span {
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+.curriculum-toolbar {
+  margin-block-end: var(--space-4);
+}
+.curriculum-section-heading {
+  align-items: center;
+}
+.position-badge {
+  display: grid;
+  flex: 0 0 2.25rem;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border-radius: 50%;
+  font-weight: 700;
+}
+.section-title-input {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.reorder-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+}
+.icon-button {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  padding: 0;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.danger-icon {
+  color: var(--color-danger);
+}
+.lesson-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+  padding-inline-start: var(--space-5);
+}
+.lesson-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+.lesson-position {
+  color: var(--color-text);
+  background: var(--color-subtle);
+}
+.lesson-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.3fr);
+  gap: var(--space-2);
+}
+.lesson-fields textarea {
+  grid-column: 1 / -1;
+}
+.lesson-actions {
+  flex-wrap: wrap;
+  inline-size: 92px;
+}
+.admin-action-card {
+  display: block;
+  padding: var(--space-5);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border-block-start: 4px solid var(--color-brand);
+  border-radius: var(--radius-2);
+  box-shadow: var(--shadow-1);
+  text-decoration: none;
+}
+.admin-action-card > span {
+  color: var(--color-brand);
+  font-weight: 700;
+}
+.admin-action-card h2 {
+  margin-block: var(--space-5) var(--space-2);
+}
+.admin-action-card p {
+  margin: 0;
+  color: var(--color-muted);
+}
+.review-list {
+  display: grid;
+  gap: var(--space-4);
+}
+.audit-reason-form {
+  position: sticky;
+  inset-block-start: var(--space-2);
+  z-index: 1;
+}
+.inline-control input {
+  flex: 1;
+}
+.taxonomy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.taxonomy-lists {
+  margin-block-start: var(--space-5);
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+}
+.checkbox-label input {
+  inline-size: 1.25rem;
+  min-block-size: 1.25rem;
+}
+dialog {
+  inline-size: min(34rem, calc(100% - 2rem));
+  padding: 0;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  box-shadow: var(--shadow-2);
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 58%);
+}
+.dialog-content {
+  margin: 0;
+  padding: var(--space-5);
+}
+.dialog-content h2 {
+  margin-block-start: 0;
+}
+.dialog-actions {
+  justify-content: end;
+  margin-block-start: var(--space-4);
+}
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 620px) {
   .settings-card-heading,
   .session-card {
@@ -384,6 +815,39 @@ code {
   }
   .recovery-panel ol {
     columns: 1;
+  }
+  .workflow-heading-row,
+  .workflow-card-heading,
+  .curriculum-section-heading,
+  .inline-control,
+  .action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .two-columns,
+  .detail-grid,
+  .course-grid,
+  .admin-card-grid,
+  .taxonomy-grid,
+  .lesson-fields {
+    grid-template-columns: 1fr;
+  }
+  .primary-link,
+  .primary-button,
+  .inline-control button,
+  .action-row button {
+    inline-size: 100%;
+  }
+  .lesson-list {
+    padding-inline-start: 0;
+  }
+  .lesson-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .lesson-actions {
+    grid-column: 1 / -1;
+    inline-size: auto;
+    margin-inline-start: calc(2.25rem + var(--space-3));
   }
 }
 img,

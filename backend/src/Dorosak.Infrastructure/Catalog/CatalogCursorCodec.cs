@@ -11,14 +11,20 @@ internal sealed class CatalogCursorCodec(IOptions<CatalogCursorOptions> options)
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly byte[] _key = Encoding.UTF8.GetBytes(options.Value.SigningKey);
 
-    public string Create(string scope, string canonicalQuery, DateTimeOffset? afterUpdatedAt, Guid? afterId)
+    public string Create(
+        string scope,
+        string canonicalQuery,
+        DateTimeOffset? afterUpdatedAt,
+        Guid? afterId,
+        string? afterKey = null)
     {
         CursorPayload payload = new(
             1,
             scope,
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalQuery))).ToLowerInvariant(),
             afterUpdatedAt,
-            afterId);
+            afterId,
+            afterKey);
         string encodedPayload = WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         string signature = WebEncoders.Base64UrlEncode(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(encodedPayload)));
         return $"{encodedPayload}.{signature}";
@@ -31,8 +37,20 @@ internal sealed class CatalogCursorCodec(IOptions<CatalogCursorOptions> options)
         out DateTimeOffset? afterUpdatedAt,
         out Guid? afterId)
     {
+        return TryRead(cursor, scope, canonicalQuery, out afterUpdatedAt, out afterId, out _);
+    }
+
+    public bool TryRead(
+        string? cursor,
+        string scope,
+        string canonicalQuery,
+        out DateTimeOffset? afterUpdatedAt,
+        out Guid? afterId,
+        out string? afterKey)
+    {
         afterUpdatedAt = null;
         afterId = null;
+        afterKey = null;
         if (string.IsNullOrWhiteSpace(cursor))
         {
             return true;
@@ -81,6 +99,7 @@ internal sealed class CatalogCursorCodec(IOptions<CatalogCursorOptions> options)
 
         afterUpdatedAt = payload.AfterUpdatedAt;
         afterId = payload.AfterId;
+        afterKey = payload.AfterKey;
         return true;
     }
 
@@ -89,5 +108,6 @@ internal sealed class CatalogCursorCodec(IOptions<CatalogCursorOptions> options)
         string Scope,
         string QueryHash,
         DateTimeOffset? AfterUpdatedAt,
-        Guid? AfterId);
+        Guid? AfterId,
+        string? AfterKey);
 }

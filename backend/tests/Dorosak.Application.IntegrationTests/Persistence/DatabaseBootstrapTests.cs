@@ -1,3 +1,5 @@
+using Dorosak.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -73,6 +75,21 @@ public sealed class DatabaseBootstrapTests
         };
         await using var migratorConnection = new NpgsqlConnection(migratorConnectionString.ConnectionString);
         await migratorConnection.OpenAsync(TestContext.Current.CancellationToken);
+        var options = new DbContextOptionsBuilder<DorosakDbContext>()
+            .UseNpgsql(migratorConnectionString.ConnectionString, npgsql =>
+                npgsql.MigrationsHistoryTable("__ef_migrations_history", DorosakDbContext.MigrationsSchema))
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        await using (var dbContext = new DorosakDbContext(options))
+        {
+            await dbContext.Database.MigrateAsync(TestContext.Current.CancellationToken);
+        }
+        Assert.Equal(
+            "true|true|false|false|false",
+            await ExecuteScalarAsync(
+                runtimeConnection,
+                "SELECT has_table_privilege(current_user, 'operations.audit_logs', 'SELECT') || '|' || has_table_privilege(current_user, 'operations.audit_logs', 'INSERT') || '|' || has_table_privilege(current_user, 'operations.audit_logs', 'UPDATE') || '|' || has_table_privilege(current_user, 'operations.audit_logs', 'DELETE') || '|' || has_table_privilege(current_user, 'operations.audit_logs', 'TRUNCATE')",
+                TestContext.Current.CancellationToken));
         await ExecuteAsync(
             migratorConnection,
             "CREATE TABLE operations.bootstrap_probe (id integer PRIMARY KEY); DROP TABLE operations.bootstrap_probe;",

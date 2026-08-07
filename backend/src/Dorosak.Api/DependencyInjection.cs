@@ -170,7 +170,8 @@ public static class DependencyInjection
             options.AddPolicy(ApiConstants.CatalogOutputCachePolicy, policy => policy
                 .Expire(TimeSpan.FromSeconds(60))
                 .SetVaryByHeader("Accept-Language")
-                .SetVaryByQuery("*"));
+                .SetVaryByQuery("*")
+                .Tag(ApiConstants.CatalogCacheTag));
             options.AddPolicy(ApiConstants.TaxonomyOutputCachePolicy, policy => policy
                 .Expire(TimeSpan.FromMinutes(5))
                 .SetVaryByHeader("Accept-Language")
@@ -252,7 +253,11 @@ public static class DependencyInjection
         {
             if (allowedOrigins.Length > 0)
             {
-                policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+                policy.WithOrigins(allowedOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .WithExposedHeaders("ETag")
+                    .AllowCredentials();
             }
         }));
 

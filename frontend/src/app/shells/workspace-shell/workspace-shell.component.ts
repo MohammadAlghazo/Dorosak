@@ -66,7 +66,18 @@ import { LocaleService } from '../../core/i18n/locale.service';
             (click)="closeNavigation()"
             >{{ locale.locale() === 'ar' ? 'الجلسات' : 'Sessions' }}</a
           >
-          @if (session.hasPermission('User.ReadAny')) {
+          <a
+            [routerLink]="['/', locale.locale(), 'settings', 'teacher-application']"
+            (click)="closeNavigation()"
+            >{{ locale.locale() === 'ar' ? 'طلب التدريس' : 'Teacher application' }}</a
+          >
+          @if (
+            session.hasAnyPermission([
+              'TeacherApplication.ReviewAny',
+              'Course.ReviewAny',
+              'Catalog.ManageTaxonomy',
+            ])
+          ) {
             <a [routerLink]="['/', locale.locale(), 'admin']" (click)="closeNavigation()">{{
               locale.locale() === 'ar' ? 'الإدارة' : 'Administration'
             }}</a>

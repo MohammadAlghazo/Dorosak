@@ -47,4 +47,16 @@ describe('normalizeApiProblem', () => {
     expect(problem.retryAfter).toBe('30');
     expect(problem.correlationId).toBe('correlation-from-header');
   });
+
+  it('retains the current ETag from precondition failures', () => {
+    const problem = normalizeApiProblem(
+      new HttpErrorResponse({
+        status: 412,
+        error: { code: 'COURSE.VERSION_CONFLICT' },
+        headers: new HttpHeaders({ ETag: '"v7"' }),
+      }),
+    );
+
+    expect(problem.etag).toBe('"v7"');
+  });
 });

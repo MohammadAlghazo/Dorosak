@@ -60,8 +60,16 @@ public interface IPhase6Service
         RemoveCollaboratorCommand request,
         CancellationToken cancellationToken);
 
+    Task<Result<CourseMutationResponse>> TransferCourseOwnershipAsync(
+        TransferCourseOwnershipCommand request,
+        CancellationToken cancellationToken);
+
     Task<Result<PublicationStatusResponse>> RequestPublicationAsync(
         RequestPublicationCommand request,
+        CancellationToken cancellationToken);
+
+    Task<Result<PublicationStatusResponse>> WithdrawPublicationAsync(
+        WithdrawPublicationCommand request,
         CancellationToken cancellationToken);
 
     Task<Result<PublicationStatusResponse>> GetPublicationStatusAsync(

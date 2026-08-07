@@ -18,8 +18,12 @@ public sealed class SearchController(ISender sender) : ControllerBase
     public async Task<IActionResult> Search(
         [FromQuery(Name = "q")] string query = "",
         [FromQuery] string? categoryCode = null,
+        [FromQuery] string? tag = null,
         [FromQuery] string? language = null,
         [FromQuery] string? level = null,
+        [FromQuery] string? price = null,
+        [FromQuery] string? duration = null,
+        [FromQuery] string? instructor = null,
         [FromQuery] string sort = "",
         [FromQuery] int limit = 20,
         [FromQuery] string? cursor = null,
@@ -30,7 +34,7 @@ public sealed class SearchController(ISender sender) : ControllerBase
             new SearchCoursesQuery(
                 GetLocale(),
                 query,
-                new CatalogFilterContract(categoryCode, language, level),
+                new CatalogFilterContract(categoryCode, tag, language, level, price, duration, instructor),
                 sort,
                 limit,
                 cursor),

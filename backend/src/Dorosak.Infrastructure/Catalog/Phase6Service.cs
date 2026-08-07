@@ -90,6 +90,7 @@ internal sealed class Phase6Service(
         WithdrawTeacherApplicationCommand request,
         CancellationToken cancellationToken)
     {
+        await LockTeacherApplicationsAsync(request.UserId, cancellationToken);
         TeacherApplication? application = await dbContext.TeacherApplications
             .Where(candidate => candidate.UserId == request.UserId &&
                 (candidate.Status == TeacherApplicationStatus.Pending || candidate.Status == TeacherApplicationStatus.InReview))
@@ -112,7 +113,7 @@ internal sealed class Phase6Service(
         CancellationToken cancellationToken)
     {
         int limit = NormalizeLimit(request.Limit, 20);
-        const string canonicalQuery = "teacher-applications|submitted-desc";
+        string canonicalQuery = $"teacher-applications|submitted-desc|{limit}";
         if (!cursorCodec.TryRead(request.Cursor, "teacher-applications", canonicalQuery, out DateTimeOffset? after, out Guid? afterId))
         {
             return CursorFailure<PagedResponse<TeacherApplicationResponse>>();
@@ -145,6 +146,7 @@ internal sealed class Phase6Service(
         ReviewTeacherApplicationCommand request,
         CancellationToken cancellationToken)
     {
+        await LockTeacherApplicationAsync(request.ApplicationId, cancellationToken);
         TeacherApplication? application = await dbContext.TeacherApplications.SingleOrDefaultAsync(
             candidate => candidate.Id == request.ApplicationId,
             cancellationToken);
@@ -269,7 +271,7 @@ internal sealed class Phase6Service(
         CancellationToken cancellationToken)
     {
         int limit = NormalizeLimit(request.Limit, 20);
-        string canonical = $"instructor-courses|{request.UserId:D}|updated-desc";
+        string canonical = $"instructor-courses|{request.UserId:D}|updated-desc|{limit}";
         if (!cursorCodec.TryRead(request.Cursor, "instructor-courses", canonical, out DateTimeOffset? after, out Guid? afterId))
         {
             return CursorFailure<PagedResponse<CourseSummaryResponse>>();
@@ -316,14 +318,30 @@ internal sealed class Phase6Service(
             candidate => candidate.CourseId == course.Id,
             cancellationToken);
         List<CourseLocalizationResponse> localizations = await LoadLocalizationsAsync(course.Id, cancellationToken);
-        CourseCollaboratorResponse[] collaborators = await dbContext.CourseInstructors
+        CourseInstructor[] instructorEntities = await dbContext.CourseInstructors
             .AsNoTracking()
             .Where(instructor => instructor.CourseId == course.Id)
             .OrderBy(instructor => instructor.AddedAt)
+            .ToArrayAsync(cancellationToken);
+        CourseCollaboratorResponse[] collaborators = instructorEntities
             .Select(instructor => new CourseCollaboratorResponse(
                 instructor.UserId,
                 instructor.Role.ToString(),
                 instructor.AddedAt))
+            .ToArray();
+        string[] categoryCodes = await (
+            from link in dbContext.CourseCategories.AsNoTracking()
+            join category in dbContext.Categories.AsNoTracking() on link.CategoryId equals category.Id
+            where link.CourseId == course.Id
+            orderby category.Code
+            select category.Code)
+            .ToArrayAsync(cancellationToken);
+        string[] tagCodes = await (
+            from link in dbContext.CourseTags.AsNoTracking()
+            join tag in dbContext.Tags.AsNoTracking() on link.TagId equals tag.Id
+            where link.CourseId == course.Id
+            orderby tag.Code
+            select tag.Code)
             .ToArrayAsync(cancellationToken);
         return Result.Success(new CourseDetailsResponse(
             course.Id,
@@ -331,6 +349,9 @@ internal sealed class Phase6Service(
             course.DefaultLocale,
             course.Status.ToString(),
             draft.Version,
+            draft.Level,
+            categoryCodes,
+            tagCodes,
             localizations,
             collaborators,
             course.CreatedAt,
@@ -346,7 +367,7 @@ internal sealed class Phase6Service(
             return PreconditionRequired<CourseMutationResponse>();
         }
 
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Edit, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Edit, cancellationToken);
         if (course is null)
         {
             return Result.Failure<CourseMutationResponse>(CourseNotFound());
@@ -358,6 +379,7 @@ internal sealed class Phase6Service(
                 "Course metadata cannot be changed in the current state."));
         }
 
+        await LockDraftAsync(course.Id, cancellationToken);
         CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(candidate => candidate.CourseId == course.Id, cancellationToken);
         if (draft.Version != request.ExpectedVersion.Value)
         {
@@ -404,7 +426,7 @@ internal sealed class Phase6Service(
         ArchiveCourseCommand request,
         CancellationToken cancellationToken)
     {
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
         if (course is null)
         {
             return Result.Failure<CourseMutationResponse>(CourseNotFound());
@@ -450,7 +472,7 @@ internal sealed class Phase6Service(
             return PreconditionRequired<CourseMutationResponse>();
         }
 
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Edit, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Edit, cancellationToken);
         if (course is null)
         {
             return Result.Failure<CourseMutationResponse>(CourseNotFound());
@@ -462,6 +484,7 @@ internal sealed class Phase6Service(
                 "The curriculum cannot be changed in the current state."));
         }
 
+        await LockDraftAsync(course.Id, cancellationToken);
         CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(candidate => candidate.CourseId == course.Id, cancellationToken);
         if (draft.Version != request.ExpectedVersion.Value)
         {
@@ -485,6 +508,8 @@ internal sealed class Phase6Service(
             .ToListAsync(cancellationToken);
         var receivedSectionIds = new HashSet<Guid>();
         var receivedLessonIds = new HashSet<Guid>();
+        var pendingSectionPointers = new List<(CourseSection Section, Guid RevisionId, int Position)>();
+        var pendingLessonPointers = new List<(CourseLesson Lesson, Guid SectionId, Guid RevisionId, int Position)>();
 
         foreach (SectionInput input in request.Sections.OrderBy(section => section.Position))
         {
@@ -492,6 +517,7 @@ internal sealed class Phase6Service(
             CourseSection? section = sectionId == Guid.Empty
                 ? null
                 : existingSections.SingleOrDefault(candidate => candidate.Id == sectionId);
+            bool isNewSection = section is null;
             if (sectionId != Guid.Empty && section is null)
             {
                 return FailAndClear<CourseMutationResponse>(ResultError.BusinessRule(
@@ -518,7 +544,14 @@ internal sealed class Phase6Service(
                 input.Position,
                 now);
             dbContext.SectionRevisions.Add(sectionRevision);
-            section.ApplyRevision(sectionRevision.Id, input.Position);
+            if (isNewSection)
+            {
+                pendingSectionPointers.Add((section, sectionRevision.Id, input.Position));
+            }
+            else
+            {
+                section.ApplyRevision(sectionRevision.Id, input.Position);
+            }
             receivedSectionIds.Add(section.Id);
 
             foreach (LessonInput lessonInput in input.Lessons.OrderBy(lesson => lesson.Position))
@@ -527,6 +560,7 @@ internal sealed class Phase6Service(
                 CourseLesson? lesson = lessonId == Guid.Empty
                     ? null
                     : existingLessons.SingleOrDefault(candidate => candidate.Id == lessonId);
+                bool isNewLesson = lesson is null;
                 if (lessonId != Guid.Empty && lesson is null)
                 {
                     return FailAndClear<CourseMutationResponse>(ResultError.BusinessRule(
@@ -549,7 +583,14 @@ internal sealed class Phase6Service(
                     lessonInput.Position,
                     now);
                 dbContext.LessonRevisions.Add(lessonRevision);
-                lesson.ApplyRevision(section.Id, lessonRevision.Id, lessonInput.Position);
+                if (isNewLesson)
+                {
+                    pendingLessonPointers.Add((lesson, section.Id, lessonRevision.Id, lessonInput.Position));
+                }
+                else
+                {
+                    lesson.ApplyRevision(section.Id, lessonRevision.Id, lessonInput.Position);
+                }
                 receivedLessonIds.Add(lesson.Id);
             }
         }
@@ -564,16 +605,32 @@ internal sealed class Phase6Service(
         }
 
         ResultError? saveError = await SaveDraftAsync(draft.Id, cancellationToken);
-        return saveError is null
-            ? Result.Success(new CourseMutationResponse(course.Id, course.Status.ToString(), draft.Version))
-            : Result.Failure<CourseMutationResponse>(saveError);
+        if (saveError is not null)
+        {
+            return Result.Failure<CourseMutationResponse>(saveError);
+        }
+
+        foreach ((CourseSection section, Guid revisionId, int position) in pendingSectionPointers)
+        {
+            section.ApplyRevision(revisionId, position);
+        }
+        foreach ((CourseLesson lesson, Guid sectionId, Guid revisionId, int position) in pendingLessonPointers)
+        {
+            lesson.ApplyRevision(sectionId, revisionId, position);
+        }
+        if (pendingSectionPointers.Count > 0 || pendingLessonPointers.Count > 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return Result.Success(new CourseMutationResponse(course.Id, course.Status.ToString(), draft.Version));
     }
 
     public async Task<Result<CourseCollaboratorResponse>> AddCollaboratorAsync(
         AddCollaboratorCommand request,
         CancellationToken cancellationToken)
     {
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
         if (course is null)
         {
             return Result.Failure<CourseCollaboratorResponse>(CourseNotFound());
@@ -616,7 +673,7 @@ internal sealed class Phase6Service(
         RemoveCollaboratorCommand request,
         CancellationToken cancellationToken)
     {
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
         if (course is null)
         {
             return Result.Failure<OperationCompleted>(CourseNotFound());
@@ -637,16 +694,79 @@ internal sealed class Phase6Service(
         return Result.Success(new OperationCompleted(true));
     }
 
+    public async Task<Result<CourseMutationResponse>> TransferCourseOwnershipAsync(
+        TransferCourseOwnershipCommand request,
+        CancellationToken cancellationToken)
+    {
+        if (request.ExpectedVersion is null)
+        {
+            return PreconditionRequired<CourseMutationResponse>();
+        }
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        if (course is null)
+        {
+            return Result.Failure<CourseMutationResponse>(CourseNotFound());
+        }
+        if (course.Status is not (CourseStatus.Draft or CourseStatus.ChangesRequested))
+        {
+            return Result.Failure<CourseMutationResponse>(ResultError.BusinessRule(
+                "COURSE.OWNERSHIP_TRANSFER_LOCKED",
+                "Course ownership cannot be transferred in the current state."));
+        }
+        if (!await dbContext.TeacherProfiles.AnyAsync(
+                profile => profile.UserId == request.NewOwnerUserId,
+                cancellationToken))
+        {
+            return Result.Failure<CourseMutationResponse>(NotFound(
+                "COURSE.NEW_OWNER_NOT_FOUND",
+                "The new owner was not found."));
+        }
+        await LockDraftAsync(course.Id, cancellationToken);
+        CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(
+            candidate => candidate.CourseId == course.Id,
+            cancellationToken);
+        if (draft.Version != request.ExpectedVersion.Value)
+        {
+            return VersionConflict<CourseMutationResponse>(draft.Version);
+        }
+
+        Guid oldOwnerUserId = course.OwnerUserId;
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        try
+        {
+            course.TransferOwnership(request.NewOwnerUserId, now);
+            draft.Advance(request.ExpectedVersion.Value, now);
+        }
+        catch (DomainRuleException exception)
+        {
+            return Result.Failure<CourseMutationResponse>(ResultError.BusinessRule(exception.Code, exception.Message));
+        }
+        CourseInstructor? newOwnerCollaboration = await dbContext.CourseInstructors.SingleOrDefaultAsync(
+            instructor => instructor.CourseId == course.Id && instructor.UserId == request.NewOwnerUserId,
+            cancellationToken);
+        if (newOwnerCollaboration is not null)
+        {
+            dbContext.CourseInstructors.Remove(newOwnerCollaboration);
+        }
+
+        AddAudit(oldOwnerUserId, "course.ownership-transferred", "Course", course.Id, null);
+        ResultError? saveError = await SaveDraftAsync(draft.Id, cancellationToken);
+        return saveError is null
+            ? Result.Success(new CourseMutationResponse(course.Id, course.Status.ToString(), draft.Version))
+            : Result.Failure<CourseMutationResponse>(saveError);
+    }
+
     public async Task<Result<PublicationStatusResponse>> RequestPublicationAsync(
         RequestPublicationCommand request,
         CancellationToken cancellationToken)
     {
-        Course? course = await FindAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
         if (course is null)
         {
             return Result.Failure<PublicationStatusResponse>(CourseNotFound());
         }
 
+        await LockDraftAsync(course.Id, cancellationToken);
         CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(candidate => candidate.CourseId == course.Id, cancellationToken);
         bool hasDefaultMetadata = await dbContext.CourseLocalizations.AnyAsync(localization =>
             localization.CourseId == course.Id && localization.Locale == course.DefaultLocale &&
@@ -698,12 +818,56 @@ internal sealed class Phase6Service(
         return Result.Success(MapPublicationStatus(course, draft, review));
     }
 
+    public async Task<Result<PublicationStatusResponse>> WithdrawPublicationAsync(
+        WithdrawPublicationCommand request,
+        CancellationToken cancellationToken)
+    {
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        if (course is null)
+        {
+            return Result.Failure<PublicationStatusResponse>(CourseNotFound());
+        }
+
+        await LockDraftAsync(course.Id, cancellationToken);
+        CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(
+            candidate => candidate.CourseId == course.Id,
+            cancellationToken);
+        PublicationReview? pendingReview = await dbContext.PublicationReviews.AsNoTracking().SingleOrDefaultAsync(
+            candidate => candidate.CourseId == course.Id && candidate.Status == PublicationReviewStatus.Pending,
+            cancellationToken);
+        if (pendingReview is null)
+        {
+            return Result.Failure<PublicationStatusResponse>(ResultError.BusinessRule(
+                "PUBLICATION_REVIEW.NOT_PENDING",
+                "The course does not have a pending publication review."));
+        }
+        await LockPublicationReviewAsync(pendingReview.Id, cancellationToken);
+        PublicationReview review = await dbContext.PublicationReviews.SingleAsync(
+            candidate => candidate.Id == pendingReview.Id,
+            cancellationToken);
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        try
+        {
+            review.Withdraw(now);
+            course.WithdrawReview(now);
+        }
+        catch (DomainRuleException exception)
+        {
+            return Result.Failure<PublicationStatusResponse>(ResultError.BusinessRule(exception.Code, exception.Message));
+        }
+
+        AddAudit(request.UserId, "course.publication-withdrawn", "Course", course.Id, null);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Result.Success(MapPublicationStatus(course, draft, review));
+    }
+
     public async Task<Result<PagedResponse<PublicationReviewResponse>>> GetPublicationReviewsAsync(
         GetPublicationReviewsQuery request,
         CancellationToken cancellationToken)
     {
         int limit = NormalizeLimit(request.Limit, 20);
-        const string canonical = "publication-reviews|requested-desc";
+        string canonical = $"publication-reviews|requested-desc|{limit}";
         if (!cursorCodec.TryRead(request.Cursor, "publication-reviews", canonical, out DateTimeOffset? after, out Guid? afterId))
         {
             return CursorFailure<PagedResponse<PublicationReviewResponse>>();
@@ -734,17 +898,31 @@ internal sealed class Phase6Service(
         ReviewPublicationCommand request,
         CancellationToken cancellationToken)
     {
-        PublicationReview? review = await dbContext.PublicationReviews.SingleOrDefaultAsync(
+        PublicationReview? reviewSnapshot = await dbContext.PublicationReviews.AsNoTracking().SingleOrDefaultAsync(
             candidate => candidate.Id == request.ReviewId,
             cancellationToken);
-        if (review is null)
+        if (reviewSnapshot is null)
         {
             return Result.Failure<PublicationReviewResponse>(NotFound(
                 "PUBLICATION_REVIEW.NOT_FOUND",
                 "The publication review was not found."));
         }
-
+        await LockCourseAsync(reviewSnapshot.CourseId, cancellationToken);
+        await LockPublicationReviewAsync(reviewSnapshot.Id, cancellationToken);
+        await LockDraftAsync(reviewSnapshot.CourseId, cancellationToken);
+        PublicationReview review = await dbContext.PublicationReviews.SingleAsync(
+            candidate => candidate.Id == request.ReviewId,
+            cancellationToken);
         Course course = await dbContext.Courses.SingleAsync(candidate => candidate.Id == review.CourseId, cancellationToken);
+        CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(
+            candidate => candidate.Id == review.DraftId,
+            cancellationToken);
+        if (draft.Version != review.DraftVersion)
+        {
+            return Result.Failure<PublicationReviewResponse>(ResultError.Conflict(
+                "PUBLICATION_REVIEW.STALE_DRAFT",
+                "The draft changed after this publication review was requested."));
+        }
         DateTimeOffset now = timeProvider.GetUtcNow();
         try
         {
@@ -775,16 +953,26 @@ internal sealed class Phase6Service(
     {
         string locale = NormalizeLocale(request.Locale);
         int limit = NormalizeLimit(request.Limit, 100);
-        string canonical = $"categories|{locale}|display-order";
-        if (!cursorCodec.TryRead(request.Cursor, "categories", canonical, out _, out Guid? afterId))
+        string canonical = $"categories|{locale}|display-order|{limit}|all:{request.IncludeInactive}";
+        if (!cursorCodec.TryRead(request.Cursor, "categories", canonical, out _, out Guid? afterId, out string? afterKey))
         {
             return CursorFailure<PagedResponse<CategoryResponse>>();
         }
 
-        IQueryable<Category> query = dbContext.Categories.AsNoTracking().Where(category => category.IsActive);
-        if (afterId is { } id)
+        IQueryable<Category> query = dbContext.Categories.AsNoTracking();
+        if (!request.IncludeInactive)
         {
-            query = query.Where(category => category.Id.CompareTo(id) > 0);
+            query = query.Where(category => category.IsActive);
+        }
+        if (afterId is { } id && int.TryParse(afterKey, NumberStyles.None, CultureInfo.InvariantCulture, out int displayOrder))
+        {
+            query = query.Where(category =>
+                category.DisplayOrder > displayOrder ||
+                category.DisplayOrder == displayOrder && category.Id.CompareTo(id) > 0);
+        }
+        else if (request.Cursor is not null)
+        {
+            return CursorFailure<PagedResponse<CategoryResponse>>();
         }
         List<Category> categories = await query
             .OrderBy(category => category.DisplayOrder)
@@ -797,7 +985,12 @@ internal sealed class Phase6Service(
         bool hasMore = categories.Count > limit;
         List<Category> items = categories.Take(limit).ToList();
         string? nextCursor = hasMore
-            ? cursorCodec.Create("categories", canonical, null, items[^1].Id)
+            ? cursorCodec.Create(
+                "categories",
+                canonical,
+                null,
+                items[^1].Id,
+                items[^1].DisplayOrder.ToString(CultureInfo.InvariantCulture))
             : null;
         return Result.Success(new PagedResponse<CategoryResponse>(
             items.Select(category => Map(category, localizations.GetValueOrDefault(category.Id) ?? [])).ToArray(),
@@ -811,24 +1004,40 @@ internal sealed class Phase6Service(
     {
         string locale = NormalizeLocale(request.Locale);
         int limit = NormalizeLimit(request.Limit, 100);
-        string canonical = $"tags|{locale}|code";
-        if (!cursorCodec.TryRead(request.Cursor, "tags", canonical, out _, out Guid? afterId))
+        string canonical = $"tags|{locale}|code|{limit}|all:{request.IncludeInactive}";
+        if (!cursorCodec.TryRead(request.Cursor, "tags", canonical, out _, out Guid? afterId, out string? afterKey))
         {
             return CursorFailure<PagedResponse<TagResponse>>();
         }
 
-        IQueryable<Tag> query = dbContext.Tags.AsNoTracking().Where(tag => tag.IsActive);
-        if (afterId is { } id)
+        IQueryable<Tag> query = dbContext.Tags.AsNoTracking();
+        if (!request.IncludeInactive)
         {
-            query = query.Where(tag => tag.Id.CompareTo(id) > 0);
+            query = query.Where(tag => tag.IsActive);
         }
-        List<Tag> tags = await query.OrderBy(tag => tag.Code).ThenBy(tag => tag.Id).Take(limit + 1).ToListAsync(cancellationToken);
+        if (afterId is { } id && afterKey is not null)
+        {
+            query = query.Where(tag =>
+                EF.Functions.Collate(tag.Code, "C").CompareTo(afterKey) > 0 ||
+                tag.Code == afterKey && tag.Id.CompareTo(id) > 0);
+        }
+        else if (request.Cursor is not null)
+        {
+            return CursorFailure<PagedResponse<TagResponse>>();
+        }
+        List<Tag> tags = await query
+            .OrderBy(tag => EF.Functions.Collate(tag.Code, "C"))
+            .ThenBy(tag => tag.Id)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
         Dictionary<Guid, List<TaxonomyLocalizationResponse>> localizations = await LoadTagLocalizationsAsync(
             tags.Take(limit).Select(tag => tag.Id).ToArray(),
             cancellationToken);
         bool hasMore = tags.Count > limit;
         List<Tag> items = tags.Take(limit).ToList();
-        string? nextCursor = hasMore ? cursorCodec.Create("tags", canonical, null, items[^1].Id) : null;
+        string? nextCursor = hasMore
+            ? cursorCodec.Create("tags", canonical, null, items[^1].Id, items[^1].Code)
+            : null;
         return Result.Success(new PagedResponse<TagResponse>(
             items.Select(tag => Map(tag, localizations.GetValueOrDefault(tag.Id) ?? [])).ToArray(),
             nextCursor,
@@ -859,9 +1068,36 @@ internal sealed class Phase6Service(
                 "CATEGORY.PARENT_INVALID",
                 "A category cannot be its own parent."));
         }
-        if (request.ParentId is { } parentId && !await dbContext.Categories.AnyAsync(candidate => candidate.Id == parentId, cancellationToken))
+        Category? parent = request.ParentId is { } parentId
+            ? await dbContext.Categories.AsNoTracking().SingleOrDefaultAsync(
+                candidate => candidate.Id == parentId,
+                cancellationToken)
+            : null;
+        if (request.ParentId is not null && parent is null)
         {
             return Result.Failure<CategoryResponse>(NotFound("CATEGORY.PARENT_NOT_FOUND", "The parent category was not found."));
+        }
+        if (request.IsActive && parent is { IsActive: false })
+        {
+            return Result.Failure<CategoryResponse>(ResultError.BusinessRule(
+                "CATEGORY.PARENT_INACTIVE",
+                "An active category cannot belong to an inactive parent."));
+        }
+        if (request.CategoryId is { } existingCategoryId && request.ParentId is { } requestedParentId &&
+            await CreatesCategoryCycleAsync(existingCategoryId, requestedParentId, cancellationToken))
+        {
+            return Result.Failure<CategoryResponse>(ResultError.BusinessRule(
+                "CATEGORY.PARENT_CYCLE",
+                "The category parent would create a cycle."));
+        }
+        if (request.CategoryId is { } categoryIdToDisable && !request.IsActive &&
+            await dbContext.Categories.AnyAsync(
+                candidate => candidate.ParentId == categoryIdToDisable && candidate.IsActive,
+                cancellationToken))
+        {
+            return Result.Failure<CategoryResponse>(ResultError.BusinessRule(
+                "CATEGORY.ACTIVE_CHILDREN",
+                "Deactivate or move active child categories first."));
         }
 
         if (category is null)
@@ -875,7 +1111,11 @@ internal sealed class Phase6Service(
         }
         else
         {
-            category.Update(request.ParentId, request.DisplayOrder, true, now);
+            category.Update(request.ParentId, request.DisplayOrder, request.IsActive, now);
+        }
+        if (request.CategoryId is null && !request.IsActive)
+        {
+            category.Update(request.ParentId, request.DisplayOrder, false, now);
         }
 
         List<CategoryLocalization> existing = await dbContext.CategoryLocalizations
@@ -1050,6 +1290,73 @@ internal sealed class Phase6Service(
 
         return await dbContext.Courses.SingleOrDefaultAsync(course => course.Id == courseId, cancellationToken);
     }
+
+    private async Task<bool> CreatesCategoryCycleAsync(
+        Guid categoryId,
+        Guid parentId,
+        CancellationToken cancellationToken)
+    {
+        Guid? current = parentId;
+        while (current is { } currentId)
+        {
+            if (currentId == categoryId)
+            {
+                return true;
+            }
+
+            current = await dbContext.Categories.AsNoTracking()
+                .Where(category => category.Id == currentId)
+                .Select(category => category.ParentId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        return false;
+    }
+
+    private async Task<Course?> FindLockedAccessibleCourseAsync(
+        Guid courseId,
+        Guid userId,
+        CourseAccess access,
+        CancellationToken cancellationToken)
+    {
+        if (!await CanAccessAsync(courseId, userId, access, cancellationToken))
+        {
+            return null;
+        }
+
+        await LockCourseAsync(courseId, cancellationToken);
+        if (!await CanAccessAsync(courseId, userId, access, cancellationToken))
+        {
+            return null;
+        }
+
+        return await dbContext.Courses.SingleOrDefaultAsync(course => course.Id == courseId, cancellationToken);
+    }
+
+    private async Task LockCourseAsync(Guid courseId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM catalog.courses WHERE id = {courseId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
+    private async Task LockDraftAsync(Guid courseId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM authoring.course_drafts WHERE course_id = {courseId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
+    private async Task LockPublicationReviewAsync(Guid reviewId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM authoring.publication_reviews WHERE id = {reviewId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
+    private async Task LockTeacherApplicationAsync(Guid applicationId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM profiles.teacher_applications WHERE id = {applicationId} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+
+    private async Task LockTeacherApplicationsAsync(Guid userId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>(
+                $"SELECT count(*)::int AS \"Value\" FROM (SELECT 1 FROM profiles.teacher_applications WHERE user_id = {userId} AND status IN ('Pending', 'InReview') FOR UPDATE) AS active_applications")
+            .SingleAsync(cancellationToken);
 
     private async Task<ResultError?> AddInitialMetadataAsync(
         Course course,
@@ -1271,21 +1578,31 @@ internal sealed class Phase6Service(
             });
     }
 
-    private async Task<List<CourseLocalizationResponse>> LoadLocalizationsAsync(Guid courseId, CancellationToken cancellationToken) =>
-        await dbContext.CourseLocalizations.AsNoTracking()
+    private async Task<List<CourseLocalizationResponse>> LoadLocalizationsAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        var values = await dbContext.CourseLocalizations.AsNoTracking()
             .Where(localization => localization.CourseId == courseId)
             .Join(
                 dbContext.CourseSlugs.AsNoTracking(),
                 localization => localization.CurrentSlugId,
                 slug => slug.Id,
-                (localization, slug) => new CourseLocalizationResponse(
+                (localization, slug) => new
+                {
                     localization.Locale,
                     localization.Title,
                     localization.Subtitle,
                     localization.Description,
-                    slug.Slug))
+                    Slug = slug.Slug,
+                })
             .OrderBy(localization => localization.Locale)
             .ToListAsync(cancellationToken);
+        return values.Select(localization => new CourseLocalizationResponse(
+            localization.Locale,
+            localization.Title,
+            localization.Subtitle,
+            localization.Description,
+            localization.Slug)).ToList();
+    }
 
     private async Task<Dictionary<Guid, List<TaxonomyLocalizationResponse>>> LoadCategoryLocalizationsAsync(
         Guid[] ids,
@@ -1372,6 +1689,7 @@ internal sealed class Phase6Service(
         category.Code,
         category.ParentId,
         category.DisplayOrder,
+        category.IsActive,
         localizations);
 
     private static TagResponse Map(Tag tag, IReadOnlyList<TaxonomyLocalizationResponse> localizations) => new(
@@ -1479,8 +1797,12 @@ internal sealed class Phase6Service(
             locale,
             query,
             filters.CategoryCode?.Trim().ToLowerInvariant() ?? string.Empty,
+            filters.Tag?.Trim().ToLowerInvariant() ?? string.Empty,
             filters.Language?.Trim().ToLowerInvariant() ?? string.Empty,
             filters.Level?.Trim().ToLowerInvariant() ?? string.Empty,
+            filters.Price?.Trim().ToLowerInvariant() ?? string.Empty,
+            filters.Duration?.Trim().ToLowerInvariant() ?? string.Empty,
+            filters.Instructor?.Trim().ToLowerInvariant() ?? string.Empty,
             sort,
             limit.ToString(CultureInfo.InvariantCulture));
 

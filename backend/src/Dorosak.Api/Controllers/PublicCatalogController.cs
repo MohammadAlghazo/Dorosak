@@ -19,8 +19,12 @@ public sealed class PublicCatalogController(ISender sender) : ControllerBase
     [OutputCache(PolicyName = ApiConstants.CatalogOutputCachePolicy)]
     public async Task<IActionResult> GetCourses(
         [FromQuery] string? categoryCode,
+        [FromQuery] string? tag,
         [FromQuery] string? language,
         [FromQuery] string? level,
+        [FromQuery] string? price,
+        [FromQuery] string? duration,
+        [FromQuery] string? instructor,
         [FromQuery] string sort = "newest",
         [FromQuery] int limit = 24,
         [FromQuery] string? cursor = null,
@@ -29,7 +33,7 @@ public sealed class PublicCatalogController(ISender sender) : ControllerBase
         Result<PagedResponse<CatalogCourseResponse>> result = await sender.Send(
             new GetCatalogCoursesQuery(
                 GetLocale(),
-                new CatalogFilterContract(categoryCode, language, level),
+                new CatalogFilterContract(categoryCode, tag, language, level, price, duration, instructor),
                 sort,
                 limit,
                 cursor),

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 
 @Component({
@@ -13,8 +14,23 @@ import { LocaleService } from '../../core/i18n/locale.service';
       </header>
       <aside>
         <nav aria-label="Administration">
-          <a [routerLink]="['/', locale.locale(), 'admin']">Overview</a
-          ><span>Audit-ready workspace</span>
+          <a [routerLink]="['/', locale.locale(), 'admin']">Overview</a>
+          @if (session.hasPermission('TeacherApplication.ReviewAny')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'teacher-applications']">
+              {{ locale.locale() === 'ar' ? 'طلبات المدرسين' : 'Teacher applications' }}
+            </a>
+          }
+          @if (session.hasPermission('Course.ReviewAny')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'publication-reviews']">
+              {{ locale.locale() === 'ar' ? 'مراجعات النشر' : 'Publication reviews' }}
+            </a>
+          }
+          @if (session.hasPermission('Catalog.ManageTaxonomy')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'taxonomy']">
+              {{ locale.locale() === 'ar' ? 'التصنيف' : 'Taxonomy' }}
+            </a>
+          }
+          <span>Audit-ready workspace</span>
         </nav>
       </aside>
       <main id="main-content" tabindex="-1"><router-outlet /></main>
@@ -71,4 +87,5 @@ import { LocaleService } from '../../core/i18n/locale.service';
 })
 export class AdminShellComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
 }

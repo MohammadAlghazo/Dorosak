@@ -94,6 +94,19 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
         CategoryUpsertRequest request,
         CancellationToken cancellationToken) => UpsertCategory(categoryId, request, cancellationToken);
 
+    [HttpGet("catalog/categories")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public async Task<IActionResult> GetCategories(
+        [FromQuery] int limit = 100,
+        [FromQuery] string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        Result<PagedResponse<CategoryResponse>> result = await sender.Send(
+            new GetCategoriesQuery(GetLocale(), limit, cursor, IncludeInactive: true),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost("catalog/tags")]
     [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
     public Task<IActionResult> CreateTag(TagUpsertRequest request, CancellationToken cancellationToken) =>
@@ -105,6 +118,19 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
         Guid tagId,
         TagUpsertRequest request,
         CancellationToken cancellationToken) => UpsertTag(tagId, request, cancellationToken);
+
+    [HttpGet("catalog/tags")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public async Task<IActionResult> GetTags(
+        [FromQuery] int limit = 100,
+        [FromQuery] string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        Result<PagedResponse<TagResponse>> result = await sender.Send(
+            new GetTagsQuery(GetLocale(), limit, cursor, IncludeInactive: true),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
 
     private async Task<IActionResult> UpsertCategory(
         Guid? categoryId,
@@ -122,11 +148,13 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
                 request.Code,
                 request.ParentId,
                 request.DisplayOrder,
+                request.IsActive,
                 request.Localizations),
             cancellationToken);
         if (result.IsSuccess)
         {
             await outputCacheStore.EvictByTagAsync(ApiConstants.TaxonomyCacheTag, cancellationToken);
+            await outputCacheStore.EvictByTagAsync(ApiConstants.CatalogCacheTag, cancellationToken);
         }
         return this.ToActionResult(result);
     }
@@ -146,9 +174,16 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
         if (result.IsSuccess)
         {
             await outputCacheStore.EvictByTagAsync(ApiConstants.TaxonomyCacheTag, cancellationToken);
+            await outputCacheStore.EvictByTagAsync(ApiConstants.CatalogCacheTag, cancellationToken);
         }
         return this.ToActionResult(result);
     }
 
     private bool TryGetUserId(out Guid userId) => Guid.TryParse(User.FindFirstValue("sub"), out userId);
+
+    private string GetLocale()
+    {
+        string value = Request.GetTypedHeaders().AcceptLanguage?.FirstOrDefault()?.Value.Value ?? "ar";
+        return value.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ar";
+    }
 }

@@ -11,6 +11,7 @@ export class ApiProblem extends Error {
     readonly retryAfter: string | null,
     readonly validationErrors: ValidationErrors,
     message: string,
+    readonly etag: string | null = null,
   ) {
     super(message);
     this.name = 'ApiProblem';
@@ -29,6 +30,7 @@ export const normalizeApiProblem = (response: HttpErrorResponse): ApiProblem => 
     stringValue(body['detail']) ??
       stringValue(body['title']) ??
       'The request could not be completed.',
+    response.headers.get('ETag'),
   );
 };
 

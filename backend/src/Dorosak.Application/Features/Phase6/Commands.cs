@@ -141,7 +141,30 @@ public sealed record RemoveCollaboratorCommand(
     CourseAccess IPhase6AuthorizedRequest.Access => CourseAccess.Owner;
 }
 
+public sealed record TransferCourseOwnershipCommand(
+    Guid UserId,
+    Guid CourseId,
+    Guid NewOwnerUserId,
+    long? ExpectedVersion) : ITransactionalCommand<CourseMutationResponse>, IPhase6AuthorizedRequest
+{
+    Guid IPhase6AuthorizedRequest.UserId => UserId;
+
+    Guid IPhase6AuthorizedRequest.CourseId => CourseId;
+
+    CourseAccess IPhase6AuthorizedRequest.Access => CourseAccess.Owner;
+}
+
 public sealed record RequestPublicationCommand(Guid UserId, Guid CourseId)
+    : ITransactionalCommand<PublicationStatusResponse>, IPhase6AuthorizedRequest
+{
+    Guid IPhase6AuthorizedRequest.UserId => UserId;
+
+    Guid IPhase6AuthorizedRequest.CourseId => CourseId;
+
+    CourseAccess IPhase6AuthorizedRequest.Access => CourseAccess.Owner;
+}
+
+public sealed record WithdrawPublicationCommand(Guid UserId, Guid CourseId)
     : ITransactionalCommand<PublicationStatusResponse>, IPhase6AuthorizedRequest
 {
     Guid IPhase6AuthorizedRequest.UserId => UserId;
@@ -170,10 +193,10 @@ public sealed record ReviewPublicationCommand(
     string Decision,
     string? Reason) : ITransactionalCommand<PublicationReviewResponse>;
 
-public sealed record GetCategoriesQuery(string Locale, int Limit, string? Cursor)
+public sealed record GetCategoriesQuery(string Locale, int Limit, string? Cursor, bool IncludeInactive = false)
     : IQuery<PagedResponse<CategoryResponse>>;
 
-public sealed record GetTagsQuery(string Locale, int Limit, string? Cursor)
+public sealed record GetTagsQuery(string Locale, int Limit, string? Cursor, bool IncludeInactive = false)
     : IQuery<PagedResponse<TagResponse>>;
 
 public sealed record TaxonomyLocalizationInput(string Locale, string Name);
@@ -184,6 +207,7 @@ public sealed record UpsertCategoryCommand(
     string Code,
     Guid? ParentId,
     int DisplayOrder,
+    bool IsActive,
     IReadOnlyList<TaxonomyLocalizationInput> Localizations) : ITransactionalCommand<CategoryResponse>;
 
 public sealed record UpsertTagCommand(
@@ -229,7 +253,9 @@ internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service s
             UpdateCurriculumCommand command => Cast(service.UpdateCurriculumAsync(command, cancellationToken)),
             AddCollaboratorCommand command => Cast(service.AddCollaboratorAsync(command, cancellationToken)),
             RemoveCollaboratorCommand command => Cast(service.RemoveCollaboratorAsync(command, cancellationToken)),
+            TransferCourseOwnershipCommand command => Cast(service.TransferCourseOwnershipAsync(command, cancellationToken)),
             RequestPublicationCommand command => Cast(service.RequestPublicationAsync(command, cancellationToken)),
+            WithdrawPublicationCommand command => Cast(service.WithdrawPublicationAsync(command, cancellationToken)),
             ReviewPublicationCommand command => Cast(service.ReviewPublicationAsync(command, cancellationToken)),
             UpsertCategoryCommand command => Cast(service.UpsertCategoryAsync(command, cancellationToken)),
             UpsertTagCommand command => Cast(service.UpsertTagAsync(command, cancellationToken)),

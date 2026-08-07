@@ -22,6 +22,9 @@ internal sealed class TeacherApplicationConfiguration : IEntityTypeConfiguration
         builder.Property(application => application.ReviewerReason).HasMaxLength(2000);
         builder.Property(application => application.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.HasIndex(application => application.UserId).HasDatabaseName("ix_teacher_applications_user_id");
+        builder.HasIndex(application => new { application.SubmittedAt, application.Id })
+            .IsDescending()
+            .HasDatabaseName("ix_teacher_applications_submitted_id");
         builder.HasIndex(application => application.ReviewerUserId).HasDatabaseName("ix_teacher_applications_reviewer_user_id");
         builder.HasIndex(application => application.UserId)
             .IsUnique()

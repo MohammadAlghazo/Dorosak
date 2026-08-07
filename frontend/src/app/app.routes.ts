@@ -1,6 +1,7 @@
 import type { Routes } from '@angular/router';
 import { localeGuard } from './core/i18n/locale.guard';
 import { permissionGuard, sessionGuard } from './core/routing/session.guard';
+import { CourseEditorStore } from './features/instructor/course-editor.store';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'ar' },
@@ -262,6 +263,21 @@ export const routes: Routes = [
               renderMode: 'client',
             },
           },
+          {
+            path: 'teacher-application',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/settings/teacher-application-page.component').then(
+                (module) => module.TeacherApplicationPageComponent,
+              ),
+            data: {
+              titleAr: 'طلب التدريس',
+              titleEn: 'Teacher application',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'TeacherApplication.CreateOwn',
+            },
+          },
         ],
       },
       {
@@ -296,7 +312,8 @@ export const routes: Routes = [
           ),
         children: [
           {
-            path: '**',
+            path: '',
+            canActivate: [permissionGuard],
             loadComponent: () =>
               import('./features/instructor/instructor-page.component').then(
                 (module) => module.InstructorPageComponent,
@@ -306,21 +323,83 @@ export const routes: Routes = [
               titleEn: 'Instructor workspace',
               indexing: 'noindex',
               renderMode: 'client',
+              permission: 'Course.ReadOwn',
             },
+          },
+          {
+            path: 'create',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/instructor/course-create-page.component').then(
+                (module) => module.CourseCreatePageComponent,
+              ),
+            data: {
+              titleAr: 'إنشاء دورة',
+              titleEn: 'Create course',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Course.Create',
+            },
+          },
+          {
+            path: ':courseId',
+            canActivate: [permissionGuard],
+            data: { permission: 'Course.ReadOwn' },
+            providers: [CourseEditorStore],
+            children: [
+              {
+                path: '',
+                loadComponent: () =>
+                  import('./features/instructor/course-detail-page.component').then(
+                    (module) => module.CourseDetailPageComponent,
+                  ),
+                data: {
+                  titleAr: 'بيانات الدورة',
+                  titleEn: 'Course metadata',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+              {
+                path: 'curriculum',
+                loadComponent: () =>
+                  import('./features/instructor/curriculum-page.component').then(
+                    (module) => module.CurriculumPageComponent,
+                  ),
+                data: {
+                  titleAr: 'منهج الدورة',
+                  titleEn: 'Course curriculum',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+              {
+                path: 'publication',
+                loadComponent: () =>
+                  import('./features/instructor/publication-page.component').then(
+                    (module) => module.PublicationPageComponent,
+                  ),
+                data: {
+                  titleAr: 'حالة النشر',
+                  titleEn: 'Publication status',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+            ],
           },
         ],
       },
       {
         path: 'admin',
-        canActivate: [sessionGuard, permissionGuard],
-        data: { permission: 'User.ReadAny' },
+        canActivate: [sessionGuard],
         loadComponent: () =>
           import('./shells/admin-shell/admin-shell.component').then(
             (module) => module.AdminShellComponent,
           ),
         children: [
           {
-            path: '**',
+            path: '',
             loadComponent: () =>
               import('./features/admin/admin-page.component').then(
                 (module) => module.AdminPageComponent,
@@ -330,7 +409,51 @@ export const routes: Routes = [
               titleEn: 'Administration',
               indexing: 'noindex',
               renderMode: 'client',
-              permission: 'User.ReadAny',
+            },
+          },
+          {
+            path: 'teacher-applications',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/teacher-applications-page.component').then(
+                (module) => module.TeacherApplicationsPageComponent,
+              ),
+            data: {
+              titleAr: 'مراجعة طلبات المدرسين',
+              titleEn: 'Teacher application review',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'TeacherApplication.ReviewAny',
+            },
+          },
+          {
+            path: 'publication-reviews',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/publication-reviews-page.component').then(
+                (module) => module.PublicationReviewsPageComponent,
+              ),
+            data: {
+              titleAr: 'مراجعة النشر',
+              titleEn: 'Publication review',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Course.ReviewAny',
+            },
+          },
+          {
+            path: 'taxonomy',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/taxonomy-page.component').then(
+                (module) => module.TaxonomyPageComponent,
+              ),
+            data: {
+              titleAr: 'إدارة التصنيف',
+              titleEn: 'Taxonomy management',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Catalog.ManageTaxonomy',
             },
           },
         ],

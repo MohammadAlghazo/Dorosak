@@ -4,11 +4,11 @@
 |---|---|
 | Document | `PROJECT_PLAN.md` |
 | Status | Approved architecture baseline |
-| Version | `1.2.0` |
-| Date | `2026-08-05` |
+| Version | `1.4.0` |
+| Date | `2026-08-07` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `2. Development Infrastructure and Neon` |
+| Current delivery phase | `6. Catalog and Authoring Drafts` |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Production database | Neon PostgreSQL |
 
@@ -1953,6 +1953,7 @@ app/
 | `ADR-015` | Concrete foreign keys instead of generic polymorphic target IDs | Accepted |
 | `ADR-016` | Separate Production Redis services for cache, rate limits, and realtime | Accepted |
 | `ADR-017` | Phase 5 browser identity, session rotation, MFA, and permission contracts | Accepted |
+| `ADR-018` | Phase 6 catalog, authoring drafts, review, and release boundary contracts | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -2206,8 +2207,8 @@ git status
 ### 6. حالة التسليم الحالية
 ===========================
 
-هذا القسم تاريخي خاص بإغلاق Phase 2. تم تنفيذ Phase 3 وPhase 4 بعده، ثم أغلقت Phase 5 بعد تحققها في
-`2026-08-07`. لا تبدأ Phase 6 حتى يؤكد المستخدم بكتابة `تم`.
+هذا القسم تاريخي خاص بإغلاق Phase 2. تم تنفيذ Phase 3 وPhase 4 وPhase 5 بعده، ثم أغلقت Phase 6 بعد تحققها في
+`2026-08-07`. المرحلة التالية هي Phase 7، ولا تبدأ حتى يؤكد المستخدم بكتابة `تم`.
 
 ===========================
 ### 7. Phase 5 Identity and Security Report
@@ -2252,5 +2253,43 @@ git status
 
 #### القرار
 
-Phase 5 مكتملة من ناحية التنفيذ والاختبارات المحلية. المرحلة التالية هي Phase 6 (Course Catalog and Discovery)، ولا
-تبدأ قبل تأكيد المستخدم بكلمة `تم`.
+Phase 5 مكتملة من ناحية التنفيذ والاختبارات المحلية. Phase 6 مكتملة من ناحية التنفيذ والاختبارات المحلية، مع تأجيل
+تشغيل Playwright العام الخاص بمشكلة SSR المعروفة إلى متابعة منفصلة.
+
+===========================
+### 8. Phase 6 Catalog and Authoring Drafts Report
+===========================
+
+#### المنجز
+
+- teacher applications/profile approval مع حالات `Pending`, `InReview`, `Approved`, `Rejected`, `Withdrawn`، تعيين
+  Teacher role مع إبقاء Student، إبطال الجلسات، والتدقيق الأمني.
+- courses/localizations/permanent historical slugs، ownership transfer، collaborators، taxonomy categories/tags، وفهارس
+  keyset pagination.
+- active drafts، sections/lessons، immutable revisions، ETag/If-Match، cursor HMAC، publication reviews حتى
+  `ReadyToPublish` فقط. لا يوجد `CourseRelease` أو نشر عام في Phase 6.
+- public catalog/search/suggestions/featured/popular/recommendations بعقود release-backed؛ النتائج العامة تبقى فارغة
+  حتى Phase 8 دون كشف drafts.
+- Angular catalog/search/detail مع filters/query state/cursor pagination/safe highlights، وصفحات teacher application،
+  instructor metadata/curriculum/publication، وadmin teacher/publication/taxonomy review.
+- عقد public موحد لحقول release المستقبلية، taxonomy admin ترى inactive terms، وETag مكشوف عبر CORS.
+- row locking في teacher/course/draft/review transitions لمنع races، وعدم إسقاط autosave أثناء طلب سابق، ودعم IDs
+  الجديدة في curriculum.
+
+#### الترحيلات والبيانات
+
+- `20260807182959_Phase6CatalogAuthoring`: profiles, catalog, authoring schemas/tables, constraints, taxonomy seeds,
+  permissions, search extensions, and runtime grants.
+- `20260807221624_Phase6ConcurrencyAndCatalogIndexes`: pagination indexes and schema compatibility marker.
+- `docs/adr/ADR-018-phase-6-catalog-authoring-contracts.md`: approved scope and contracts.
+
+#### بوابات التحقق
+
+- Backend Release build: `0 warnings`, `0 errors`.
+- Backend tests: `78 passed`, including domain, application, PostgreSQL integration, API, and architecture suites.
+- Frontend tests: `45 passed` across `17` files; lint, Prettier, and production build passed.
+- `git diff --check` passed; NuGet/npm audits and bundle/PWA checks passed in the final checkpoint.
+
+#### القرار
+
+Phase 6 مكتملة. المرحلة التالية هي Phase 7 Media and Content Delivery، ولا تبدأ قبل تأكيد المستخدم بكلمة `تم`.

@@ -85,6 +85,10 @@ export class SessionStore {
     return this.permissions().includes(permission);
   }
 
+  hasAnyPermission(permissions: readonly string[]): boolean {
+    return permissions.some((permission) => this.hasPermission(permission));
+  }
+
   hasRole(role: string): boolean {
     return this.roles().includes(role);
   }

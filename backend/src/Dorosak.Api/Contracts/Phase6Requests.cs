@@ -28,6 +28,8 @@ public sealed record CurriculumUpdateRequest(IReadOnlyList<SectionInput> Section
 
 public sealed record CollaboratorRequest(Guid UserId, string Role);
 
+public sealed record TransferCourseOwnershipRequest(Guid NewOwnerUserId);
+
 public sealed record ArchiveCourseRequest(string Reason);
 
 public sealed record PublicationReviewRequest(string Decision, string? Reason);
@@ -36,6 +38,7 @@ public sealed record CategoryUpsertRequest(
     string Code,
     Guid? ParentId,
     int DisplayOrder,
+    bool IsActive,
     IReadOnlyList<TaxonomyLocalizationInput> Localizations);
 
 public sealed record TagUpsertRequest(

@@ -17,4 +17,6 @@ public static class ApiConstants
     public const string TaxonomyOutputCachePolicy = "CatalogTaxonomy";
 
     public const string TaxonomyCacheTag = "catalog-taxonomy";
+
+    public const string CatalogCacheTag = "catalog-public";
 }
