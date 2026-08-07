@@ -4,6 +4,8 @@ using Dorosak.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -49,11 +51,14 @@ public sealed class InfrastructureFixture : IAsyncLifetime
             {
                 ["ConnectionStrings:Database"] = DatabaseConnection,
                 ["ConnectionStrings:Redis"] = redisConnection,
+                ["Email:SmtpHost"] = "127.0.0.1",
+                ["Email:SmtpPort"] = "1",
             })
             .Build();
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IHostEnvironment>(new IntegrationHostEnvironment());
         services.AddApplication(null, null);
         services.AddInfrastructure(configuration);
         Services = services.BuildServiceProvider(new ServiceProviderOptions
@@ -76,5 +81,16 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
         await _redis.DisposeAsync();
         await _postgres.DisposeAsync();
+    }
+
+    private sealed class IntegrationHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ApplicationName { get; set; } = "Dorosak.Application.IntegrationTests";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

@@ -6,6 +6,7 @@ using Dorosak.Domain.Operations;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -61,6 +62,12 @@ internal sealed class IdentityEmailDispatcher(
     }
 
     private async Task<ClaimedMessage?> ClaimAsync(CancellationToken cancellationToken)
+    {
+        IExecutionStrategy strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(() => ClaimCoreAsync(cancellationToken));
+    }
+
+    private async Task<ClaimedMessage?> ClaimCoreAsync(CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         OutboxMessage? message = await dbContext.OutboxMessages

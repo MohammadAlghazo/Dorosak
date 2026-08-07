@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { inject, Injectable, PLATFORM_ID, signal } from '@angular/core';
+import { inject, Injectable, isDevMode, PLATFORM_ID, signal } from '@angular/core';
 
 export interface RuntimeCapabilities {
   identity: boolean;
@@ -20,7 +20,7 @@ const defaultConfig: RuntimeConfig = {
   release: 'development',
   defaultLocale: 'ar',
   supportedLocales: ['ar', 'en'],
-  capabilities: { identity: false, learning: false, offline: true },
+  capabilities: { identity: isDevMode(), learning: false, offline: true },
 };
 
 @Injectable({ providedIn: 'root' })

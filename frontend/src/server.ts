@@ -72,7 +72,10 @@ app.get('/runtime-config.json', (_request, response) => {
     defaultLocale: 'ar',
     supportedLocales: ['ar', 'en'],
     capabilities: {
-      identity: process.env['DOROSAK_CAPABILITY_IDENTITY'] === 'true',
+      identity:
+        process.env['DOROSAK_CAPABILITY_IDENTITY'] === undefined
+          ? process.env['NODE_ENV'] !== 'production'
+          : process.env['DOROSAK_CAPABILITY_IDENTITY'] === 'true',
       learning: process.env['DOROSAK_CAPABILITY_LEARNING'] === 'true',
       offline: true,
     },
@@ -180,5 +183,5 @@ function validatedPort(value: string): number {
 }
 
 function isPrivateRoute(path: string): boolean {
-  return /^\/(?:ar|en)\/(?:auth|dashboard|learn|instructor|admin)(?:\/|$)/u.test(path);
+  return /^\/(?:ar|en)\/(?:auth|dashboard|learn|instructor|admin|settings)(?:\/|$)/u.test(path);
 }

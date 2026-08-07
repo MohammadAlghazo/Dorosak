@@ -109,6 +109,86 @@ export const routes: Routes = [
               renderMode: 'server',
             },
           },
+          {
+            path: 'register',
+            loadComponent: () =>
+              import('./features/auth/register-page.component').then(
+                (module) => module.RegisterPageComponent,
+              ),
+            data: {
+              titleAr: 'إنشاء حساب',
+              titleEn: 'Create an account',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'verify-email',
+            loadComponent: () =>
+              import('./features/auth/verify-email-page.component').then(
+                (module) => module.VerifyEmailPageComponent,
+              ),
+            data: {
+              titleAr: 'تأكيد البريد الإلكتروني',
+              titleEn: 'Verify email',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'forgot-password',
+            loadComponent: () =>
+              import('./features/auth/forgot-password-page.component').then(
+                (module) => module.ForgotPasswordPageComponent,
+              ),
+            data: {
+              titleAr: 'نسيت كلمة المرور',
+              titleEn: 'Forgot password',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'reset-password',
+            loadComponent: () =>
+              import('./features/auth/reset-password-page.component').then(
+                (module) => module.ResetPasswordPageComponent,
+              ),
+            data: {
+              titleAr: 'تعيين كلمة مرور جديدة',
+              titleEn: 'Reset password',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'mfa',
+            loadComponent: () =>
+              import('./features/auth/mfa-page.component').then(
+                (module) => module.MfaPageComponent,
+              ),
+            data: {
+              titleAr: 'التحقق بخطوتين',
+              titleEn: 'Two-step verification',
+              indexing: 'noindex',
+              renderMode: 'server',
+              recovery: false,
+            },
+          },
+          {
+            path: 'mfa/recovery',
+            loadComponent: () =>
+              import('./features/auth/mfa-page.component').then(
+                (module) => module.MfaPageComponent,
+              ),
+            data: {
+              titleAr: 'رمز الاسترداد',
+              titleEn: 'Recovery code',
+              indexing: 'noindex',
+              renderMode: 'server',
+              recovery: true,
+            },
+          },
         ],
       },
       {
@@ -128,6 +208,43 @@ export const routes: Routes = [
             data: {
               titleAr: 'مساحتي',
               titleEn: 'My workspace',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
+        ],
+      },
+      {
+        path: 'settings',
+        canActivate: [sessionGuard],
+        loadComponent: () =>
+          import('./shells/workspace-shell/workspace-shell.component').then(
+            (module) => module.WorkspaceShellComponent,
+          ),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'security' },
+          {
+            path: 'security',
+            loadComponent: () =>
+              import('./features/settings/security-page.component').then(
+                (module) => module.SecurityPageComponent,
+              ),
+            data: {
+              titleAr: 'الأمان',
+              titleEn: 'Security',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
+          {
+            path: 'sessions',
+            loadComponent: () =>
+              import('./features/settings/sessions-page.component').then(
+                (module) => module.SessionsPageComponent,
+              ),
+            data: {
+              titleAr: 'الجلسات',
+              titleEn: 'Sessions',
               indexing: 'noindex',
               renderMode: 'client',
             },
@@ -183,7 +300,7 @@ export const routes: Routes = [
       {
         path: 'admin',
         canActivate: [sessionGuard, permissionGuard],
-        data: { permission: 'Admin.Access' },
+        data: { permission: 'User.ReadAny' },
         loadComponent: () =>
           import('./shells/admin-shell/admin-shell.component').then(
             (module) => module.AdminShellComponent,
@@ -200,7 +317,7 @@ export const routes: Routes = [
               titleEn: 'Administration',
               indexing: 'noindex',
               renderMode: 'client',
-              permission: 'Admin.Access',
+              permission: 'User.ReadAny',
             },
           },
         ],

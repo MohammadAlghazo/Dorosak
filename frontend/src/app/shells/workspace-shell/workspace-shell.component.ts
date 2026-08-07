@@ -1,6 +1,8 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { SessionCoordinator } from '../../core/auth/session-coordinator.service';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 
 @Component({
@@ -19,7 +21,13 @@ import { LocaleService } from '../../core/i18n/locale.service';
           ☰
         </button>
         <a class="brand" [routerLink]="['/', locale.locale()]">{{ locale.copy().brand }}</a>
-        <span>{{ locale.copy().dashboard }}</span>
+        <span>{{ session.identity()?.displayName ?? locale.copy().dashboard }}</span>
+        <a class="header-security-link" [routerLink]="['/', locale.locale(), 'settings', 'security']">
+          {{ locale.locale() === 'ar' ? 'الأمان' : 'Security' }}
+        </a>
+        <button type="button" class="header-logout" (click)="logout()">
+          {{ locale.locale() === 'ar' ? 'تسجيل الخروج' : 'Sign out' }}
+        </button>
       </header>
       @if (navigationOpen()) {
         <button
@@ -45,6 +53,17 @@ import { LocaleService } from '../../core/i18n/locale.service';
           <a [routerLink]="['/', locale.locale(), 'instructor']" (click)="closeNavigation()">{{
             locale.locale() === 'ar' ? 'التدريس' : 'Teaching'
           }}</a>
+          <a [routerLink]="['/', locale.locale(), 'settings', 'security']" (click)="closeNavigation()">{{
+            locale.locale() === 'ar' ? 'الأمان' : 'Security'
+          }}</a>
+          <a [routerLink]="['/', locale.locale(), 'settings', 'sessions']" (click)="closeNavigation()">{{
+            locale.locale() === 'ar' ? 'الجلسات' : 'Sessions'
+          }}</a>
+          @if (session.hasPermission('User.ReadAny')) {
+            <a [routerLink]="['/', locale.locale(), 'admin']" (click)="closeNavigation()">{{
+              locale.locale() === 'ar' ? 'الإدارة' : 'Administration'
+            }}</a>
+          }
         </nav>
       </aside>
       <main id="main-content" tabindex="-1"><router-outlet /></main>
@@ -75,6 +94,21 @@ import { LocaleService } from '../../core/i18n/locale.service';
       display: none;
       inline-size: 44px;
       block-size: 44px;
+    }
+    .header-security-link,
+    .header-logout {
+      margin-inline-start: auto;
+    }
+    .header-logout {
+      min-block-size: 44px;
+      padding-inline: var(--space-3);
+      color: var(--color-text);
+      background: transparent;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-2);
+    }
+    .header-security-link + .header-logout {
+      margin-inline-start: 0;
     }
     aside {
       padding: var(--space-5);
@@ -139,6 +173,9 @@ import { LocaleService } from '../../core/i18n/locale.service';
 })
 export class WorkspaceShellComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
+  private readonly coordinator = inject(SessionCoordinator);
+  private readonly router = inject(Router);
   protected readonly navigationOpen = signal(false);
 
   protected toggleNavigation(): void {
@@ -146,5 +183,13 @@ export class WorkspaceShellComponent {
   }
   protected closeNavigation(): void {
     this.navigationOpen.set(false);
+  }
+
+  protected logout(): void {
+    this.coordinator.logout().subscribe({
+      next: () => {
+        void this.router.navigate(['/', this.locale.locale(), 'auth', 'sign-in']);
+      },
+    });
   }
 }

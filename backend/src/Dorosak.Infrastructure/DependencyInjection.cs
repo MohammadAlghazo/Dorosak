@@ -8,7 +8,6 @@ using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +56,18 @@ public static class DependencyInjection
             .Validate(options => options.SmtpPort is > 0 and <= 65535, "SMTP port is invalid.")
             .Validate(options => !string.IsNullOrWhiteSpace(options.FromAddress), "Email sender is required.")
             .ValidateOnStart();
+        services
+            .AddOptions<AdminBootstrapOptions>()
+            .Bind(configuration.GetSection(AdminBootstrapOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Email),
+                "Admin bootstrap email is required when enabled.")
+            .Validate(options => !options.Enabled || options.DisplayName.Trim().Length is >= 2 and <= 100,
+                "Admin bootstrap display name is invalid.")
+            .Validate(options => !options.Enabled || options.TemporaryPassword.Length is >= 14 and <= 64,
+                "Admin bootstrap password must contain 14-64 characters.")
+            .Validate(options => !options.Enabled || options.TotpSecret.Length >= 16,
+                "Admin bootstrap TOTP secret is required when enabled.")
+            .ValidateOnStart();
 
         services
             .AddDataProtection()
@@ -84,25 +95,6 @@ public static class DependencyInjection
         identityBuilder
             .AddTokenProvider<EmailVerificationTokenProvider>("DorosakEmailVerification")
             .AddTokenProvider<PasswordResetTokenProvider>("DorosakPasswordReset");
-        services.AddScoped<IUserStore<ApplicationUser>>(provider => new UserStore<
-            ApplicationUser,
-            ApplicationRole,
-            DorosakDbContext,
-            Guid>(
-                provider.GetRequiredService<DorosakDbContext>(),
-                provider.GetRequiredService<IdentityErrorDescriber>())
-        {
-            AutoSaveChanges = false,
-        });
-        services.AddScoped<IRoleStore<ApplicationRole>>(provider => new RoleStore<
-            ApplicationRole,
-            DorosakDbContext,
-            Guid>(
-                provider.GetRequiredService<DorosakDbContext>(),
-                provider.GetRequiredService<IdentityErrorDescriber>())
-        {
-            AutoSaveChanges = false,
-        });
         services.Configure<PasswordHasherOptions>(options =>
             options.IterationCount = configuration.GetValue("Identity:PasswordHashIterations", 210000));
         services.AddSingleton<IJwtKeyProvider, JwtKeyProvider>();
@@ -111,6 +103,7 @@ public static class DependencyInjection
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IIdentitySessionValidator, IdentitySessionValidator>();
         services.AddScoped<IIdentityEmailDispatcher, IdentityEmailDispatcher>();
+        services.AddScoped<IAdminBootstrapService, AdminBootstrapService>();
 
         services.AddStackExchangeRedisCache(options =>
         {

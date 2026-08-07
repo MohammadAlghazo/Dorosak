@@ -9,7 +9,7 @@ namespace Dorosak.Application.IntegrationTests.Persistence;
 public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
 {
     [Fact]
-    public async Task Migration_CreatesExpectedOperationalSchema()
+    public async Task Migration_CreatesExpectedOperationalAndIdentitySchemas()
     {
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         DorosakDbContext dbContext = scope.ServiceProvider.GetRequiredService<DorosakDbContext>();
@@ -30,6 +30,30 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name IN ('outbox_messages', 'idempotency_records')",
             TestContext.Current.CancellationToken));
+        Assert.Equal(12L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'identity' AND table_name IN ('users', 'roles', 'user_roles', 'user_claims', 'role_claims', 'user_logins', 'user_tokens', 'refresh_sessions', 'refresh_tokens', 'security_events', 'mfa_challenges', 'mfa_recovery_codes')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'profiles' AND table_name = 'profiles'",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name = 'data_protection_keys'",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_name LIKE 'AspNet%'",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(3L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM identity.roles",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM identity.role_claims WHERE claim_type = 'permission'",
+            TestContext.Current.CancellationToken) >= 50);
         Assert.Equal("jsonb", await ExecuteScalarAsync<string>(
             connection,
             "SELECT data_type FROM information_schema.columns WHERE table_schema = 'operations' AND table_name = 'outbox_messages' AND column_name = 'payload'",

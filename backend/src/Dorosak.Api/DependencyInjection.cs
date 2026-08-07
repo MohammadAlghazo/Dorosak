@@ -7,6 +7,7 @@ using Asp.Versioning;
 using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
+using Dorosak.Api.Authorization;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -87,6 +88,10 @@ public static class DependencyInjection
                 };
             });
         services.AddAuthorization();
+        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+        services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, AdminHighRiskAuthorizationHandler>();
+        services.AddSingleton<IAuthorizationMiddlewareResultHandler, ProblemDetailsAuthorizationMiddlewareResultHandler>();
         services.AddAntiforgery(options =>
         {
             options.Cookie.Name = "__Host-dorosak-antiforgery";

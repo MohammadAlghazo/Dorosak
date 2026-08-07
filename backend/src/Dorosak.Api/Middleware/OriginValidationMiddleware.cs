@@ -16,7 +16,9 @@ public sealed class OriginValidationMiddleware(
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        if (!context.Request.Path.StartsWithSegments("/api/v1/auth") || SafeMethods.Contains(context.Request.Method))
+        bool isAuthMutation = context.Request.Path.StartsWithSegments("/api/v1/auth");
+        bool isSessionMutation = context.Request.Path.StartsWithSegments("/api/v1/me/sessions");
+        if ((!isAuthMutation && !isSessionMutation) || SafeMethods.Contains(context.Request.Method))
         {
             await next(context);
             return;

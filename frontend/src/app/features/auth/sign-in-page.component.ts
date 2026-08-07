@@ -1,101 +1,98 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import {
-  type AbstractControl,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { SessionCoordinator } from '../../core/auth/session-coordinator.service';
 import { LocaleService } from '../../core/i18n/locale.service';
-import { ToastService } from '../../shared/ui/toast/toast.service';
+import { localReturnUrl } from '../../core/routing/session.guard';
+import { authErrorMessage, emailValidator, requiredValidator } from './auth-form.helpers';
 
 @Component({
   selector: 'drs-sign-in-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   template: `
-    <section class="sign-in" aria-labelledby="sign-in-title">
-      <p>{{ locale.locale() === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back' }}</p>
+    <section class="identity-page" aria-labelledby="sign-in-title">
+      <p class="identity-kicker">{{ locale.locale() === 'ar' ? 'مرحبًا بعودتك' : 'Welcome back' }}</p>
       <h1 id="sign-in-title">{{ locale.copy().signIn }}</h1>
-      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <label for="email">{{
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'تابع من حيث توقفت في مسارك التعليمي.'
+            : 'Continue your learning from where you left off.'
+        }}
+      </p>
+
+      @if (error()) {
+        <div id="sign-in-error" class="form-alert" role="alert">{{ error() }}</div>
+      }
+
+      <form class="identity-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label for="sign-in-email">{{
           locale.locale() === 'ar' ? 'البريد الإلكتروني' : 'Email address'
         }}</label>
-        <input id="email" type="email" formControlName="email" autocomplete="email" />
+        <input
+          id="sign-in-email"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          [attr.aria-invalid]="form.controls.email.touched && form.controls.email.invalid"
+          aria-describedby="sign-in-email-error"
+        />
         @if (form.controls.email.touched && form.controls.email.invalid) {
-          <p class="field-error">
-            {{ locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email.' }}
+          <p id="sign-in-email-error" class="field-error">
+            {{ locale.locale() === 'ar' ? 'أدخل بريدًا صحيحًا.' : 'Enter a valid email address.' }}
           </p>
         }
-        <label for="password">{{ locale.locale() === 'ar' ? 'كلمة المرور' : 'Password' }}</label>
+
+        <div class="label-row">
+          <label for="sign-in-password">{{
+            locale.locale() === 'ar' ? 'كلمة المرور' : 'Password'
+          }}</label>
+          <a [routerLink]="['/', locale.locale(), 'auth', 'forgot-password']">{{
+            locale.locale() === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'
+          }}</a>
+        </div>
         <input
-          id="password"
+          id="sign-in-password"
           type="password"
           formControlName="password"
           autocomplete="current-password"
+          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid"
+          aria-describedby="sign-in-password-error"
         />
         @if (form.controls.password.touched && form.controls.password.invalid) {
-          <p class="field-error">
+          <p id="sign-in-password-error" class="field-error">
             {{ locale.locale() === 'ar' ? 'كلمة المرور مطلوبة.' : 'Password is required.' }}
           </p>
         }
-        <button type="submit">{{ locale.copy().signIn }}</button>
+
+        <button type="submit" [disabled]="submitting()" [attr.aria-busy]="submitting()">
+          {{
+            submitting()
+              ? locale.locale() === 'ar'
+                ? 'جارٍ تسجيل الدخول…'
+                : 'Signing in…'
+              : locale.copy().signIn
+          }}
+        </button>
       </form>
-      <small>{{
-        locale.locale() === 'ar'
-          ? 'سيتم ربط الهوية الآمنة في Phase 5.'
-          : 'Secure identity is connected in Phase 5.'
-      }}</small>
+
+      <p class="identity-alternative">
+        {{ locale.locale() === 'ar' ? 'ليس لديك حساب؟' : 'New to Dorosak?' }}
+        <a [routerLink]="['/', locale.locale(), 'auth', 'register']">{{
+          locale.locale() === 'ar' ? 'أنشئ حسابًا' : 'Create an account'
+        }}</a>
+      </p>
     </section>
-  `,
-  styles: `
-    .sign-in {
-      inline-size: min(100%, 28rem);
-    }
-    .sign-in > p {
-      color: var(--color-brand);
-    }
-    .sign-in h1 {
-      margin-block: var(--space-2) var(--space-7);
-      font-size: clamp(2.2rem, 5vw, 3.5rem);
-    }
-    .sign-in form {
-      display: grid;
-      gap: var(--space-3);
-    }
-    .sign-in label {
-      margin-block-start: var(--space-3);
-      font-weight: 650;
-    }
-    .sign-in input {
-      min-block-size: 52px;
-      padding-inline: var(--space-3);
-      color: var(--color-text);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-    }
-    .sign-in button {
-      min-block-size: 52px;
-      margin-block-start: var(--space-4);
-      color: var(--color-on-brand);
-      background: var(--color-brand);
-      border: 0;
-      border-radius: var(--radius-2);
-    }
-    .field-error {
-      margin: 0;
-      color: var(--color-danger);
-    }
-    .sign-in small {
-      display: block;
-      margin-block-start: var(--space-5);
-      color: var(--color-muted);
-    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SignInPageComponent {
   protected readonly locale = inject(LocaleService);
-  private readonly toasts = inject(ToastService);
+  private readonly coordinator = inject(SessionCoordinator);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  protected readonly error = signal<string | null>(null);
+  protected readonly submitting = signal(false);
   protected readonly form = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -106,9 +103,34 @@ export class SignInPageComponent {
 
   protected submit(): void {
     this.form.markAllAsTouched();
-    if (this.form.valid) this.toasts.announce('Identity endpoints arrive in Phase 5.');
+    if (this.form.invalid || this.submitting()) return;
+
+    this.error.set(null);
+    this.submitting.set(true);
+    const returnUrl = localReturnUrl(
+      this.route.snapshot.queryParamMap.get('returnUrl'),
+      this.locale.locale(),
+    );
+    this.coordinator
+      .signIn({
+        email: this.form.controls.email.value.trim(),
+        password: this.form.controls.password.value,
+      })
+      .subscribe({
+        next: (result) => {
+          this.submitting.set(false);
+          if (result.outcome === 'authenticated') {
+            void this.router.navigateByUrl(returnUrl);
+            return;
+          }
+          void this.router.navigate(['/', this.locale.locale(), 'auth', 'mfa'], {
+            queryParams: { returnUrl },
+          });
+        },
+        error: (requestError: unknown) => {
+          this.submitting.set(false);
+          this.error.set(authErrorMessage(requestError, this.locale.locale()));
+        },
+      });
   }
 }
-
-const requiredValidator = (control: AbstractControl) => Validators.required(control);
-const emailValidator = (control: AbstractControl) => Validators.email(control);

@@ -5,6 +5,8 @@ export const serverRoutes: ServerRoute[] = [
   { path: ':locale/learn/**', renderMode: RenderMode.Client },
   { path: ':locale/instructor/**', renderMode: RenderMode.Client },
   { path: ':locale/admin/**', renderMode: RenderMode.Client },
+  { path: ':locale/settings', renderMode: RenderMode.Client },
+  { path: ':locale/settings/**', renderMode: RenderMode.Client },
   { path: ':locale/not-found', renderMode: RenderMode.Server, status: 404 },
   { path: ':locale', renderMode: RenderMode.Server },
   { path: ':locale/courses', renderMode: RenderMode.Server },

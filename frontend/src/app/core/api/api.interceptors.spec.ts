@@ -58,7 +58,24 @@ describe('API interceptors', () => {
     http = TestBed.inject(HttpClient);
     controller = TestBed.inject(HttpTestingController);
     TestBed.inject(LocaleService).setLocale('en');
-    TestBed.inject(SessionStore).establish('memory-token');
+    TestBed.inject(SessionStore).establish({
+      accessToken: 'memory-token',
+      accessTokenExpiresAt: '2030-01-01T00:00:00Z',
+      identity: {
+        userId: 'user-1',
+        sessionId: 'session-1',
+        displayName: 'Test user',
+        email: 'test@example.test',
+        emailVerified: true,
+        mfaEnabled: false,
+        authenticatedAt: '2029-12-31T23:50:00Z',
+        recentAuthenticationExpiresAt: '2030-01-01T00:05:00Z',
+        authorizationVersion: 1,
+        roles: ['Student'],
+        permissions: ['Profile.ReadOwn'],
+        authenticationMethods: ['pwd'],
+      },
+    });
   });
 
   afterEach(() => {
@@ -66,7 +83,7 @@ describe('API interceptors', () => {
     vi.useRealTimers();
   });
 
-  it('adds metadata, same-origin cookies, and bearer credentials to private API requests', async () => {
+  it('adds metadata and bearer credentials to private same-origin API requests', async () => {
     const responsePromise = firstValueFrom(
       http.get<{ ok: boolean }>('private/profile', {
         context: new HttpContext().set(API_REQUEST, true),
@@ -74,7 +91,7 @@ describe('API interceptors', () => {
     );
     const request = controller.expectOne('/api/v1/private/profile');
 
-    expect(request.request.credentials).toBe('same-origin');
+    expect(request.request.credentials).toBeUndefined();
     expect(request.request.headers.get('Accept-Language')).toBe('en');
     expect(request.request.headers.get('X-Client-Timezone')).toBeTruthy();
     expect(request.request.headers.get('X-Correlation-ID')).toBeTruthy();
@@ -92,7 +109,9 @@ describe('API interceptors', () => {
     expect(request.request.credentials).toBe('omit');
     expect(request.request.withCredentials).toBe(false);
     expect(request.request.headers.has('Authorization')).toBe(false);
-    request.flush({ service: 'Dorosak.Api', environment: 'Test', utcTime: '2026-08-06T00:00:00Z' });
+    request.flush({
+      data: { service: 'Dorosak.Api', version: 'Test', utcTime: '2026-08-06T00:00:00Z' },
+    });
 
     await expect(responsePromise).resolves.toEqual({ service: 'Dorosak.Api', available: true });
   });
@@ -108,7 +127,7 @@ describe('API interceptors', () => {
     );
     const request = controller.expectOne('/api/v1/auth/sign-in');
 
-    expect(request.request.credentials).toBe('same-origin');
+    expect(request.request.credentials).toBeUndefined();
     expect(request.request.headers.has('Authorization')).toBe(false);
     request.flush({ ok: true });
 

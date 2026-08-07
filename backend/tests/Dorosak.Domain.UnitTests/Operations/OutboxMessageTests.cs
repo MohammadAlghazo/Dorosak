@@ -55,4 +55,36 @@ public sealed class OutboxMessageTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             OutboxMessage.Create("event", 1, "{}", "{}", OccurredAt, OccurredAt.AddTicks(-1)));
     }
+
+    [Fact]
+    public void WorkerLock_RequiresOwnerToCompleteOrRelease()
+    {
+        OutboxMessage message = OutboxMessage.Create("identity.email", 1, "{}", "{}", OccurredAt);
+        Guid lockToken = Guid.CreateVersion7();
+
+        Assert.True(message.TryAcquire(OccurredAt, TimeSpan.FromMinutes(1), lockToken));
+        Assert.Equal(1, message.AttemptCount);
+        Assert.False(message.TryAcquire(OccurredAt.AddSeconds(1), TimeSpan.FromMinutes(1), Guid.CreateVersion7()));
+        Assert.Throws<InvalidOperationException>(() =>
+            message.MarkProcessed(OccurredAt.AddSeconds(2), Guid.CreateVersion7()));
+
+        message.MarkProcessed(OccurredAt.AddSeconds(2), lockToken);
+
+        Assert.Equal(OccurredAt.AddSeconds(2), message.ProcessedAt);
+        Assert.Null(message.LockToken);
+    }
+
+    [Fact]
+    public void WorkerFailure_ReleasesMessageWithBackoff()
+    {
+        OutboxMessage message = OutboxMessage.Create("identity.email", 1, "{}", "{}", OccurredAt);
+        Guid lockToken = Guid.CreateVersion7();
+        Assert.True(message.TryAcquire(OccurredAt, TimeSpan.FromMinutes(1), lockToken));
+
+        message.ReleaseAfterFailure(OccurredAt, lockToken, "SMTP.UNAVAILABLE", TimeSpan.FromSeconds(30));
+
+        Assert.Equal(OccurredAt.AddSeconds(30), message.AvailableAt);
+        Assert.Equal("SMTP.UNAVAILABLE", message.LastErrorCode);
+        Assert.Null(message.LockToken);
+    }
 }

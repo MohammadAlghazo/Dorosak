@@ -31,6 +31,7 @@ internal sealed class IdentityService(
 {
     private const string VerificationEmailEvent = "identity.email-verification-requested";
     private const string PasswordResetEmailEvent = "identity.password-reset-requested";
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly ResultError InvalidCredentials = ResultError.Unauthorized(
         "AUTH.INVALID_CREDENTIALS",
@@ -899,7 +900,9 @@ internal sealed class IdentityService(
     private void QueueIdentityEmail(Guid userId, string eventType, string locale)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
-        string payload = JsonSerializer.Serialize(new IdentityEmailRequested(userId, NormalizeLocale(locale)));
+        string payload = JsonSerializer.Serialize(
+            new IdentityEmailRequested(userId, NormalizeLocale(locale)),
+            JsonOptions);
         dbContext.OutboxMessages.Add(OutboxMessage.Create(eventType, 1, payload, "{}", now));
     }
 

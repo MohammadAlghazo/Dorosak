@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { ThemeService } from '../../core/theme/theme.service';
+import { SessionStore } from '../../core/auth/session.store';
 
 @Component({
   selector: 'drs-public-shell',
@@ -13,4 +14,5 @@ import { ThemeService } from '../../core/theme/theme.service';
 export class PublicShellComponent {
   protected readonly locale = inject(LocaleService);
   protected readonly theme = inject(ThemeService);
+  protected readonly session = inject(SessionStore);
 }

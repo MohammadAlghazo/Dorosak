@@ -26,9 +26,15 @@
       >
         <span aria-hidden="true">◐</span>
       </button>
-      <a class="sign-in-action" [routerLink]="['/', locale.locale(), 'auth', 'sign-in']">
-        {{ locale.copy().signIn }}
-      </a>
+      @if (session.isAuthenticated()) {
+        <a class="sign-in-action" [routerLink]="['/', locale.locale(), 'dashboard']">
+          {{ locale.locale() === 'ar' ? 'مساحتي' : 'My workspace' }}
+        </a>
+      } @else {
+        <a class="sign-in-action" [routerLink]="['/', locale.locale(), 'auth', 'sign-in']">
+          {{ locale.copy().signIn }}
+        </a>
+      }
     </div>
   </div>
 </header>
