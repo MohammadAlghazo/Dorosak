@@ -71,19 +71,19 @@ internal sealed class CourseLocalizationInputValidator : AbstractValidator<Cours
         RuleFor(input => input.Slug).MaximumLength(160).Must(slug => slug is null || IsSlug(slug));
     }
 
-    private static bool IsSlug(string value) => value == value.ToLowerInvariant() &&
+    private static bool IsSlug(string value) => string.Equals(value, value.ToLowerInvariant(), StringComparison.Ordinal) &&
         value.All(character => char.IsAsciiLetterOrDigit(character) || character == '-') &&
         !value.StartsWith('-') && !value.EndsWith('-') && !value.Contains("--", StringComparison.Ordinal);
 }
 
 internal sealed class GetInstructorCoursesQueryValidator : AbstractValidator<GetInstructorCoursesQuery>
 {
-    public GetInstructorCoursesQueryValidator() => Include(new PagingValidator<GetInstructorCoursesQuery>());
+    public GetInstructorCoursesQueryValidator() => RuleFor(request => request.Limit).InclusiveBetween(1, 100);
 }
 
 internal sealed class GetTeacherApplicationsQueryValidator : AbstractValidator<GetTeacherApplicationsQuery>
 {
-    public GetTeacherApplicationsQueryValidator() => Include(new PagingValidator<GetTeacherApplicationsQuery>());
+    public GetTeacherApplicationsQueryValidator() => RuleFor(request => request.Limit).InclusiveBetween(1, 100);
 }
 
 internal sealed class UpdateCourseMetadataCommandValidator : AbstractValidator<UpdateCourseMetadataCommand>
@@ -167,14 +167,24 @@ internal sealed class ReviewPublicationCommandValidator : AbstractValidator<Revi
 
 internal sealed class GetPublicationReviewsQueryValidator : AbstractValidator<GetPublicationReviewsQuery>
 {
-    public GetPublicationReviewsQueryValidator() => Include(new PagingValidator<GetPublicationReviewsQuery>());
+    public GetPublicationReviewsQueryValidator() => RuleFor(request => request.Limit).InclusiveBetween(1, 100);
 }
 
-internal sealed class TaxonomyQueryValidator<TRequest> : AbstractValidator<TRequest>
+internal sealed class GetCategoriesQueryValidator : AbstractValidator<GetCategoriesQuery>
 {
-    public TaxonomyQueryValidator()
+    public GetCategoriesQueryValidator()
     {
-        RuleFor(request => request).NotNull();
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Limit).InclusiveBetween(1, 100);
+    }
+}
+
+internal sealed class GetTagsQueryValidator : AbstractValidator<GetTagsQuery>
+{
+    public GetTagsQueryValidator()
+    {
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Limit).InclusiveBetween(1, 100);
     }
 }
 
@@ -212,10 +222,41 @@ internal sealed class TaxonomyLocalizationInputValidator : AbstractValidator<Tax
     }
 }
 
-internal sealed class PagingValidator<TRequest> : AbstractValidator<TRequest>
+internal sealed class GetCatalogCoursesQueryValidator : AbstractValidator<GetCatalogCoursesQuery>
 {
-    public PagingValidator()
+    public GetCatalogCoursesQueryValidator()
     {
-        RuleFor(request => request).NotNull();
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Sort).Must(sort => sort is "" or "newest" or "title" or "popular");
+        RuleFor(request => request.Limit).InclusiveBetween(1, 100);
+    }
+}
+
+internal sealed class GetPublicCourseQueryValidator : AbstractValidator<GetPublicCourseQuery>
+{
+    public GetPublicCourseQueryValidator()
+    {
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Slug).NotEmpty().MaximumLength(160).Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$");
+    }
+}
+
+internal sealed class SearchCoursesQueryValidator : AbstractValidator<SearchCoursesQuery>
+{
+    public SearchCoursesQueryValidator()
+    {
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Query).MaximumLength(200);
+        RuleFor(request => request.Sort).Must(sort => sort is "" or "relevance" or "newest" or "title" or "popular");
+        RuleFor(request => request.Limit).InclusiveBetween(1, 100);
+    }
+}
+
+internal sealed class SuggestCourseSuggestionsQueryValidator : AbstractValidator<SuggestCourseSuggestionsQuery>
+{
+    public SuggestCourseSuggestionsQueryValidator()
+    {
+        RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
+        RuleFor(request => request.Query).MaximumLength(200);
     }
 }

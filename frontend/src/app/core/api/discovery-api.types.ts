@@ -38,7 +38,7 @@ export interface PublicTaxonomyTerm {
 }
 
 export interface PublicCategory extends PublicTaxonomyTerm {
-  parentCode: string | null;
+  parentId: string | null;
 }
 
 export interface PublicInstructor {

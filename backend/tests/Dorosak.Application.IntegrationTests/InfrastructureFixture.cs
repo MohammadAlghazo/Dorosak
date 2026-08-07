@@ -58,6 +58,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
                 ["AdminBootstrap:DisplayName"] = "Bootstrap Administrator",
                 ["AdminBootstrap:TemporaryPassword"] = "temporary bootstrap password",
                 ["AdminBootstrap:TotpSecret"] = "JBSWY3DPEHPK3PXP",
+                ["Catalog:Cursors:SigningKey"] = "Dorosak-integration-cursor-signing-key-2026",
+                ["Catalog:Cursors:Environment"] = "integration",
             })
             .Build();
 

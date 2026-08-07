@@ -8,5 +8,13 @@ public static class ApiConstants
 
     public const string SensitiveRateLimitPolicy = "SensitiveApi";
 
+    public const string SearchRateLimitPolicy = "PublicSearch";
+
     public const string PublicOutputCachePolicy = "PublicShort";
+
+    public const string CatalogOutputCachePolicy = "CatalogPublic";
+
+    public const string TaxonomyOutputCachePolicy = "CatalogTaxonomy";
+
+    public const string TaxonomyCacheTag = "catalog-taxonomy";
 }

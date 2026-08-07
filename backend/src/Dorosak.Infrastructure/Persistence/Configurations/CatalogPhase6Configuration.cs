@@ -147,9 +147,7 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
     private static Category Create(Guid id, string code, int order)
     {
-        Category category = Category.Create(code, null, order, SeededAt);
-        typeof(Category).GetProperty(nameof(Category.Id))!.SetValue(category, id);
-        return category;
+        return Category.CreateSeeded(id, code, order, SeededAt);
     }
 }
 

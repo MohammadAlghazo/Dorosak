@@ -25,7 +25,7 @@ public sealed record ResultError(
         new(code, description, ErrorType.PreconditionFailed);
 
     public static ResultError PreconditionFailed(string code, string description, string etag) =>
-        new(code, description, ErrorType.PreconditionFailed, RetryAfter: null) with { ETag = etag };
+        new ResultError(code, description, ErrorType.PreconditionFailed) { ETag = etag };
 
     public static ResultError PreconditionRequired(string code, string description) =>
         new(code, description, ErrorType.PreconditionRequired);

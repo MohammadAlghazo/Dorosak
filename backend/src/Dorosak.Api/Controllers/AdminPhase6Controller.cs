@@ -1,0 +1,154 @@
+using System.Security.Claims;
+using Asp.Versioning;
+using Dorosak.Api.Authorization;
+using Dorosak.Api.Contracts;
+using Dorosak.Api.Extensions;
+using Dorosak.Application.Common.Results;
+using Dorosak.Application.Features.Phase6;
+using Dorosak.Infrastructure.Identity;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace Dorosak.Api.Controllers;
+
+[ApiController]
+[ApiVersion(1)]
+[Authorize]
+[Route("api/v{version:apiVersion}/admin")]
+[EnableRateLimiting(ApiConstants.SensitiveRateLimitPolicy)]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outputCacheStore) : ControllerBase
+{
+    [HttpGet("teacher-applications")]
+    [AdminHighRiskPolicy(Permissions.TeacherApplicationReviewAny)]
+    public async Task<IActionResult> GetTeacherApplications(
+        [FromQuery] int limit = 20,
+        [FromQuery] string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        Result<PagedResponse<TeacherApplicationResponse>> result = await sender.Send(
+            new GetTeacherApplicationsQuery(limit, cursor),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("teacher-applications/{applicationId:guid}/review")]
+    [AdminHighRiskPolicy(Permissions.TeacherApplicationReviewAny)]
+    public async Task<IActionResult> ReviewTeacherApplication(
+        Guid applicationId,
+        TeacherApplicationReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<TeacherApplicationResponse> result = await sender.Send(
+            new ReviewTeacherApplicationCommand(userId, applicationId, request.Decision, request.Reason),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("publication-reviews")]
+    [PermissionPolicy(Permissions.CourseReviewAny)]
+    public async Task<IActionResult> GetPublicationReviews(
+        [FromQuery] int limit = 20,
+        [FromQuery] string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        Result<PagedResponse<PublicationReviewResponse>> result = await sender.Send(
+            new GetPublicationReviewsQuery(limit, cursor),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("publication-reviews/{reviewId:guid}/decision")]
+    [PermissionPolicy(Permissions.CourseReviewAny)]
+    public async Task<IActionResult> ReviewPublication(
+        Guid reviewId,
+        PublicationReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<PublicationReviewResponse> result = await sender.Send(
+            new ReviewPublicationCommand(userId, reviewId, request.Decision, request.Reason),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("catalog/categories")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public Task<IActionResult> CreateCategory(CategoryUpsertRequest request, CancellationToken cancellationToken) =>
+        UpsertCategory(null, request, cancellationToken);
+
+    [HttpPut("catalog/categories/{categoryId:guid}")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public Task<IActionResult> UpdateCategory(
+        Guid categoryId,
+        CategoryUpsertRequest request,
+        CancellationToken cancellationToken) => UpsertCategory(categoryId, request, cancellationToken);
+
+    [HttpPost("catalog/tags")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public Task<IActionResult> CreateTag(TagUpsertRequest request, CancellationToken cancellationToken) =>
+        UpsertTag(null, request, cancellationToken);
+
+    [HttpPut("catalog/tags/{tagId:guid}")]
+    [PermissionPolicy(Permissions.CatalogManageTaxonomy)]
+    public Task<IActionResult> UpdateTag(
+        Guid tagId,
+        TagUpsertRequest request,
+        CancellationToken cancellationToken) => UpsertTag(tagId, request, cancellationToken);
+
+    private async Task<IActionResult> UpsertCategory(
+        Guid? categoryId,
+        CategoryUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<CategoryResponse> result = await sender.Send(
+            new UpsertCategoryCommand(
+                userId,
+                categoryId,
+                request.Code,
+                request.ParentId,
+                request.DisplayOrder,
+                request.Localizations),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            await outputCacheStore.EvictByTagAsync(ApiConstants.TaxonomyCacheTag, cancellationToken);
+        }
+        return this.ToActionResult(result);
+    }
+
+    private async Task<IActionResult> UpsertTag(
+        Guid? tagId,
+        TagUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<TagResponse> result = await sender.Send(
+            new UpsertTagCommand(userId, tagId, request.Code, request.IsActive, request.Localizations),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            await outputCacheStore.EvictByTagAsync(ApiConstants.TaxonomyCacheTag, cancellationToken);
+        }
+        return this.ToActionResult(result);
+    }
+
+    private bool TryGetUserId(out Guid userId) => Guid.TryParse(User.FindFirstValue("sub"), out userId);
+}

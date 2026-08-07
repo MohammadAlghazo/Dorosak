@@ -138,13 +138,13 @@ public static class SearchTextNormalizer
 
     public static string Normalize(string value, string locale)
     {
-        string normalized = value.Normalize(System.Text.NormalizationForm.FormC).Trim();
+        string normalized = value.Normalize(global::System.Text.NormalizationForm.FormC).Trim();
         if (!string.Equals(locale, "ar", StringComparison.OrdinalIgnoreCase))
         {
             return normalized.ToLowerInvariant();
         }
 
-        var builder = new System.Text.StringBuilder(normalized.Length);
+        var builder = new global::System.Text.StringBuilder(normalized.Length);
         foreach (char character in normalized)
         {
             if (character is '\u064B' or '\u064C' or '\u064D' or '\u064E' or '\u064F' or '\u0650' or

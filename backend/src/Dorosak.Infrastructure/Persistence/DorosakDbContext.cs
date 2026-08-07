@@ -88,6 +88,8 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
         base.OnModelCreating(builder);
         builder.Ignore<IdentityUserPasskey<Guid>>();
         builder.HasDefaultSchema(DefaultSchema);
+        builder.HasPostgresExtension("pg_trgm");
+        builder.HasPostgresExtension("unaccent");
         builder.ApplyConfigurationsFromAssembly(AssemblyReference.Assembly);
     }
 

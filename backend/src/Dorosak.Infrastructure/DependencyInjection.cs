@@ -3,6 +3,7 @@ using Dorosak.Application.Common.Idempotency;
 using Dorosak.Application.Common.Identity;
 using Dorosak.Application.Common.Persistence;
 using Dorosak.Infrastructure.Caching;
+using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
@@ -27,6 +28,16 @@ public static class DependencyInjection
             DatabaseConfiguration.Configure(options, databaseConnection));
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DorosakDbContext>());
         services.AddScoped<IIdempotencyStore, EfCoreIdempotencyStore>();
+        services.AddScoped<Phase6Service>();
+        services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
+        services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());
+        services.AddSingleton<CatalogCursorCodec>();
+        services.AddSingleton<SearchTelemetry>();
+        services.AddOptions<CatalogCursorOptions>()
+            .Bind(configuration.GetSection(CatalogCursorOptions.SectionName))
+            .Validate(options => options.SigningKey.Length >= 32, "The catalog cursor signing key must contain at least 32 characters.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Environment), "The catalog cursor environment is required.")
+            .ValidateOnStart();
 
         services
             .AddOptions<IdentitySecurityOptions>()

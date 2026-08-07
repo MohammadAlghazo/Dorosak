@@ -215,6 +215,7 @@ public sealed record SuggestCourseSuggestionsQuery(string Locale, string Query) 
 internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service service)
     : IRequestHandler<TRequest, Result<TResponse>>
     where TRequest : class, MediatR.IRequest<Result<TResponse>>
+    where TResponse : notnull
 {
     public Task<Result<TResponse>> Handle(TRequest request, CancellationToken cancellationToken) =>
         request switch
@@ -239,7 +240,7 @@ internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service s
     {
         Result<TValue> result = await task;
         return result.IsSuccess
-            ? Result.Success((TResponse)(object)result.Value)
+            ? Result.Success((TResponse)(object)result.Value!)
             : Result.Failure<TResponse>(result.Failure);
     }
 }
@@ -247,6 +248,7 @@ internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service s
 internal sealed class Phase6QueryHandler<TRequest, TResponse>(IPhase6Service service)
     : IRequestHandler<TRequest, Result<TResponse>>
     where TRequest : class, MediatR.IRequest<Result<TResponse>>
+    where TResponse : notnull
 {
     public Task<Result<TResponse>> Handle(TRequest request, CancellationToken cancellationToken) =>
         request switch
@@ -271,7 +273,7 @@ internal sealed class Phase6QueryHandler<TRequest, TResponse>(IPhase6Service ser
     {
         Result<TValue> result = await task;
         return result.IsSuccess
-            ? Result.Success((TResponse)(object)result.Value)
+            ? Result.Success((TResponse)(object)result.Value!)
             : Result.Failure<TResponse>(result.Failure);
     }
 }

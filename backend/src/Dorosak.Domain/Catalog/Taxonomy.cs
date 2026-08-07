@@ -34,6 +34,9 @@ public sealed class Category
     public static Category Create(string code, Guid? parentId, int displayOrder, DateTimeOffset now) =>
         new(Guid.CreateVersion7(), code.Trim(), parentId, displayOrder, now);
 
+    public static Category CreateSeeded(Guid id, string code, int displayOrder, DateTimeOffset now) =>
+        new(id, code.Trim(), null, displayOrder, now);
+
     public void Update(Guid? parentId, int displayOrder, bool isActive, DateTimeOffset now)
     {
         ParentId = parentId;

@@ -1,0 +1,57 @@
+using Asp.Versioning;
+using Dorosak.Api.Extensions;
+using Dorosak.Application.Common.Results;
+using Dorosak.Application.Features.Phase6;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace Dorosak.Api.Controllers;
+
+[ApiController]
+[ApiVersion(1)]
+[Route("api/v{version:apiVersion}/search")]
+[EnableRateLimiting(ApiConstants.SearchRateLimitPolicy)]
+public sealed class SearchController(ISender sender) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> Search(
+        [FromQuery(Name = "q")] string query = "",
+        [FromQuery] string? categoryCode = null,
+        [FromQuery] string? language = null,
+        [FromQuery] string? level = null,
+        [FromQuery] string sort = "",
+        [FromQuery] int limit = 20,
+        [FromQuery] string? cursor = null,
+        CancellationToken cancellationToken = default)
+    {
+        Response.Headers["X-Robots-Tag"] = "noindex,follow";
+        Result<PagedResponse<SearchCourseResponse>> result = await sender.Send(
+            new SearchCoursesQuery(
+                GetLocale(),
+                query,
+                new CatalogFilterContract(categoryCode, language, level),
+                sort,
+                limit,
+                cursor),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("suggestions")]
+    public async Task<IActionResult> Suggestions(
+        [FromQuery(Name = "q")] string query = "",
+        CancellationToken cancellationToken = default)
+    {
+        Result<IReadOnlyList<string>> result = await sender.Send(
+            new SuggestCourseSuggestionsQuery(GetLocale(), query),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    private string GetLocale()
+    {
+        string value = Request.GetTypedHeaders().AcceptLanguage?.FirstOrDefault()?.Value.Value ?? "ar";
+        return value.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ar";
+    }
+}

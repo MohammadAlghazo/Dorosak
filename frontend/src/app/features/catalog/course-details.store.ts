@@ -70,7 +70,7 @@ export class CourseDetailsStore {
           }
           return this.api.getCourse(slug).pipe(
             map((course): CourseDetailState => {
-              if (!course.releaseId.trim() || course.locale !== this.locale.locale()) {
+              if (!hasRelease(course) || course.locale !== this.locale.locale()) {
                 return { ...initialState, status: 'notFound' };
               }
               if (course.slug !== slug) {
@@ -106,4 +106,9 @@ const detailFailure = (error: unknown): CourseDetailState => {
     errorCode: error instanceof ApiProblem ? error.code : null,
     traceId: error instanceof ApiProblem ? error.traceId : null,
   };
+};
+
+const hasRelease = (course: PublicCourseDetail): boolean => {
+  const releaseId: unknown = course.releaseId;
+  return typeof releaseId === 'string' && releaseId.trim().length > 0;
 };

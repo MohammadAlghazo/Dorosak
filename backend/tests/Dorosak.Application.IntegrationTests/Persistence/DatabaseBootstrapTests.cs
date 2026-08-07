@@ -55,9 +55,9 @@ public sealed class DatabaseBootstrapTests
         await runtimeConnection.OpenAsync(TestContext.Current.CancellationToken);
         string runtimePrivileges = await ExecuteScalarAsync(
             runtimeConnection,
-            "SELECT has_schema_privilege(current_user, 'operations', 'USAGE') || '|' || has_schema_privilege(current_user, 'operations', 'CREATE') || '|' || has_schema_privilege(current_user, 'public', 'USAGE') || '|' || has_database_privilege(current_user, current_database(), 'TEMPORARY') || '|' || pg_has_role(current_user, 'dorosak_schema_owner', 'SET')",
+            "SELECT has_schema_privilege(current_user, 'operations', 'USAGE') || '|' || has_schema_privilege(current_user, 'operations', 'CREATE') || '|' || has_schema_privilege(current_user, 'catalog', 'USAGE') || '|' || has_schema_privilege(current_user, 'catalog', 'CREATE') || '|' || has_schema_privilege(current_user, 'authoring', 'USAGE') || '|' || has_schema_privilege(current_user, 'authoring', 'CREATE') || '|' || has_schema_privilege(current_user, 'public', 'USAGE') || '|' || has_database_privilege(current_user, current_database(), 'TEMPORARY') || '|' || pg_has_role(current_user, 'dorosak_schema_owner', 'SET')",
             TestContext.Current.CancellationToken);
-        Assert.Equal("true|false|false|false|false", runtimePrivileges);
+        Assert.Equal("true|false|true|false|true|false|false|false|false", runtimePrivileges);
 
         PostgresException elevationFailure = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
             runtimeConnection,

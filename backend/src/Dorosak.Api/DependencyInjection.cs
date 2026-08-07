@@ -167,6 +167,15 @@ public static class DependencyInjection
                 .Expire(TimeSpan.FromSeconds(30))
                 .SetVaryByHeader("Origin")
                 .SetVaryByQuery("api-version"));
+            options.AddPolicy(ApiConstants.CatalogOutputCachePolicy, policy => policy
+                .Expire(TimeSpan.FromSeconds(60))
+                .SetVaryByHeader("Accept-Language")
+                .SetVaryByQuery("*"));
+            options.AddPolicy(ApiConstants.TaxonomyOutputCachePolicy, policy => policy
+                .Expire(TimeSpan.FromMinutes(5))
+                .SetVaryByHeader("Accept-Language")
+                .SetVaryByQuery("*")
+                .Tag(ApiConstants.TaxonomyCacheTag));
         });
         services.AddRateLimiter(options =>
         {
@@ -216,6 +225,23 @@ public static class DependencyInjection
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     }));
+            options.AddPolicy(ApiConstants.SearchRateLimitPolicy, context =>
+            {
+                string? userId = context.User.FindFirst("sub")?.Value;
+                string partition = userId is null
+                    ? $"anonymous:{GetRateLimitPartition(context.Connection.RemoteIpAddress)}"
+                    : $"user:{userId}";
+                int limit = userId is null ? 60 : 180;
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partition,
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = limit,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
         });
 
         services.AddTransient<OriginValidationMiddleware>();
@@ -300,6 +326,7 @@ public static class DependencyInjection
         StatusCodes.Status408RequestTimeout => "HTTP.REQUEST_TIMEOUT",
         StatusCodes.Status409Conflict => "HTTP.CONFLICT",
         StatusCodes.Status412PreconditionFailed => "HTTP.PRECONDITION_FAILED",
+        StatusCodes.Status428PreconditionRequired => "HTTP.PRECONDITION_REQUIRED",
         StatusCodes.Status413PayloadTooLarge => "HTTP.CONTENT_TOO_LARGE",
         StatusCodes.Status415UnsupportedMediaType => "HTTP.UNSUPPORTED_MEDIA_TYPE",
         StatusCodes.Status422UnprocessableEntity => "HTTP.UNPROCESSABLE_ENTITY",

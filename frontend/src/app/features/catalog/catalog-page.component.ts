@@ -39,7 +39,8 @@ export class CatalogPageComponent {
   protected readonly store = inject(CatalogPageStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
-  private readonly closeFilterButton = viewChild<ElementRef<HTMLButtonElement>>('closeFilterButton');
+  private readonly closeFilterButton =
+    viewChild<ElementRef<HTMLButtonElement>>('closeFilterButton');
   private filterTrigger: HTMLButtonElement | null = null;
 
   protected readonly filtersOpen = signal(false);

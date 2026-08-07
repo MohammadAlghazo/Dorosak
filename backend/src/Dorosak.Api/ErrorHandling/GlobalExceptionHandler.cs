@@ -37,6 +37,11 @@ public sealed class GlobalExceptionHandler(
                 forbidden.Code,
                 "Forbidden",
                 forbidden.Message),
+            ResourceNotFoundException notFound => CreateProblem(
+                StatusCodes.Status404NotFound,
+                notFound.Code,
+                "Not Found",
+                notFound.Message),
             RequestConflictException conflict => CreateProblem(
                 StatusCodes.Status409Conflict,
                 conflict.Code,

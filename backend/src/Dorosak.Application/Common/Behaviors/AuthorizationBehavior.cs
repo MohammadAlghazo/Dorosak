@@ -29,6 +29,10 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>(IEnumerable<IRequ
             AuthorizationDecision decision = await authorizer.AuthorizeAsync(request, cancellationToken);
             if (!decision.IsAllowed)
             {
+                if (string.Equals(decision.Code, "COURSE.ACCESS_DENIED", StringComparison.Ordinal))
+                {
+                    throw new ResourceNotFoundException("COURSE.NOT_FOUND", decision.Description);
+                }
                 throw new ForbiddenAccessException(decision.Code, decision.Description);
             }
         }

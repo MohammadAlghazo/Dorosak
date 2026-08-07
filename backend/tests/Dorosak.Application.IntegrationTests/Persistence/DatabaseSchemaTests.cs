@@ -38,6 +38,38 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'profiles' AND table_name = 'profiles'",
             TestContext.Current.CancellationToken));
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('catalog', 'authoring')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(10L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'catalog' AND table_name IN ('courses', 'course_localizations', 'course_slugs', 'course_instructors', 'categories', 'category_localizations', 'course_categories', 'tags', 'tag_localizations', 'course_tags')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(6L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'authoring' AND table_name IN ('course_drafts', 'sections', 'section_revisions', 'lessons', 'lesson_revisions', 'publication_reviews')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'profiles' AND table_name IN ('teacher_profiles', 'teacher_applications')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'catalog' AND table_name IN ('course_releases', 'catalog_documents')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(4L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM catalog.categories",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(8L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM catalog.category_localizations",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM pg_extension WHERE extname IN ('pg_trgm', 'unaccent')",
+            TestContext.Current.CancellationToken));
         Assert.Equal(1L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name = 'data_protection_keys'",

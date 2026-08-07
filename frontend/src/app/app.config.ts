@@ -29,6 +29,7 @@ import {
   telemetryInterceptor,
 } from './core/api/api.interceptors';
 import { RuntimeConfigService } from './core/api/runtime-config.service';
+import { isAnonymousPublicReadUrl } from './core/api/public-transfer-cache';
 import { GlobalErrorHandler } from './core/error-handling/global-error-handler';
 import { routes } from './app.routes';
 
@@ -63,9 +64,7 @@ export const appConfig: ApplicationConfig = {
           !request.withCredentials &&
           request.credentials === 'omit' &&
           !request.headers.has('Authorization') &&
-          /^\/api\/v1\/(?:system\/status|catalog\/(?:courses(?:\/[^/?]+)?|categories|tags|featured|popular)|search(?:\/suggestions)?|pages(?:\/[^/?]+)?|faqs)(?:\?|$)/u.test(
-            request.url,
-          ),
+          isAnonymousPublicReadUrl(request.url),
       }),
     ),
     provideServiceWorker('ngsw-worker.js', {
