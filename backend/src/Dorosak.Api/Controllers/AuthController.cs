@@ -34,6 +34,15 @@ public sealed class AuthController(
             throw new InvalidOperationException("The antiforgery request token was not generated.");
         }
 
+        Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = true,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            IsEssential = true,
+        });
+
         return NoContent();
     }
 

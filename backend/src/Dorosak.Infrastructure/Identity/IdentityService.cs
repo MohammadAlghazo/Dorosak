@@ -102,6 +102,8 @@ internal sealed class IdentityService(
                 "The account could not be registered."));
         }
 
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         dbContext.UserProfiles.Add(UserProfile.Create(user.Id, request.DisplayName, now));
         dbContext.SecurityEvents.Add(SecurityEvent.Create(
             user.Id,

@@ -89,8 +89,8 @@ public static class DependencyInjection
         services.AddAuthorization();
         services.AddAntiforgery(options =>
         {
-            options.Cookie.Name = "XSRF-TOKEN";
-            options.Cookie.HttpOnly = false;
+            options.Cookie.Name = "__Host-dorosak-antiforgery";
+            options.Cookie.HttpOnly = true;
             options.Cookie.IsEssential = true;
             options.Cookie.Path = "/";
             options.Cookie.SameSite = SameSiteMode.Lax;

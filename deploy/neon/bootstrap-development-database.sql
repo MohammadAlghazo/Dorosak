@@ -131,29 +131,41 @@ REVOKE ALL ON SCHEMA public FROM PUBLIC, dorosak_runtime, dorosak_app;
 
 CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION dorosak_schema_owner;
 CREATE SCHEMA IF NOT EXISTS operations AUTHORIZATION dorosak_schema_owner;
+CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION dorosak_schema_owner;
+CREATE SCHEMA IF NOT EXISTS profiles AUTHORIZATION dorosak_schema_owner;
 CREATE SCHEMA IF NOT EXISTS migrations AUTHORIZATION dorosak_schema_owner;
 ALTER SCHEMA app OWNER TO dorosak_schema_owner;
 ALTER SCHEMA operations OWNER TO dorosak_schema_owner;
+ALTER SCHEMA identity OWNER TO dorosak_schema_owner;
+ALTER SCHEMA profiles OWNER TO dorosak_schema_owner;
 ALTER SCHEMA migrations OWNER TO dorosak_schema_owner;
 
 SET ROLE dorosak_schema_owner;
 
 REVOKE ALL ON SCHEMA app FROM PUBLIC, dorosak_runtime, dorosak_app;
 REVOKE ALL ON SCHEMA operations FROM PUBLIC, dorosak_runtime, dorosak_app;
+REVOKE ALL ON SCHEMA identity FROM PUBLIC, dorosak_runtime, dorosak_app;
+REVOKE ALL ON SCHEMA profiles FROM PUBLIC, dorosak_runtime, dorosak_app;
 REVOKE ALL ON SCHEMA migrations FROM PUBLIC, dorosak_runtime, dorosak_app;
-REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA app, operations FROM PUBLIC, dorosak_app;
-REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA app, operations FROM dorosak_runtime;
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA app, operations FROM PUBLIC, dorosak_app;
-REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA app, operations FROM PUBLIC, dorosak_app;
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA app, operations FROM dorosak_runtime;
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app, operations FROM dorosak_runtime;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA app, operations, identity, profiles FROM PUBLIC, dorosak_app;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA app, operations, identity, profiles FROM dorosak_runtime;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA app, operations, identity, profiles FROM PUBLIC, dorosak_app;
+REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA app, operations, identity, profiles FROM PUBLIC, dorosak_app;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA app, operations, identity, profiles FROM dorosak_runtime;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app, operations, identity, profiles FROM dorosak_runtime;
 GRANT USAGE ON SCHEMA app TO dorosak_runtime;
 GRANT USAGE ON SCHEMA operations TO dorosak_runtime;
+GRANT USAGE ON SCHEMA identity TO dorosak_runtime;
+GRANT USAGE ON SCHEMA profiles TO dorosak_runtime;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA app TO dorosak_runtime;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA app TO dorosak_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA operations TO dorosak_runtime;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA operations TO dorosak_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA identity TO dorosak_runtime;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA identity TO dorosak_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA profiles TO dorosak_runtime;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA profiles TO dorosak_runtime;
 
 DO $schema_marker$
 BEGIN
@@ -164,6 +176,19 @@ BEGIN
     END IF;
 END
 $schema_marker$;
+
+DO $append_only_security_events$
+BEGIN
+    IF to_regclass('identity.security_events') IS NOT NULL THEN
+        REVOKE UPDATE, DELETE, TRUNCATE
+            ON identity.security_events
+            FROM dorosak_runtime;
+        GRANT SELECT, INSERT
+            ON identity.security_events
+            TO dorosak_runtime;
+    END IF;
+END
+$append_only_security_events$;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA app REVOKE ALL ON TABLES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES IN SCHEMA app REVOKE ALL ON SEQUENCES FROM PUBLIC;
@@ -179,6 +204,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA operations REVOKE ALL ON SEQUENCES FROM doros
 ALTER DEFAULT PRIVILEGES IN SCHEMA operations REVOKE EXECUTE ON FUNCTIONS FROM dorosak_runtime;
 ALTER DEFAULT PRIVILEGES IN SCHEMA operations GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dorosak_runtime;
 ALTER DEFAULT PRIVILEGES IN SCHEMA operations GRANT USAGE ON SEQUENCES TO dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity REVOKE ALL ON TABLES FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity REVOKE ALL ON SEQUENCES FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity REVOKE ALL ON SEQUENCES FROM dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity REVOKE EXECUTE ON FUNCTIONS FROM dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT USAGE ON SEQUENCES TO dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles REVOKE ALL ON TABLES FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles REVOKE ALL ON SEQUENCES FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles REVOKE ALL ON SEQUENCES FROM dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles REVOKE EXECUTE ON FUNCTIONS FROM dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dorosak_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA profiles GRANT USAGE ON SEQUENCES TO dorosak_runtime;
 
 RESET ROLE;
 
@@ -191,11 +230,11 @@ BEGIN
     EXECUTE format('GRANT CONNECT ON DATABASE %I TO dorosak_migrator, dorosak_app', current_database());
     EXECUTE format('GRANT CREATE ON DATABASE %I TO dorosak_schema_owner', current_database());
     EXECUTE format(
-        'ALTER ROLE dorosak_migrator IN DATABASE %I SET search_path = app, migrations, pg_catalog',
+        'ALTER ROLE dorosak_migrator IN DATABASE %I SET search_path = app, identity, profiles, operations, migrations, pg_catalog',
         current_database()
     );
     EXECUTE format(
-        'ALTER ROLE dorosak_app IN DATABASE %I SET search_path = app, operations, pg_catalog',
+        'ALTER ROLE dorosak_app IN DATABASE %I SET search_path = app, identity, profiles, operations, pg_catalog',
         current_database()
     );
     EXECUTE format(

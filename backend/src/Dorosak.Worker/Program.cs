@@ -25,6 +25,7 @@ try
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddDorosakObservability(builder.Configuration, "Dorosak.Worker", false);
     builder.Services.AddHostedService<WorkerHeartbeatService>();
+    builder.Services.AddHostedService<IdentityEmailWorker>();
 
     using IHost host = builder.Build();
     await host.RunAsync();

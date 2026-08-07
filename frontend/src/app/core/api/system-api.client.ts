@@ -5,8 +5,12 @@ import { API_REQUEST, PUBLIC_API_REQUEST } from './api-context';
 
 interface SystemStatusDto {
   service: string;
-  environment: string;
+  version: string;
   utcTime: string;
+}
+
+interface ApiEnvelope<T> {
+  data: T;
 }
 
 export interface SystemStatus {
@@ -20,9 +24,9 @@ export class SystemApiClient {
 
   getStatus(): Observable<SystemStatus> {
     return this.http
-      .get<SystemStatusDto>('system/status', {
+      .get<ApiEnvelope<SystemStatusDto>>('system/status', {
         context: new HttpContext().set(API_REQUEST, true).set(PUBLIC_API_REQUEST, true),
       })
-      .pipe(map((status) => ({ service: status.service, available: Boolean(status.utcTime) })));
+      .pipe(map((response) => ({ service: response.data.service, available: Boolean(response.data.utcTime) })));
   }
 }

@@ -121,6 +121,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
       ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
+      ConnectionStrings__RedisSecurity: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
+      App__PublicUrl: ${DOROSAK_PUBLIC_URL:-http://localhost:4200}
       Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
       Licensing__AutoMapperKey: ${DOROSAK_AUTOMAPPER_LICENSE_KEY:-}
       OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
@@ -148,12 +150,18 @@ services:
       DOTNET_ENVIRONMENT: Development
       ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
       ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
+      App__PublicUrl: ${DOROSAK_PUBLIC_URL:-http://localhost:4200}
+      Email__SmtpHost: mailpit
+      Email__SmtpPort: 1025
+      Email__UseTls: false
       Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
       Licensing__AutoMapperKey: ${DOROSAK_AUTOMAPPER_LICENSE_KEY:-}
       OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
       HOME: /tmp
     depends_on:
       redis:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     read_only: true
     tmpfs:

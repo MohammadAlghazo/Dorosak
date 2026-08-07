@@ -8,6 +8,7 @@ using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,12 +50,19 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(PasswordBreachOptions.SectionName))
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Password breach URL is invalid.")
             .ValidateOnStart();
+        services
+            .AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.SmtpHost), "SMTP host is required.")
+            .Validate(options => options.SmtpPort is > 0 and <= 65535, "SMTP port is invalid.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.FromAddress), "Email sender is required.")
+            .ValidateOnStart();
 
         services
             .AddDataProtection()
             .SetApplicationName("Dorosak")
             .PersistKeysToDbContext<DorosakDbContext>();
-        services
+        IdentityBuilder identityBuilder = services
             .AddIdentityCore<ApplicationUser>(options =>
             {
                 options.User.RequireUniqueEmail = true;
@@ -67,18 +75,42 @@ public static class DependencyInjection
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 options.SignIn.RequireConfirmedEmail = true;
+                options.Tokens.EmailConfirmationTokenProvider = "DorosakEmailVerification";
+                options.Tokens.PasswordResetTokenProvider = "DorosakPasswordReset";
             })
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<DorosakDbContext>()
             .AddDefaultTokenProviders();
+        identityBuilder
+            .AddTokenProvider<EmailVerificationTokenProvider>("DorosakEmailVerification")
+            .AddTokenProvider<PasswordResetTokenProvider>("DorosakPasswordReset");
+        services.AddScoped<IUserStore<ApplicationUser>>(provider => new UserStore<
+            ApplicationUser,
+            ApplicationRole,
+            DorosakDbContext,
+            Guid>(
+                provider.GetRequiredService<DorosakDbContext>(),
+                provider.GetRequiredService<IdentityErrorDescriber>())
+        {
+            AutoSaveChanges = false,
+        });
+        services.AddScoped<IRoleStore<ApplicationRole>>(provider => new RoleStore<
+            ApplicationRole,
+            DorosakDbContext,
+            Guid>(
+                provider.GetRequiredService<DorosakDbContext>(),
+                provider.GetRequiredService<IdentityErrorDescriber>())
+        {
+            AutoSaveChanges = false,
+        });
         services.Configure<PasswordHasherOptions>(options =>
             options.IterationCount = configuration.GetValue("Identity:PasswordHashIterations", 210000));
-        services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromHours(24));
         services.AddSingleton<IJwtKeyProvider, JwtKeyProvider>();
         services.AddSingleton<JwtTokenIssuer>();
         services.AddSingleton<SecurityRateLimiter>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IIdentitySessionValidator, IdentitySessionValidator>();
+        services.AddScoped<IIdentityEmailDispatcher, IdentityEmailDispatcher>();
 
         services.AddStackExchangeRedisCache(options =>
         {

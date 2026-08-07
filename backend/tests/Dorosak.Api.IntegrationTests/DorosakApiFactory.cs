@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Dorosak.Api.IntegrationTests;
 
-public sealed class DorosakApiFactory(string databaseConnection) : WebApplicationFactory<Program>
+public sealed class DorosakApiFactory(
+    string databaseConnection,
+    string redisConnection = "127.0.0.1:1,abortConnect=false,connectTimeout=100") : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -11,7 +13,10 @@ public sealed class DorosakApiFactory(string databaseConnection) : WebApplicatio
             .UseEnvironment("Development")
             .UseSetting("AllowedHosts", "*")
             .UseSetting("ConnectionStrings:Database", databaseConnection)
-            .UseSetting("ConnectionStrings:Redis", "127.0.0.1:1,abortConnect=false,connectTimeout=100")
+            .UseSetting("ConnectionStrings:Redis", redisConnection)
+            .UseSetting("ConnectionStrings:RedisSecurity", redisConnection)
+            .UseSetting("App:PublicUrl", "https://app.dorosak.test")
+            .UseSetting("Identity:RefreshRaceWindowSeconds", "1")
             .UseSetting("Cors:AllowedOrigins:0", "https://app.dorosak.test");
     }
 }

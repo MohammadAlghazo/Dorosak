@@ -27,7 +27,7 @@ public sealed class SystemEndpointTests(ApiFixture fixture)
         Assert.Equal(firstBody, secondBody);
 
         using JsonDocument document = JsonDocument.Parse(firstBody);
-        Assert.Equal("Dorosak.Api", document.RootElement.GetProperty("service").GetString());
+        Assert.Equal("Dorosak.Api", document.RootElement.GetProperty("data").GetProperty("service").GetString());
 
         string firstCorrelation = first.Headers.GetValues("X-Correlation-ID").Single();
         string secondCorrelation = second.Headers.GetValues("X-Correlation-ID").Single();

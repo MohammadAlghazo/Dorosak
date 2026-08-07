@@ -95,6 +95,48 @@ public sealed class OutboxMessage
             headers);
     }
 
+    public bool TryAcquire(DateTimeOffset now, TimeSpan lockDuration, Guid lockToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lockDuration, TimeSpan.Zero);
+        if (ProcessedAt is not null || AvailableAt > now || LockedUntil > now)
+        {
+            return false;
+        }
+
+        AttemptCount++;
+        LockToken = lockToken;
+        LockedUntil = now.Add(lockDuration);
+        return true;
+    }
+
+    public void MarkProcessed(DateTimeOffset now, Guid lockToken)
+    {
+        EnsureLock(lockToken);
+        ProcessedAt = now;
+        LockedUntil = null;
+        LockToken = null;
+        LastErrorCode = null;
+    }
+
+    public void ReleaseAfterFailure(DateTimeOffset now, Guid lockToken, string errorCode, TimeSpan retryDelay)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(retryDelay, TimeSpan.Zero);
+        EnsureLock(lockToken);
+        AvailableAt = now.Add(retryDelay);
+        LastErrorCode = errorCode.Length <= 200 ? errorCode : errorCode[..200];
+        LockedUntil = null;
+        LockToken = null;
+    }
+
+    private void EnsureLock(Guid lockToken)
+    {
+        if (LockToken != lockToken)
+        {
+            throw new InvalidOperationException("The outbox message is not owned by this worker lock.");
+        }
+    }
+
     private static void EnsureValidJson(string value, string parameterName)
     {
         try

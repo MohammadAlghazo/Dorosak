@@ -46,6 +46,7 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Ignore<IdentityUserPasskey<Guid>>();
         builder.HasDefaultSchema(DefaultSchema);
         builder.ApplyConfigurationsFromAssembly(AssemblyReference.Assembly);
     }
