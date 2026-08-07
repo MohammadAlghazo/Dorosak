@@ -8,6 +8,7 @@ using MediatR;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Dorosak.Api.Controllers;
@@ -15,6 +16,7 @@ namespace Dorosak.Api.Controllers;
 [ApiController]
 [ApiVersion(1)]
 [Route("api/v{version:apiVersion}/auth")]
+[EnableRateLimiting(ApiConstants.SensitiveRateLimitPolicy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AuthController(
     ISender sender,
@@ -189,6 +191,47 @@ public sealed class AuthController(
         Result<OperationCompletedResponse> result = await sender.Send(
             new ConfirmEmailCommand(request.UserId, request.Token),
             cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [Authorize]
+    [HttpPost("email/change/request")]
+    public async Task<IActionResult> RequestEmailChange(
+        EmailChangeRequest request,
+        CancellationToken cancellationToken)
+    {
+        await antiforgery.ValidateRequestAsync(HttpContext);
+        if (!TryGetCurrentIdentity(out Guid userId, out Guid sessionId))
+        {
+            return UnauthorizedProblem("SESSION.INVALID", "The session is missing, expired, or revoked.");
+        }
+
+        Result<NeutralAcceptedResponse> result = await sender.Send(
+            new RequestEmailChangeCommand(
+                userId,
+                sessionId,
+                request.CurrentPassword,
+                request.NewEmail,
+                request.Locale,
+                CreateContext()),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("email/change/confirm")]
+    public async Task<IActionResult> ConfirmEmailChange(
+        TokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        await antiforgery.ValidateRequestAsync(HttpContext);
+        Result<OperationCompletedResponse> result = await sender.Send(
+            new ConfirmEmailChangeCommand(request.UserId, request.Token),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            DeleteRefreshCookie();
+        }
         return this.ToActionResult(result);
     }
 
@@ -367,6 +410,8 @@ public sealed record MfaChallengeRequest(string ChallengeToken, string Code);
 public sealed record MfaRecoveryRequest(string ChallengeToken, string RecoveryCode);
 
 public sealed record EmailRequest(string Email, string Locale = "ar");
+
+public sealed record EmailChangeRequest(string NewEmail, string CurrentPassword, string Locale = "ar");
 
 public sealed record TokenRequest(Guid UserId, string Token);
 

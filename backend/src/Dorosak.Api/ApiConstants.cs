@@ -6,5 +6,7 @@ public static class ApiConstants
 
     public const string PublicRateLimitPolicy = "PublicApi";
 
+    public const string SensitiveRateLimitPolicy = "SensitiveApi";
+
     public const string PublicOutputCachePolicy = "PublicShort";
 }

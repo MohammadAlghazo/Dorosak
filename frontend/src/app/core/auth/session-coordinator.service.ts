@@ -120,6 +120,7 @@ export class SessionCoordinator {
       tap(() => {
         this.session.markAnonymous();
         this.identityApi.resetCsrf();
+        this.refreshService.broadcastLogout();
         this.activeMfaChallenge.set(null);
         this.restorationAttempted = true;
         this.restorationRequest = undefined;

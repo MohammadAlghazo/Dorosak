@@ -22,6 +22,7 @@ internal sealed class IdentityEmailDispatcher(
 {
     private const string VerificationEmailEvent = "identity.email-verification-requested";
     private const string PasswordResetEmailEvent = "identity.password-reset-requested";
+    private const string EmailChangeEvent = "identity.email-change-requested";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly Action<ILogger, Guid, string, Exception?> DeliveryFailed =
@@ -77,7 +78,7 @@ internal sealed class IdentityEmailDispatcher(
                 WHERE processed_at IS NULL
                   AND available_at <= now()
                   AND (locked_until IS NULL OR locked_until <= now())
-                  AND event_type IN ('identity.email-verification-requested', 'identity.password-reset-requested')
+                  AND event_type IN ('identity.email-verification-requested', 'identity.password-reset-requested', 'identity.email-change-requested')
                 ORDER BY available_at, occurred_at, id
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -117,6 +118,7 @@ internal sealed class IdentityEmailDispatcher(
         string link;
         string subject;
         string body;
+        string destinationEmail = user.Email;
         if (message.EventType == VerificationEmailEvent)
         {
             if (user.EmailConfirmed)
@@ -140,6 +142,21 @@ internal sealed class IdentityEmailDispatcher(
                 ? $"لإعادة تعيين كلمة المرور افتح الرابط التالي:\n{link}\n\nتنتهي صلاحية الرابط خلال ساعة."
                 : $"Reset your password by opening this link:\n{link}\n\nThe link expires in one hour.";
         }
+        else if (message.EventType == EmailChangeEvent)
+        {
+            if (string.IsNullOrWhiteSpace(user.PendingEmail))
+            {
+                return;
+            }
+
+            destinationEmail = user.PendingEmail;
+            string token = await userManager.GenerateChangeEmailTokenAsync(user, user.PendingEmail);
+            link = BuildLink(locale, "confirm-email-change", user.Id, token);
+            subject = locale == "ar" ? "تأكيد بريدك الجديد في دروسك" : "Confirm your new Dorosak email";
+            body = locale == "ar"
+                ? $"لتأكيد بريدك الجديد افتح الرابط التالي:\n{link}\n\nتنتهي صلاحية الرابط خلال 24 ساعة."
+                : $"Confirm your new email by opening this link:\n{link}\n\nThe link expires in 24 hours.";
+        }
         else
         {
             throw new InvalidOperationException("The identity email event type is unsupported.");
@@ -154,7 +171,7 @@ internal sealed class IdentityEmailDispatcher(
             SubjectEncoding = Encoding.UTF8,
             BodyEncoding = Encoding.UTF8,
         };
-        mail.To.Add(new MailAddress(user.Email));
+        mail.To.Add(new MailAddress(destinationEmail));
         using var smtp = new SmtpClient(_emailOptions.SmtpHost, _emailOptions.SmtpPort)
         {
             EnableSsl = _emailOptions.UseTls,

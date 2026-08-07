@@ -92,3 +92,9 @@ export interface EmailVerificationConfirmRequest {
   userId: string;
   token: string;
 }
+
+export interface EmailChangeRequest {
+  newEmail: string;
+  currentPassword: string;
+  locale: 'ar' | 'en';
+}

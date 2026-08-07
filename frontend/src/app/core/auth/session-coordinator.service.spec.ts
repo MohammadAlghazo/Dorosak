@@ -27,7 +27,10 @@ describe('SessionCoordinator', () => {
           provide: IdentityApiClient,
           useValue: { signIn, completeMfaChallenge, signOut, resetCsrf },
         },
-        { provide: AuthRefreshService, useValue: { refresh: () => of('access-token') } },
+        {
+          provide: AuthRefreshService,
+          useValue: { refresh: () => of('access-token'), broadcastLogout: vi.fn() },
+        },
         { provide: IndexedDbService, useValue: { purgeUser } },
         {
           provide: RuntimeConfigService,

@@ -7,6 +7,7 @@ using Asp.Versioning;
 using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
+using Dorosak.Api.Startup;
 using Dorosak.Api.Authorization;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -204,9 +205,21 @@ public static class DependencyInjection
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     }));
+            options.AddPolicy(ApiConstants.SensitiveRateLimitPolicy, context =>
+                RateLimitPartition.GetSlidingWindowLimiter(
+                    GetRateLimitPartition(context.Connection.RemoteIpAddress),
+                    _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                        SegmentsPerWindow = 6,
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    }));
         });
 
         services.AddTransient<OriginValidationMiddleware>();
+        services.AddHostedService<IdentitySecurityStartupCheck>();
 
         string[] allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(ApiConstants.CorsPolicy, policy =>

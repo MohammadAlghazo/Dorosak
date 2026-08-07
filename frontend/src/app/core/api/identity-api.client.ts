@@ -16,6 +16,7 @@ import {
   type CompletedResult,
   type CredentialsChangeRequest,
   type EmailVerificationConfirmRequest,
+  type EmailChangeRequest,
   type IdentitySnapshot,
   type MfaConfirmResult,
   type MfaSetupResult,
@@ -99,6 +100,20 @@ export class IdentityApiClient {
 
   confirmEmailVerification(request: EmailVerificationConfirmRequest): Observable<CompletedResult> {
     return this.guestMutation('auth/email-verification/confirm', request);
+  }
+
+  requestEmailChange(request: EmailChangeRequest): Observable<AcceptedResult> {
+    return this.unsafeMutation(() =>
+      this.http
+        .post<ApiEnvelope<AcceptedResult>>('auth/email/change/request', request, {
+          context: privateMutationContext(),
+        })
+        .pipe(map((response) => response.data)),
+    );
+  }
+
+  confirmEmailChange(request: EmailVerificationConfirmRequest): Observable<CompletedResult> {
+    return this.guestMutation('auth/email/change/confirm', request);
   }
 
   requestPasswordReset(email: string, locale: 'ar' | 'en'): Observable<AcceptedResult> {

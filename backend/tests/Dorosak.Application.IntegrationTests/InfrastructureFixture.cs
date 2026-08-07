@@ -53,6 +53,11 @@ public sealed class InfrastructureFixture : IAsyncLifetime
                 ["ConnectionStrings:Redis"] = redisConnection,
                 ["Email:SmtpHost"] = "127.0.0.1",
                 ["Email:SmtpPort"] = "1",
+                ["AdminBootstrap:Enabled"] = "true",
+                ["AdminBootstrap:Email"] = "bootstrap-admin@example.test",
+                ["AdminBootstrap:DisplayName"] = "Bootstrap Administrator",
+                ["AdminBootstrap:TemporaryPassword"] = "temporary bootstrap password",
+                ["AdminBootstrap:TotpSecret"] = "JBSWY3DPEHPK3PXP",
             })
             .Build();
 

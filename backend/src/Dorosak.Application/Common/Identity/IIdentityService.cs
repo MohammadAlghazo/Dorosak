@@ -49,6 +49,14 @@ public interface IIdentityService
         ConfirmEmailCommand request,
         CancellationToken cancellationToken);
 
+    Task<Result<NeutralAcceptedResponse>> RequestEmailChangeAsync(
+        RequestEmailChangeCommand request,
+        CancellationToken cancellationToken);
+
+    Task<Result<OperationCompletedResponse>> ConfirmEmailChangeAsync(
+        ConfirmEmailChangeCommand request,
+        CancellationToken cancellationToken);
+
     Task<Result<NeutralAcceptedResponse>> ForgotPasswordAsync(
         ForgotPasswordCommand request,
         CancellationToken cancellationToken);

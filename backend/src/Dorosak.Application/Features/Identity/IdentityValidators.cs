@@ -56,6 +56,21 @@ internal sealed class ConfirmEmailCommandValidator : AbstractValidator<ConfirmEm
     public ConfirmEmailCommandValidator() => RuleFor(request => request.Token).NotEmpty().MaximumLength(4000);
 }
 
+internal sealed class RequestEmailChangeCommandValidator : AbstractValidator<RequestEmailChangeCommand>
+{
+    public RequestEmailChangeCommandValidator()
+    {
+        RuleFor(request => request.CurrentPassword).NotEmpty().MaximumLength(256);
+        RuleFor(request => request.NewEmail).NotEmpty().EmailAddress().MaximumLength(320);
+    }
+}
+
+internal sealed class ConfirmEmailChangeCommandValidator : AbstractValidator<ConfirmEmailChangeCommand>
+{
+    public ConfirmEmailChangeCommandValidator() =>
+        RuleFor(request => request.Token).NotEmpty().MaximumLength(4000);
+}
+
 internal sealed class ForgotPasswordCommandValidator : AbstractValidator<ForgotPasswordCommand>
 {
     public ForgotPasswordCommandValidator() =>

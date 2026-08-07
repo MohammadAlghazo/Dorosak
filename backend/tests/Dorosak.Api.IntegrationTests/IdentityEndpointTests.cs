@@ -184,6 +184,46 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
     }
 
     [Fact]
+    public async Task Registration_FailsClosedWhenSecurityRedisIsUnavailable()
+    {
+        await using var factory = new DorosakApiFactory(
+            fixture.DatabaseConnection,
+            "127.0.0.1:1,abortConnect=false,connectTimeout=100,asyncTimeout=100");
+        using HttpClient client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://app.dorosak.test"),
+            HandleCookies = false,
+        });
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        using HttpResponseMessage csrfResponse = await client.GetAsync("/api/v1/auth/csrf", cancellationToken);
+        string[] cookies = csrfResponse.Headers.GetValues("Set-Cookie")
+            .Select(value => value.Split(';', 2)[0])
+            .ToArray();
+        string requestTokenCookie = cookies.Single(cookie =>
+            cookie.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal));
+        string requestToken = requestTokenCookie[(requestTokenCookie.IndexOf('=', StringComparison.Ordinal) + 1)..];
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/register")
+        {
+            Content = JsonContent.Create(new
+            {
+                displayName = "Unavailable Redis Student",
+                email = $"unavailable-{Guid.CreateVersion7():N}@example.test",
+                password = "correct horse battery staple",
+            }),
+        };
+        request.Headers.Add("Origin", "https://app.dorosak.test");
+        request.Headers.Add("X-XSRF-TOKEN", requestToken);
+        request.Headers.TryAddWithoutValidation("Cookie", string.Join("; ", cookies));
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal("SECURITY.RATE_LIMIT_UNAVAILABLE", await ReadProblemCodeAsync(response, cancellationToken));
+        Assert.True(response.Headers.RetryAfter is not null);
+    }
+
+    [Fact]
     public async Task MfaRecovery_IsRequiredAndSingleUse()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -389,6 +429,79 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
             second.RefreshCookie,
             cancellationToken: cancellationToken);
         Assert.Equal(HttpStatusCode.Unauthorized, revokedRefresh.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmailChange_KeepsCurrentAddressUntilVerificationAndRevokesSessions()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        ConfirmedAccount account = await CreateConfirmedAccountAsync(cancellationToken);
+        CsrfSession anonymousCsrf = await GetCsrfAsync(cancellationToken);
+        SignedInSession session = await SignInAsync(
+            account.Email,
+            account.Password,
+            anonymousCsrf,
+            cancellationToken);
+        CsrfSession authenticatedCsrf = await GetCsrfAsync(cancellationToken, session.AccessToken);
+        string newEmail = $"changed-{Guid.CreateVersion7():N}@example.test";
+
+        using HttpResponseMessage requested = await SendAuthAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/email/change/request",
+            new { newEmail, currentPassword = account.Password, locale = "en" },
+            authenticatedCsrf,
+            session.RefreshCookie,
+            session.AccessToken,
+            cancellationToken: cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, requested.StatusCode);
+
+        string changeToken;
+        await using (AsyncServiceScope scope = fixture.Factory.Services.CreateAsyncScope())
+        {
+            UserManager<ApplicationUser> userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser user = Assert.IsType<ApplicationUser>(
+                await userManager.FindByIdAsync(account.UserId.ToString("D")));
+            Assert.Equal(account.Email, user.Email);
+            Assert.Equal(newEmail, user.PendingEmail);
+            changeToken = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
+        }
+
+        CsrfSession confirmationCsrf = await GetCsrfAsync(cancellationToken);
+        using HttpResponseMessage confirmed = await SendAuthAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/email/change/confirm",
+            new { userId = account.UserId, token = changeToken },
+            confirmationCsrf,
+            cancellationToken: cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
+
+        await using (AsyncServiceScope scope = fixture.Factory.Services.CreateAsyncScope())
+        {
+            UserManager<ApplicationUser> userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser user = Assert.IsType<ApplicationUser>(
+                await userManager.FindByIdAsync(account.UserId.ToString("D")));
+            Assert.Equal(newEmail, user.Email);
+            Assert.Null(user.PendingEmail);
+        }
+
+        using HttpResponseMessage revokedRefresh = await SendAuthAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/refresh",
+            body: null,
+            confirmationCsrf,
+            session.RefreshCookie,
+            cancellationToken: cancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, revokedRefresh.StatusCode);
+
+        using HttpResponseMessage signedInWithNewEmail = await SendAuthAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/sign-in",
+            new { email = newEmail, password = account.Password },
+            confirmationCsrf,
+            cancellationToken: cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, signedInWithNewEmail.StatusCode);
     }
 
     private async Task<CsrfSession> GetCsrfAsync(

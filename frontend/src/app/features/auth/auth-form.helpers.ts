@@ -23,6 +23,14 @@ const errorCopy: Readonly<Record<string, Readonly<Record<Locale, string>>>> = {
     ar: 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته.',
     en: 'The password reset link is invalid or has expired.',
   },
+  'AUTH.EMAIL_CHANGE_INVALID': {
+    ar: 'رابط تغيير البريد غير صالح أو انتهت صلاحيته.',
+    en: 'The email change link is invalid or has expired.',
+  },
+  'AUTH.EMAIL_ALREADY_IN_USE': {
+    ar: 'لا يمكن استخدام عنوان البريد هذا.',
+    en: 'This email address cannot be used.',
+  },
   'RATE_LIMIT.EXCEEDED': {
     ar: 'تم تجاوز عدد المحاولات. حاول لاحقًا.',
     en: 'Too many attempts. Try again later.',

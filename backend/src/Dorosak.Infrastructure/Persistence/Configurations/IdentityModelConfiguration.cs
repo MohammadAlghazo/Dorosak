@@ -14,6 +14,7 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
         builder.HasKey(user => user.Id).HasName("pk_identity_users");
         builder.Property(user => user.Id).ValueGeneratedNever();
         builder.Property(user => user.DisplayName).HasMaxLength(100).IsRequired();
+        builder.Property(user => user.PendingEmail).HasMaxLength(320);
         builder.Property(user => user.UserName).HasMaxLength(320);
         builder.Property(user => user.NormalizedUserName).HasMaxLength(320);
         builder.Property(user => user.Email).HasMaxLength(320);

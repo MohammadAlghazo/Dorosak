@@ -3,7 +3,12 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { IdentityApiClient } from '../../core/api/identity-api.client';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { SessionStore } from '../../core/auth/session.store';
-import { authErrorMessage, matchingFields, requiredValidator } from '../auth/auth-form.helpers';
+import {
+  authErrorMessage,
+  emailValidator,
+  matchingFields,
+  requiredValidator,
+} from '../auth/auth-form.helpers';
 
 @Component({
   selector: 'drs-security-page',
@@ -19,6 +24,45 @@ import { authErrorMessage, matchingFields, requiredValidator } from '../auth/aut
             : 'Manage your password and two-step verification in one place.'
         }}</p>
       </div>
+
+      <article class="settings-card">
+        <h2>{{ locale.locale() === 'ar' ? 'تغيير البريد الإلكتروني' : 'Change email address' }}</h2>
+        <p>{{
+          locale.locale() === 'ar'
+            ? 'سيبقى بريدك الحالي فعالًا حتى تؤكد العنوان الجديد.'
+            : 'Your current address remains active until the new one is verified.'
+        }}</p>
+        <p><strong>{{ session.identity()?.email }}</strong></p>
+        @if (emailMessage()) {
+          <div class="form-success" role="status">{{ emailMessage() }}</div>
+        }
+        @if (emailError()) {
+          <div class="form-alert" role="alert">{{ emailError() }}</div>
+        }
+        <form class="identity-form" [formGroup]="emailForm" (ngSubmit)="requestEmailChange()" novalidate>
+          <label for="new-email">{{ locale.locale() === 'ar' ? 'البريد الجديد' : 'New email address' }}</label>
+          <input
+            id="new-email"
+            type="email"
+            formControlName="newEmail"
+            autocomplete="email"
+            [attr.aria-invalid]="emailForm.controls.newEmail.touched && emailForm.controls.newEmail.invalid"
+          />
+          <label for="email-change-password">{{
+            locale.locale() === 'ar' ? 'كلمة المرور الحالية' : 'Current password'
+          }}</label>
+          <input
+            id="email-change-password"
+            type="password"
+            formControlName="currentPassword"
+            autocomplete="current-password"
+            [attr.aria-invalid]="emailForm.controls.currentPassword.touched && emailForm.controls.currentPassword.invalid"
+          />
+          <button type="submit" [disabled]="requestingEmailChange()">{{
+            locale.locale() === 'ar' ? 'إرسال رابط التأكيد' : 'Send confirmation link'
+          }}</button>
+        </form>
+      </article>
 
       <article class="settings-card">
         <h2>{{ locale.locale() === 'ar' ? 'تغيير كلمة المرور' : 'Change password' }}</h2>
@@ -206,18 +250,32 @@ import { authErrorMessage, matchingFields, requiredValidator } from '../auth/aut
 export class SecurityPageComponent {
   protected readonly locale = inject(LocaleService);
   private readonly identityApi = inject(IdentityApiClient);
-  private readonly session = inject(SessionStore);
+  protected readonly session = inject(SessionStore);
   protected readonly mfaEnabled = computed(() => this.session.identity()?.mfaEnabled ?? false);
+  protected readonly emailMessage = signal<string | null>(null);
+  protected readonly emailError = signal<string | null>(null);
   protected readonly passwordMessage = signal<string | null>(null);
   protected readonly passwordError = signal<string | null>(null);
   protected readonly mfaMessage = signal<string | null>(null);
   protected readonly mfaError = signal<string | null>(null);
   protected readonly changingPassword = signal(false);
+  protected readonly requestingEmailChange = signal(false);
   protected readonly settingUpMfa = signal(false);
   protected readonly confirmingMfa = signal(false);
   protected readonly disablingMfa = signal(false);
   protected readonly totpSetup = signal<{ secret: string; otpAuthUri: string } | null>(null);
   protected readonly recoveryCodes = signal<readonly string[]>([]);
+
+  protected readonly emailForm = new FormGroup({
+    newEmail: new FormControl('', {
+      nonNullable: true,
+      validators: [requiredValidator, emailValidator],
+    }),
+    currentPassword: new FormControl('', {
+      nonNullable: true,
+      validators: [requiredValidator],
+    }),
+  });
 
   protected readonly passwordForm = new FormGroup(
     {
@@ -236,6 +294,35 @@ export class SecurityPageComponent {
   protected readonly disableMfaForm = new FormGroup({
      currentPassword: new FormControl('', { nonNullable: true, validators: [requiredValidator] }),
   });
+
+  protected requestEmailChange(): void {
+    this.emailForm.markAllAsTouched();
+    if (this.emailForm.invalid || this.requestingEmailChange()) return;
+    this.emailError.set(null);
+    this.emailMessage.set(null);
+    this.requestingEmailChange.set(true);
+    this.identityApi
+      .requestEmailChange({
+        newEmail: this.emailForm.controls.newEmail.value.trim(),
+        currentPassword: this.emailForm.controls.currentPassword.value,
+        locale: this.locale.locale(),
+      })
+      .subscribe({
+        next: () => {
+          this.requestingEmailChange.set(false);
+          this.emailForm.reset();
+          this.emailMessage.set(
+            this.locale.locale() === 'ar'
+              ? 'تم إرسال رابط إلى البريد الجديد.'
+              : 'A confirmation link was sent to the new address.',
+          );
+        },
+        error: (requestError: unknown) => {
+          this.requestingEmailChange.set(false);
+          this.emailError.set(authErrorMessage(requestError, this.locale.locale()));
+        },
+      });
+  }
 
   protected changePassword(): void {
     this.passwordForm.markAllAsTouched();

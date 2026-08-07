@@ -149,6 +149,19 @@ export const routes: Routes = [
             },
           },
           {
+            path: 'confirm-email-change',
+            loadComponent: () =>
+              import('./features/auth/confirm-email-change-page.component').then(
+                (module) => module.ConfirmEmailChangePageComponent,
+              ),
+            data: {
+              titleAr: 'تأكيد البريد الجديد',
+              titleEn: 'Confirm new email',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
             path: 'reset-password',
             loadComponent: () =>
               import('./features/auth/reset-password-page.component').then(

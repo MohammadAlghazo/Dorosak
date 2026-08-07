@@ -46,6 +46,17 @@ public sealed record SendEmailVerificationCommand(
 
 public sealed record ConfirmEmailCommand(Guid UserId, string Token) : ITransactionalCommand<OperationCompletedResponse>;
 
+public sealed record RequestEmailChangeCommand(
+    Guid UserId,
+    Guid SessionId,
+    string CurrentPassword,
+    string NewEmail,
+    string Locale,
+    IdentityRequestContext Context) : ITransactionalCommand<NeutralAcceptedResponse>;
+
+public sealed record ConfirmEmailChangeCommand(Guid UserId, string Token)
+    : ITransactionalCommand<OperationCompletedResponse>;
+
 public sealed record ForgotPasswordCommand(
     string Email,
     string Locale,
@@ -155,6 +166,22 @@ internal sealed class ConfirmEmailCommandHandler(IIdentityService identityServic
     public Task<Result<OperationCompletedResponse>> Handle(
         ConfirmEmailCommand request,
         CancellationToken cancellationToken) => identityService.ConfirmEmailAsync(request, cancellationToken);
+}
+
+internal sealed class RequestEmailChangeCommandHandler(IIdentityService identityService)
+    : IRequestHandler<RequestEmailChangeCommand, Result<NeutralAcceptedResponse>>
+{
+    public Task<Result<NeutralAcceptedResponse>> Handle(
+        RequestEmailChangeCommand request,
+        CancellationToken cancellationToken) => identityService.RequestEmailChangeAsync(request, cancellationToken);
+}
+
+internal sealed class ConfirmEmailChangeCommandHandler(IIdentityService identityService)
+    : IRequestHandler<ConfirmEmailChangeCommand, Result<OperationCompletedResponse>>
+{
+    public Task<Result<OperationCompletedResponse>> Handle(
+        ConfirmEmailChangeCommand request,
+        CancellationToken cancellationToken) => identityService.ConfirmEmailChangeAsync(request, cancellationToken);
 }
 
 internal sealed class ForgotPasswordCommandHandler(IIdentityService identityService)

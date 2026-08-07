@@ -6,6 +6,8 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 {
     public string DisplayName { get; set; } = string.Empty;
 
+    public string? PendingEmail { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public int SecurityVersion { get; set; } = 1;

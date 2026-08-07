@@ -73,6 +73,25 @@ docker compose --project-name dorosak --env-file .env.local down
 
 لا تستخدم `docker compose down --volumes` لأنه يحذف Redis وMinIO وMailpit وClamAV local data.
 
+## الهوية والبريد
+
+- يرسل API أحداث verification وpassword reset وemail change إلى outbox، ويعالجها Worker خارج request transaction.
+- عند تشغيل Worker محليًا تصل الرسائل إلى Mailpit على `http://127.0.0.1:8026` ولا تُرسل إلى الإنترنت.
+- يجب أن يشترك API والـWorker في قاعدة البيانات نفسها لأن ASP.NET Core Data Protection keys مخزنة في
+  `operations.data_protection_keys`.
+
+لإنشاء أول Admin استخدم secret manager الخاص بمشروع `Dorosak.Worker` لضبط المفاتيح التالية مؤقتًا، من دون وضع
+القيم في `appsettings` أو `.env.local` أو سجل الأوامر:
+
+- `AdminBootstrap:Enabled=true`
+- `AdminBootstrap:Email`
+- `AdminBootstrap:DisplayName`
+- `AdminBootstrap:TemporaryPassword` بطول `14-64`
+- `AdminBootstrap:TotpSecret` بصيغة Base32 من تطبيق المصادقة
+
+بعد ذلك شغّل Worker مرة واحدة. يتوقف Worker تلقائيًا بعد إنشاء Admin أو اكتشاف Admin موجود. احذف جميع مفاتيح
+`AdminBootstrap` فورًا، ثم غيّر كلمة المرور المؤقتة من واجهة الأمان. لا يطبع Worker كلمة المرور أو TOTP secret.
+
 ## التشخيص
 
 ```powershell

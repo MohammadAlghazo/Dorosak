@@ -7,6 +7,7 @@ using MediatR;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Dorosak.Api.Controllers;
 
@@ -14,6 +15,7 @@ namespace Dorosak.Api.Controllers;
 [ApiVersion(1)]
 [Authorize]
 [Route("api/v{version:apiVersion}/me")]
+[EnableRateLimiting(ApiConstants.SensitiveRateLimitPolicy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class MeController(ISender sender, IAntiforgery antiforgery) : ControllerBase
 {

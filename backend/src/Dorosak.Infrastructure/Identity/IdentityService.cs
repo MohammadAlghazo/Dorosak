@@ -31,6 +31,7 @@ internal sealed class IdentityService(
 {
     private const string VerificationEmailEvent = "identity.email-verification-requested";
     private const string PasswordResetEmailEvent = "identity.password-reset-requested";
+    private const string EmailChangeEvent = "identity.email-change-requested";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly ResultError InvalidCredentials = ResultError.Unauthorized(
@@ -491,6 +492,113 @@ internal sealed class IdentityService(
             user.Id,
             null,
             "account.email-confirmed",
+            timeProvider.GetUtcNow()));
+        return Result.Success(new OperationCompletedResponse(true));
+    }
+
+    public async Task<Result<NeutralAcceptedResponse>> RequestEmailChangeAsync(
+        RequestEmailChangeCommand request,
+        CancellationToken cancellationToken)
+    {
+        ResultError? rateError = await CheckAccountActionRateAsync(
+            "email-change",
+            request.NewEmail,
+            request.Context,
+            3,
+            TimeSpan.FromHours(1));
+        if (rateError is not null)
+        {
+            return Result.Failure<NeutralAcceptedResponse>(rateError);
+        }
+
+        ApplicationUser? user = await userManager.FindByIdAsync(request.UserId.ToString("D"));
+        RefreshSession? session = await GetActiveOwnedSessionAsync(
+            request.UserId,
+            request.SessionId,
+            cancellationToken);
+        if (user is null || session is null)
+        {
+            return Result.Failure<NeutralAcceptedResponse>(InvalidSession);
+        }
+        if (!HasRecentAuthentication(session))
+        {
+            return Result.Failure<NeutralAcceptedResponse>(RecentAuthenticationRequired());
+        }
+        if (!await userManager.CheckPasswordAsync(user, request.CurrentPassword))
+        {
+            return Result.Failure<NeutralAcceptedResponse>(ResultError.Unauthorized(
+                "AUTH.CURRENT_PASSWORD_INVALID",
+                "The current password is invalid."));
+        }
+
+        string newEmail = request.NewEmail.Trim();
+        if (string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure<NeutralAcceptedResponse>(ResultError.BusinessRule(
+                "AUTH.EMAIL_UNCHANGED",
+                "The new email address must be different from the current address."));
+        }
+
+        ApplicationUser? existing = await userManager.FindByEmailAsync(newEmail);
+        if (existing is not null && existing.Id != user.Id)
+        {
+            return Result.Failure<NeutralAcceptedResponse>(ResultError.Conflict(
+                "AUTH.EMAIL_ALREADY_IN_USE",
+                "The email address cannot be used."));
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        user.PendingEmail = newEmail;
+        user.UpdatedAt = now;
+        IdentityResult updated = await userManager.UpdateAsync(user);
+        if (!updated.Succeeded)
+        {
+            return Result.Failure<NeutralAcceptedResponse>(MapIdentityFailure(
+                updated,
+                "AUTH.EMAIL_CHANGE_REJECTED",
+                "The email change could not be requested."));
+        }
+
+        QueueIdentityEmail(user.Id, EmailChangeEvent, request.Locale);
+        dbContext.SecurityEvents.Add(SecurityEvent.Create(
+            user.Id,
+            request.SessionId,
+            "account.email-change-requested",
+            now,
+            HashValue(request.Context.IpAddress)));
+        return Result.Success(new NeutralAcceptedResponse(true));
+    }
+
+    public async Task<Result<OperationCompletedResponse>> ConfirmEmailChangeAsync(
+        ConfirmEmailChangeCommand request,
+        CancellationToken cancellationToken)
+    {
+        ApplicationUser? user = await userManager.FindByIdAsync(request.UserId.ToString("D"));
+        if (user is null || !user.IsActive || string.IsNullOrWhiteSpace(user.PendingEmail))
+        {
+            return Result.Failure<OperationCompletedResponse>(EmailChangeInvalid());
+        }
+
+        string pendingEmail = user.PendingEmail;
+        IdentityResult changed = await userManager.ChangeEmailAsync(user, pendingEmail, request.Token);
+        if (!changed.Succeeded)
+        {
+            return Result.Failure<OperationCompletedResponse>(EmailChangeInvalid());
+        }
+
+        IdentityResult userNameChanged = await userManager.SetUserNameAsync(user, pendingEmail);
+        if (!userNameChanged.Succeeded)
+        {
+            return Result.Failure<OperationCompletedResponse>(EmailChangeInvalid());
+        }
+
+        user.PendingEmail = null;
+        user.UpdatedAt = timeProvider.GetUtcNow();
+        await RevokeAllSessionsAsync(user, "email-changed", cancellationToken);
+        dbContext.SecurityEvents.Add(SecurityEvent.Create(
+            user.Id,
+            null,
+            "account.email-changed",
             timeProvider.GetUtcNow()));
         return Result.Success(new OperationCompletedResponse(true));
     }
@@ -1009,6 +1117,10 @@ internal sealed class IdentityService(
     private static ResultError RecentAuthenticationRequired() => ResultError.Forbidden(
         "AUTH.RECENT_AUTHENTICATION_REQUIRED",
         "Recent authentication is required for this operation.");
+
+    private static ResultError EmailChangeInvalid() => ResultError.BusinessRule(
+        "AUTH.EMAIL_CHANGE_INVALID",
+        "The email change link is invalid or expired.");
 
     private static ResultError MapIdentityFailure(IdentityResult result, string code, string description)
     {

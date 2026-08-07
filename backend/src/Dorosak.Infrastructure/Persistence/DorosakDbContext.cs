@@ -1,4 +1,5 @@
 using Dorosak.Application.Common.Persistence;
+using Dorosak.Application.Common.Results;
 using Dorosak.Domain.Identity;
 using Dorosak.Domain.Operations;
 using Dorosak.Domain.Profiles;
@@ -67,6 +68,12 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
         {
             await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
             TResponse response = await operation(cancellationToken);
+            if (response is IResult { IsSuccess: false })
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                ChangeTracker.Clear();
+                return response;
+            }
             await SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return response;
