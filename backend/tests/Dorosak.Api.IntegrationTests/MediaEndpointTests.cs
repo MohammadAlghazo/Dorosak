@@ -82,6 +82,39 @@ public sealed class MediaEndpointTests(ApiFixture fixture)
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task BinaryAssignmentUpload_ReturnsExplicitPhaseBoundaryError()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        SignedInUser learner = await CreateUserAsync("assignment-boundary", cancellationToken);
+
+        using HttpRequestMessage request = Authorized(
+            HttpMethod.Post,
+            $"/api/v1/learning/enrollments/{Guid.CreateVersion7():D}/assignments/{Guid.CreateVersion7():D}/files",
+            learner.AccessToken);
+        using HttpResponseMessage response = await fixture.Client.SendAsync(request, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("ASSIGNMENT.FILE_UPLOAD_DEFERRED", await ReadProblemCodeAsync(response, cancellationToken));
+    }
+
+    [Fact]
+    public async Task QuizSubmit_RequiresIdempotencyKeyBeforeProcessingBody()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        SignedInUser learner = await CreateUserAsync("quiz-idempotency", cancellationToken);
+
+        using HttpRequestMessage request = Authorized(
+            HttpMethod.Post,
+            $"/api/v1/learning/enrollments/{Guid.CreateVersion7():D}/quizzes/{Guid.CreateVersion7():D}/attempts/{Guid.CreateVersion7():D}/submit",
+            learner.AccessToken);
+        request.Content = JsonContent.Create(new { answers = Array.Empty<object>() });
+        using HttpResponseMessage response = await fixture.Client.SendAsync(request, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("Idempotency-Key", await ReadProblemFieldAsync(response, "Idempotency-Key", cancellationToken));
+    }
+
     private async Task<SignedInUser> CreateUserAsync(string prefix, CancellationToken cancellationToken)
     {
         await using AsyncServiceScope scope = fixture.Factory.Services.CreateAsyncScope();
@@ -103,6 +136,19 @@ public sealed class MediaEndpointTests(ApiFixture fixture)
         var request = new HttpRequestMessage(method, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return request;
+    }
+
+    private static async Task<string> ReadProblemCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        return Assert.IsType<string>(document.RootElement.GetProperty("code").GetString());
+    }
+
+    private static async Task<string> ReadProblemFieldAsync(HttpResponseMessage response, string field, CancellationToken cancellationToken)
+    {
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        Assert.Contains(field, document.RootElement.GetProperty("errors").EnumerateObject().Select(item => item.Name));
+        return field;
     }
 
     private sealed record SignedInUser(Guid UserId, string AccessToken);

@@ -340,7 +340,7 @@ public sealed class LearningController(ISender sender) : ControllerBase
             return Unauthorized();
         }
         Result<GradeResponse> result = await sender.Send(
-            new GradeQuizAttemptCommand(userId, courseId, attemptId, request.Score, GetAuditReason()),
+            new GradeQuizAttemptCommand(userId, courseId, attemptId, request.Score, request.Feedback ?? string.Empty, GetAuditReason()),
             cancellationToken);
         return this.ToActionResult(result);
     }

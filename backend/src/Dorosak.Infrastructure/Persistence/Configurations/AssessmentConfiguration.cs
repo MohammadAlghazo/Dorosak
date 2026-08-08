@@ -87,7 +87,7 @@ internal sealed class QuizAttemptConfiguration : IEntityTypeConfiguration<QuizAt
         {
             table.HasCheckConstraint("ck_quiz_attempts_number", "attempt_number > 0");
             table.HasCheckConstraint("ck_quiz_attempts_score", "score IS NULL OR score BETWEEN 0 AND 100");
-            table.HasCheckConstraint("ck_quiz_attempts_status", "status IN ('InProgress', 'Submitted', 'PendingManualGrade', 'Graded')");
+            table.HasCheckConstraint("ck_quiz_attempts_status", "status IN ('InProgress', 'Expired', 'Submitted', 'PendingManualGrade', 'Graded')");
         });
         builder.HasKey(attempt => attempt.Id).HasName("pk_quiz_attempts");
         builder.Property(attempt => attempt.Id).ValueGeneratedNever();
@@ -179,6 +179,26 @@ internal sealed class GradeRevisionConfiguration : IEntityTypeConfiguration<Grad
         builder.Property(revision => revision.Feedback).HasMaxLength(10000).IsRequired();
         builder.HasIndex(revision => new { revision.SubmissionId, revision.RevisionNumber }).IsUnique().HasDatabaseName("uq_grade_revisions_submission_number");
         builder.HasOne<AssignmentSubmission>().WithMany().HasForeignKey(revision => revision.SubmissionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(revision => revision.GradedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class QuizGradeRevisionConfiguration : IEntityTypeConfiguration<QuizGradeRevision>
+{
+    public void Configure(EntityTypeBuilder<QuizGradeRevision> builder)
+    {
+        builder.ToTable("quiz_grade_revisions", "assessment", table =>
+        {
+            table.HasCheckConstraint("ck_quiz_grade_revisions_number", "revision_number > 0");
+            table.HasCheckConstraint("ck_quiz_grade_revisions_score", "score BETWEEN 0 AND 100");
+        });
+        builder.HasKey(revision => revision.Id).HasName("pk_quiz_grade_revisions");
+        builder.Property(revision => revision.Id).ValueGeneratedNever();
+        builder.Property(revision => revision.Score).HasPrecision(5, 2);
+        builder.Property(revision => revision.Feedback).HasMaxLength(10000).IsRequired();
+        builder.HasIndex(revision => new { revision.AttemptId, revision.RevisionNumber })
+            .IsUnique().HasDatabaseName("uq_quiz_grade_revisions_attempt_number");
+        builder.HasOne<QuizAttempt>().WithMany().HasForeignKey(revision => revision.AttemptId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(revision => revision.GradedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

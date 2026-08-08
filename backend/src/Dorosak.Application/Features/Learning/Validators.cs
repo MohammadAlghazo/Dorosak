@@ -187,6 +187,7 @@ internal sealed class GradeQuizAttemptCommandValidator : AbstractValidator<Grade
         RuleFor(request => request.CourseId).NotEmpty();
         RuleFor(request => request.AttemptId).NotEmpty();
         RuleFor(request => request.Score).InclusiveBetween(0, 100);
+        RuleFor(request => request.Feedback).NotNull().MaximumLength(10000);
         RuleFor(request => request.AuditReason).NotEmpty().MinimumLength(8).MaximumLength(1000);
     }
 }

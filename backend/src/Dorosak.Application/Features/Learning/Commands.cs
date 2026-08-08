@@ -128,6 +128,7 @@ public sealed record GradeQuizAttemptCommand(
     Guid CourseId,
     Guid AttemptId,
     decimal Score,
+    string Feedback,
     string AuditReason) : ITransactionalCommand<GradeResponse>;
 
 public sealed record CreateAssignmentVersionCommand(

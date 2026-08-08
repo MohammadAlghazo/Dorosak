@@ -114,7 +114,7 @@ public sealed class Course
         }
 
         ActiveReleaseId = releaseId;
-        ProjectionGeneration++;
+        ProjectionGeneration = projectionGeneration;
         Status = CourseStatus.Published;
         UpdatedAt = now;
     }
@@ -132,7 +132,7 @@ public sealed class Course
         }
 
         ActiveReleaseId = null;
-        ProjectionGeneration++;
+        ProjectionGeneration = projectionGeneration;
         Status = CourseStatus.Unpublished;
         UpdatedAt = now;
     }

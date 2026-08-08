@@ -152,6 +152,8 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
 
     internal DbSet<GradeRevision> GradeRevisions => Set<GradeRevision>();
 
+    internal DbSet<QuizGradeRevision> QuizGradeRevisions => Set<QuizGradeRevision>();
+
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)

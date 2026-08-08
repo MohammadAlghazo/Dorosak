@@ -66,9 +66,9 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'learning' AND table_name IN ('entitlements', 'enrollments', 'lesson_progress', 'course_completions', 'bookmarks', 'notes', 'recently_viewed')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(10L, await ExecuteScalarAsync<long>(
+        Assert.Equal(11L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'grade_revisions')",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'grade_revisions', 'quiz_grade_revisions')",
             TestContext.Current.CancellationToken));
         Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,
@@ -128,6 +128,30 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'operations.audit_logs', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'assessment.quiz_grade_revisions', 'SELECT,INSERT')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'assessment.quiz_grade_revisions', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'assessment.grade_revisions', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'catalog.course_release_localizations', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_column_privilege('dorosak_runtime', 'catalog.course_releases', 'state', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_column_privilege('dorosak_runtime', 'catalog.course_releases', 'manifest_hash', 'UPDATE')",
             TestContext.Current.CancellationToken));
 
         string pendingIndex = await ExecuteScalarAsync<string>(

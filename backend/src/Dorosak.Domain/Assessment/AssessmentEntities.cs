@@ -19,6 +19,7 @@ public enum QuizQuestionType
 public enum QuizAttemptStatus
 {
     InProgress,
+    Expired,
     Submitted,
     PendingManualGrade,
     Graded,
@@ -225,6 +226,18 @@ public sealed class QuizAttempt
         Passed = requiresManualGrade ? null : Score >= passScore;
     }
 
+    public void Expire(DateTimeOffset now)
+    {
+        if (Status != QuizAttemptStatus.InProgress)
+        {
+            return;
+        }
+
+        Status = QuizAttemptStatus.Expired;
+        SubmittedAt = now;
+        Passed = false;
+    }
+
     public void ApplyManualGrade(decimal score, decimal passScore)
     {
         if (Status is not (QuizAttemptStatus.PendingManualGrade or QuizAttemptStatus.Graded))
@@ -399,6 +412,43 @@ public sealed class GradeRevision
         {
             throw new DomainRuleException("GRADE.INVALID", "The grade is invalid.");
         }
+        ArgumentNullException.ThrowIfNull(feedback);
         return new GradeRevision(Guid.CreateVersion7(), submissionId, revisionNumber, score, feedback.Trim(), gradedByUserId, now);
+    }
+}
+
+public sealed class QuizGradeRevision
+{
+    private QuizGradeRevision()
+    {
+    }
+
+    private QuizGradeRevision(Guid id, Guid attemptId, int revisionNumber, decimal score, string feedback, Guid gradedByUserId, DateTimeOffset gradedAt)
+    {
+        Id = id;
+        AttemptId = attemptId;
+        RevisionNumber = revisionNumber;
+        Score = score;
+        Feedback = feedback;
+        GradedByUserId = gradedByUserId;
+        GradedAt = gradedAt;
+    }
+
+    public Guid Id { get; private set; }
+    public Guid AttemptId { get; private set; }
+    public int RevisionNumber { get; private set; }
+    public decimal Score { get; private set; }
+    public string Feedback { get; private set; } = string.Empty;
+    public Guid GradedByUserId { get; private set; }
+    public DateTimeOffset GradedAt { get; private set; }
+
+    public static QuizGradeRevision Create(Guid attemptId, int revisionNumber, decimal score, string feedback, Guid gradedByUserId, DateTimeOffset now)
+    {
+        if (attemptId == Guid.Empty || revisionNumber <= 0 || score is < 0 or > 100)
+        {
+            throw new DomainRuleException("GRADE.INVALID", "The grade is invalid.");
+        }
+        ArgumentNullException.ThrowIfNull(feedback);
+        return new QuizGradeRevision(Guid.CreateVersion7(), attemptId, revisionNumber, score, feedback.Trim(), gradedByUserId, now);
     }
 }

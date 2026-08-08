@@ -7,6 +7,7 @@ using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Common;
 using Dorosak.Domain.Learning;
 using Dorosak.Domain.Operations;
+using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -543,14 +544,24 @@ internal sealed class LearningService(
             item => item.Id == request.QuizVersionId && item.Status == AssessmentVersionStatus.Ready,
             cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
-        if (reference is null || version is null || version.Deadline is { } deadline && deadline < now)
+        if (reference is null || version is null)
         {
             return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
         }
         QuizAttempt? inProgress = await dbContext.QuizAttempts.SingleOrDefaultAsync(
             item => item.EnrollmentId == enrollment.Id && item.QuizVersionId == version.Id && item.Status == QuizAttemptStatus.InProgress,
             cancellationToken);
-        if (inProgress is not null && (inProgress.ExpiresAt is null || inProgress.ExpiresAt >= now))
+        if (version.Deadline is { } deadline && deadline <= now)
+        {
+            inProgress?.Expire(now);
+            return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
+        }
+        if (inProgress is not null && inProgress.ExpiresAt is { } expiresAt && expiresAt <= now)
+        {
+            inProgress.Expire(now);
+            inProgress = null;
+        }
+        if (inProgress is not null && (inProgress.ExpiresAt is null || inProgress.ExpiresAt > now))
         {
             return Result.Success(await MapQuizAttemptAsync(inProgress, cancellationToken));
         }
@@ -591,6 +602,7 @@ internal sealed class LearningService(
             request.EnrollmentId,
             cancellationToken,
             lockEnrollment: true);
+        await LockQuizAttemptAsync(request.AttemptId, cancellationToken);
         QuizAttempt? attempt = enrollment is null
             ? null
             : await dbContext.QuizAttempts.SingleOrDefaultAsync(
@@ -604,13 +616,23 @@ internal sealed class LearningService(
         {
             return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
         }
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (attempt.Status == QuizAttemptStatus.Expired)
+        {
+            return Failure<QuizAttemptResponse>("QUIZ.ATTEMPT_EXPIRED", "The quiz attempt has expired.");
+        }
         if (attempt.Status != QuizAttemptStatus.InProgress)
         {
             return Result.Success(await MapQuizAttemptAsync(attempt, cancellationToken));
         }
-        DateTimeOffset now = timeProvider.GetUtcNow();
-        if (version.Deadline is { } deadline && deadline < now)
+        if (attempt.ExpiresAt is { } attemptExpiresAt && attemptExpiresAt <= now)
         {
+            attempt.Expire(now);
+            return Failure<QuizAttemptResponse>("QUIZ.ATTEMPT_EXPIRED", "The quiz attempt has expired.");
+        }
+        if (version.Deadline is { } deadline && deadline <= now)
+        {
+            attempt.Expire(now);
             return Failure<QuizAttemptResponse>("QUIZ.DEADLINE_PASSED", "The quiz deadline has passed.");
         }
         List<QuizQuestion> questions = await dbContext.QuizQuestions.AsNoTracking()
@@ -700,6 +722,14 @@ internal sealed class LearningService(
         GradeQuizAttemptCommand request,
         CancellationToken cancellationToken)
     {
+        QuizAttempt? attemptSnapshot = await dbContext.QuizAttempts.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == request.AttemptId, cancellationToken);
+        if (attemptSnapshot is null)
+        {
+            return Failure<GradeResponse>("QUIZ.ATTEMPT_NOT_FOUND", "The quiz attempt was not found.", notFound: true);
+        }
+        await LockEnrollmentAsync(attemptSnapshot.EnrollmentId, cancellationToken);
+        await LockQuizAttemptAsync(request.AttemptId, cancellationToken);
         QuizAttempt? attempt = await dbContext.QuizAttempts.SingleOrDefaultAsync(item => item.Id == request.AttemptId, cancellationToken);
         QuizVersion? version = attempt is null ? null : await dbContext.QuizVersions.SingleOrDefaultAsync(item => item.Id == attempt.QuizVersionId, cancellationToken);
         Quiz? quiz = version is null ? null : await dbContext.Quizzes.SingleOrDefaultAsync(item => item.Id == version.QuizId && item.CourseId == request.CourseId, cancellationToken);
@@ -707,22 +737,39 @@ internal sealed class LearningService(
         {
             return Failure<GradeResponse>("QUIZ.ATTEMPT_NOT_FOUND", "The quiz attempt was not found.", notFound: true);
         }
+        if (attempt.Status is QuizAttemptStatus.InProgress or QuizAttemptStatus.Expired)
+        {
+            return Failure<GradeResponse>("QUIZ.ATTEMPT_NOT_GRADABLE", "The quiz attempt is not ready for grading.");
+        }
+        int revisionNumber = (await dbContext.QuizGradeRevisions
+            .Where(item => item.AttemptId == attempt.Id)
+            .Select(item => (int?)item.RevisionNumber)
+            .MaxAsync(cancellationToken) ?? 0) + 1;
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        QuizGradeRevision revision;
         try
         {
+            revision = QuizGradeRevision.Create(
+                attempt.Id,
+                revisionNumber,
+                request.Score,
+                request.Feedback,
+                request.ActorUserId,
+                now);
             attempt.ApplyManualGrade(request.Score, version.PassScore);
         }
         catch (DomainRuleException exception)
         {
             return Failure<GradeResponse>(exception.Code, exception.Message);
         }
-        DateTimeOffset now = timeProvider.GetUtcNow();
+        dbContext.QuizGradeRevisions.Add(revision);
         Enrollment? enrollment = await dbContext.Enrollments.SingleAsync(item => item.Id == attempt.EnrollmentId, cancellationToken);
         if (attempt.Passed == true)
         {
             await CompleteAssessmentLessonAsync(enrollment, (await dbContext.CourseReleases.AsNoTracking().SingleAsync(item => item.Id == enrollment.ReleaseId, cancellationToken)).Id, version.Id, now, cancellationToken);
         }
         AddAudit(request.ActorUserId, "assessment.quiz-graded", "QuizAttempt", attempt.Id, request.AuditReason, now);
-        return Result.Success(new GradeResponse(attempt.Id, attempt.Score ?? 0, string.Empty, 1, now));
+        return Result.Success(new GradeResponse(attempt.Id, revision.Score, revision.Feedback, revision.RevisionNumber, now));
     }
 
     public async Task<Result<AssignmentVersionResponse>> CreateAssignmentVersionAsync(
@@ -796,7 +843,7 @@ internal sealed class LearningService(
             return Failure<AssignmentSubmissionResponse>("ASSIGNMENT.NOT_FOUND", "The assignment was not found.", notFound: true);
         }
         DateTimeOffset now = timeProvider.GetUtcNow();
-        if (version.Deadline is { } deadline && deadline < now)
+        if (version.Deadline is { } deadline && deadline <= now)
         {
             return Failure<AssignmentSubmissionResponse>("ASSIGNMENT.DEADLINE_PASSED", "The assignment deadline has passed.");
         }
@@ -825,6 +872,14 @@ internal sealed class LearningService(
         GradeAssignmentCommand request,
         CancellationToken cancellationToken)
     {
+        AssignmentSubmission? submissionSnapshot = await dbContext.AssignmentSubmissions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == request.SubmissionId, cancellationToken);
+        if (submissionSnapshot is null)
+        {
+            return Failure<GradeResponse>("ASSIGNMENT.SUBMISSION_NOT_FOUND", "The assignment submission was not found.", notFound: true);
+        }
+        await LockEnrollmentAsync(submissionSnapshot.EnrollmentId, cancellationToken);
+        await LockAssignmentSubmissionAsync(request.SubmissionId, cancellationToken);
         AssignmentSubmission? submission = await dbContext.AssignmentSubmissions.SingleOrDefaultAsync(
             item => item.Id == request.SubmissionId,
             cancellationToken);
@@ -877,7 +932,7 @@ internal sealed class LearningService(
             return (null, null);
         }
         bool entitled = await dbContext.Entitlements.AsNoTracking().AnyAsync(
-            item => item.Id == enrollment.EntitlementId && item.UserId == userId && item.Status == EntitlementStatus.Active &&
+            item => item.Id == enrollment.EntitlementId && item.UserId == userId && item.CourseId == enrollment.CourseId && item.Status == EntitlementStatus.Active &&
                 (item.ExpiresAt == null || item.ExpiresAt > now),
             cancellationToken);
         CourseRelease? release = entitled
@@ -901,7 +956,14 @@ internal sealed class LearningService(
         await dbContext.Courses.AsNoTracking().AnyAsync(
             course => course.Id == courseId && course.DeletedAt == null &&
                 (course.OwnerUserId == userId || dbContext.CourseInstructors.Any(instructor => instructor.CourseId == courseId && instructor.UserId == userId && instructor.Role != CourseCollaboratorRole.Reviewer)),
-            cancellationToken);
+            cancellationToken) || await HasPermissionAsync(userId, Permissions.CourseManageAny, cancellationToken);
+
+    private Task<bool> HasPermissionAsync(Guid userId, string permission, CancellationToken cancellationToken) =>
+        dbContext.UserRoles.AsNoTracking()
+            .Join(dbContext.RoleClaims.AsNoTracking(), role => role.RoleId, claim => claim.RoleId, (role, claim) => new { role, claim })
+            .AnyAsync(item => item.role.UserId == userId &&
+                item.claim.ClaimType == IdentityConstants.PermissionClaimType &&
+                item.claim.ClaimValue == permission, cancellationToken);
 
     private Task<bool> CourseLessonExistsAsync(Guid courseId, Guid lessonId, CancellationToken cancellationToken) =>
         dbContext.CourseLessons.AsNoTracking().AnyAsync(
@@ -1068,6 +1130,10 @@ internal sealed class LearningService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (enrollment.Status == EnrollmentStatus.Completed)
+        {
+            return;
+        }
         Guid[] lessonIds = await dbContext.CourseReleaseLessons.AsNoTracking()
             .Where(item => item.ReleaseId == releaseId)
             .Select(item => item.Id)
@@ -1104,6 +1170,14 @@ internal sealed class LearningService(
 
     private async Task LockEnrollmentAsync(Guid enrollmentId, CancellationToken cancellationToken) =>
         _ = await dbContext.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM learning.enrollments WHERE id = {enrollmentId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
+    private async Task LockQuizAttemptAsync(Guid attemptId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM assessment.quiz_attempts WHERE id = {attemptId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+
+    private async Task LockAssignmentSubmissionAsync(Guid submissionId, CancellationToken cancellationToken) =>
+        _ = await dbContext.Database.SqlQuery<int>($"SELECT 1 AS \"Value\" FROM assessment.assignment_submissions WHERE id = {submissionId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
     private static string NormalizeAnswer(string? value) =>

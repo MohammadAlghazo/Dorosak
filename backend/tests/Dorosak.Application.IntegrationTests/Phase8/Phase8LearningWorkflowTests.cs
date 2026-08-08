@@ -5,6 +5,7 @@ using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Dorosak.Application.IntegrationTests.Phase8;
@@ -84,6 +85,57 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
             cancellationToken);
         Assert.True(enrolled.IsSuccess);
         Assert.Equal(published.Value.ReleaseId, enrolled.Value.ReleaseId);
+
+        Result<CourseMutationResponse> nextDraft = await sender.Send(
+            new StartNewDraftCommand(teacherId, created.Value.CourseId),
+            cancellationToken);
+        Assert.True(nextDraft.IsSuccess);
+        Result<PublicCourseLookupResponse> firstReleaseWhileDrafting = await sender.Send(
+            new ResolvePublicCourseQuery("en", "release-pinned-learning"),
+            cancellationToken);
+        Assert.True(firstReleaseWhileDrafting.IsSuccess);
+        Assert.Equal(published.Value.ReleaseId, firstReleaseWhileDrafting.Value.Course!.ReleaseId);
+
+        Result<CourseMutationResponse> revisedMetadata = await sender.Send(
+            new UpdateCourseMetadataCommand(
+                teacherId,
+                created.Value.CourseId,
+                nextDraft.Value.DraftVersion,
+                "en",
+                "Beginner",
+                [new CourseLocalizationInput(
+                    "en",
+                    "Release Pinned Learning Revised",
+                    "A stable learner journey",
+                    "A revised course that verifies historical release redirects.")],
+                [],
+                []),
+            cancellationToken);
+        Assert.True(revisedMetadata.IsSuccess);
+        Result<PublicationStatusResponse> secondReview = await sender.Send(
+            new RequestPublicationCommand(teacherId, created.Value.CourseId),
+            cancellationToken);
+        Assert.True(secondReview.IsSuccess);
+        Assert.True((await sender.Send(
+            new ReviewPublicationCommand(reviewerId, secondReview.Value.ReviewId!.Value, "approve", null),
+            cancellationToken)).IsSuccess);
+        Result<CourseReleaseResponse> secondRelease = await sender.Send(
+            new PublishCourseCommand(
+                reviewerId,
+                created.Value.CourseId,
+                Guid.CreateVersion7().ToString("N"),
+                "Approved revised metadata and retained curriculum"),
+            cancellationToken);
+        Assert.True(secondRelease.IsSuccess);
+        Assert.Equal(2, secondRelease.Value.ReleaseNumber);
+        Assert.NotEqual(published.Value.ReleaseId, secondRelease.Value.ReleaseId);
+
+        Result<PublicCourseLookupResponse> historicalSlug = await sender.Send(
+            new ResolvePublicCourseQuery("en", "release-pinned-learning"),
+            cancellationToken);
+        Assert.True(historicalSlug.IsSuccess);
+        Assert.Null(historicalSlug.Value.Course);
+        Assert.Equal("release-pinned-learning-revised", historicalSlug.Value.RedirectSlug);
 
         Result<LearningManifestResponse> manifest = await sender.Send(
             new GetLearningManifestQuery(learnerId, enrolled.Value.Id, "en"),
@@ -311,6 +363,34 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
                 Guid.CreateVersion7().ToString("N")),
             cancellationToken);
         Assert.True(attempt.IsSuccess);
+        Dorosak.Infrastructure.Persistence.DorosakDbContext database = scope.ServiceProvider
+            .GetRequiredService<Dorosak.Infrastructure.Persistence.DorosakDbContext>();
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE assessment.quiz_attempts SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' WHERE id = {attempt.Value.Id}",
+            cancellationToken);
+        database.ChangeTracker.Clear();
+        Result<QuizAttemptResponse> replacementAttempt = await sender.Send(
+            new StartQuizAttemptCommand(
+                learnerId,
+                enrollment.Value.Id,
+                quiz.Value.VersionId,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(replacementAttempt.IsSuccess);
+        Assert.Equal(2, replacementAttempt.Value.AttemptNumber);
+        Assert.NotEqual(attempt.Value.Id, replacementAttempt.Value.Id);
+        Result<QuizAttemptResponse> expiredSubmission = await sender.Send(
+            new SubmitQuizAttemptCommand(
+                learnerId,
+                enrollment.Value.Id,
+                quiz.Value.VersionId,
+                attempt.Value.Id,
+                [],
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(expiredSubmission.IsSuccess);
+        Assert.Equal("QUIZ.ATTEMPT_EXPIRED", expiredSubmission.Failure.Code);
+        attempt = replacementAttempt;
         QuizAttemptQuestionResponse question = Assert.Single(attempt.Value.Questions);
         Guid correctOptionId = question.Options.Single(option => option.Text == "CourseRelease").Id;
         Result<QuizAttemptResponse> rejectedAnswer = await sender.Send(
@@ -336,6 +416,51 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.True(scored.IsSuccess);
         Assert.Equal(100, scored.Value.Score);
         Assert.True(scored.Value.Passed);
+
+        Result<GradeResponse> quizGrade = await sender.Send(
+            new GradeQuizAttemptCommand(
+                teacherId,
+                created.Value.CourseId,
+                attempt.Value.Id,
+                95,
+                "Manual review confirms the objective result.",
+                "Reviewed quiz result for the learner"),
+            cancellationToken);
+        Assert.True(quizGrade.IsSuccess);
+        Assert.Equal(1, quizGrade.Value.RevisionNumber);
+        Result<GradeResponse> quizOverride = await sender.Send(
+            new GradeQuizAttemptCommand(
+                teacherId,
+                created.Value.CourseId,
+                attempt.Value.Id,
+                85,
+                "Second review adjusted the score.",
+                "Adjusted quiz result after a second review"),
+            cancellationToken);
+        Assert.True(quizOverride.IsSuccess);
+        Assert.Equal(2, quizOverride.Value.RevisionNumber);
+        Assert.Equal("Second review adjusted the score.", quizOverride.Value.Feedback);
+
+        Guid adminId = await CreateConfirmedUserAsync("phase8-grading-admin", cancellationToken);
+        await using (AsyncServiceScope adminScope = fixture.Services.CreateAsyncScope())
+        {
+            UserManager<ApplicationUser> userManager = adminScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser admin = Assert.IsType<ApplicationUser>(await userManager.FindByIdAsync(adminId.ToString("D")));
+            Assert.True((await userManager.AddToRoleAsync(
+                admin,
+                Dorosak.Infrastructure.Identity.IdentityConstants.AdminRole)).Succeeded);
+        }
+        Result<GradeResponse> adminOverride = await sender.Send(
+            new GradeQuizAttemptCommand(
+                adminId,
+                created.Value.CourseId,
+                attempt.Value.Id,
+                90,
+                "Administrative moderation review.",
+                "Adjusted quiz result after moderation review"),
+            cancellationToken);
+        Assert.True(adminOverride.IsSuccess);
+        Assert.Equal(3, adminOverride.Value.RevisionNumber);
 
         Result<AssignmentSubmissionResponse> submission = await sender.Send(
             new SubmitAssignmentCommand(
@@ -364,6 +489,13 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.True(completed.IsSuccess);
         Assert.Equal("Completed", completed.Value.Status);
         Assert.All(completed.Value.Sections.SelectMany(item => item.Lessons), lesson => Assert.True(lesson.IsCompleted));
+
+        await using AsyncServiceScope verificationScope = fixture.Services.CreateAsyncScope();
+        int quizRevisionCount = await verificationScope.ServiceProvider
+            .GetRequiredService<Dorosak.Infrastructure.Persistence.DorosakDbContext>()
+            .Set<Dorosak.Domain.Assessment.QuizGradeRevision>()
+            .CountAsync(item => item.AttemptId == attempt.Value.Id, cancellationToken);
+        Assert.Equal(3, quizRevisionCount);
     }
 
     private async Task<Guid> CreateApprovedTeacherAsync(CancellationToken cancellationToken)

@@ -36,4 +36,41 @@ public sealed class AssessmentWorkflowTests
         Assert.Equal(QuizAttemptStatus.Graded, attempt.Status);
         Assert.True(attempt.Passed);
     }
+
+    [Fact]
+    public void QuizAttempt_ExpiresWithoutBecomingGradable()
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow;
+        QuizAttempt attempt = QuizAttempt.Start(Guid.CreateVersion7(), Guid.CreateVersion7(), 1, started, 1);
+
+        attempt.Expire(started.AddMinutes(1));
+
+        Assert.Equal(QuizAttemptStatus.Expired, attempt.Status);
+        Assert.False(attempt.Passed);
+        Assert.Throws<DomainRuleException>(() => attempt.ApplyManualGrade(90, 70));
+    }
+
+    [Fact]
+    public void QuizGradeRevision_IsAppendOnlyByRevisionNumber()
+    {
+        Guid attemptId = Guid.CreateVersion7();
+        QuizGradeRevision first = QuizGradeRevision.Create(
+            attemptId,
+            1,
+            70,
+            "Initial review",
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow);
+        QuizGradeRevision second = QuizGradeRevision.Create(
+            attemptId,
+            2,
+            85,
+            "Re-reviewed",
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow);
+
+        Assert.Equal(1, first.RevisionNumber);
+        Assert.Equal(2, second.RevisionNumber);
+        Assert.NotEqual(first.Id, second.Id);
+    }
 }
