@@ -20,6 +20,15 @@
           "StackExchange.Redis": "2.7.4"
         }
       },
+      "AWSSDK.S3": {
+        "type": "Direct",
+        "requested": "[4.0.8, )",
+        "resolved": "4.0.8",
+        "contentHash": "KrgY2lCdVdFBuiGCJvYixrq5uPWgEcXDDpsXCm+ZryA5ks/6YW8zVD2A38iIBow/EDMezKxdnr21YfMDbWGtIw==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.1.3, 5.0.0)"
+        }
+      },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
         "type": "Direct",
         "requested": "[10.0.10, )",
@@ -121,6 +130,11 @@
         "dependencies": {
           "Asp.Versioning.Http": "10.0.1"
         }
+      },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.1.3",
+        "contentHash": "IAJXGnwNesYbPzEd9xTSnQ5pygiDTjSQPWA9cJsi1ziHSmpmmBgR952s2qV2YnjcAzq+56uH/Lpi4x0HEw4SsA=="
       },
       "FluentValidation": {
         "type": "Transitive",
@@ -533,6 +547,7 @@
       "dorosak.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "AWSSDK.S3": "[4.0.8, )",
           "Dorosak.Application": "[1.0.0, )",
           "Dorosak.Domain": "[1.0.0, )",
           "EFCore.NamingConventions": "[10.0.1, )",

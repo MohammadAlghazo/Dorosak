@@ -14,7 +14,10 @@ export class ThemeService {
     : undefined;
   private readonly selectedPreference = signal<ThemePreference>('system');
   private readonly activeTheme = signal<EffectiveTheme>(
-    this.document.documentElement.dataset['bsTheme'] === 'dark' ? 'dark' : 'light',
+    isPlatformBrowser(this.platformId) &&
+      this.document.documentElement.dataset['bsTheme'] === 'dark'
+      ? 'dark'
+      : 'light',
   );
 
   readonly preference = this.selectedPreference.asReadonly();

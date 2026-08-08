@@ -1,5 +1,6 @@
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Media;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -126,6 +127,7 @@ internal sealed class LessonRevisionConfiguration : IEntityTypeConfiguration<Les
         builder.Property(revision => revision.Title).HasMaxLength(200).IsRequired();
         builder.Property(revision => revision.LessonType).HasMaxLength(30).IsRequired();
         builder.Property(revision => revision.Content).HasMaxLength(100000).IsRequired();
+        builder.HasIndex(revision => revision.MediaAssetId).HasDatabaseName("ix_lesson_revisions_media_asset_id");
         builder.HasIndex(revision => new { revision.LessonId, revision.DraftVersion })
             .IsUnique()
             .HasDatabaseName("uq_lesson_revisions_lesson_version");
@@ -134,6 +136,11 @@ internal sealed class LessonRevisionConfiguration : IEntityTypeConfiguration<Les
             .HasForeignKey(revision => revision.LessonId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("fk_lesson_revisions_lessons_lesson_id");
+        builder.HasOne<MediaAsset>()
+            .WithMany()
+            .HasForeignKey(revision => revision.MediaAssetId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_lesson_revisions_media_assets_media_asset_id");
     }
 }
 

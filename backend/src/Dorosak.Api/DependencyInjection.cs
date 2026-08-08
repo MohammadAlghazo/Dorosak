@@ -243,6 +243,16 @@ public static class DependencyInjection
                         AutoReplenishment = true,
                     });
             });
+            options.AddPolicy(ApiConstants.UploadRateLimitPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.User.FindFirst("sub")?.Value ?? GetRateLimitPartition(context.Connection.RemoteIpAddress),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromHours(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    }));
         });
 
         services.AddTransient<OriginValidationMiddleware>();

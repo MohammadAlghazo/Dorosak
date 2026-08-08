@@ -30,6 +30,10 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name IN ('outbox_messages', 'idempotency_records')",
             TestContext.Current.CancellationToken));
+        Assert.Equal(6L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'media' AND table_name IN ('upload_sessions', 'upload_parts', 'media_assets', 'media_variants', 'caption_tracks', 'media_processing_jobs')",
+            TestContext.Current.CancellationToken));
         Assert.Equal(12L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'identity' AND table_name IN ('users', 'roles', 'user_roles', 'user_claims', 'role_claims', 'user_logins', 'user_tokens', 'refresh_sessions', 'refresh_tokens', 'security_events', 'mfa_challenges', 'mfa_recovery_codes')",
@@ -38,9 +42,9 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'profiles' AND table_name = 'profiles'",
             TestContext.Current.CancellationToken));
-        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+        Assert.Equal(3L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('catalog', 'authoring')",
+            "SELECT count(*) FROM information_schema.schemata WHERE schema_name IN ('catalog', 'authoring', 'media')",
             TestContext.Current.CancellationToken));
         Assert.Equal(10L, await ExecuteScalarAsync<long>(
             connection,

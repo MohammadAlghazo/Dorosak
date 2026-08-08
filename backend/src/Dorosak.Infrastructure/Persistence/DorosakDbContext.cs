@@ -4,6 +4,7 @@ using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Identity;
 using Dorosak.Domain.Operations;
 using Dorosak.Domain.Profiles;
+using Dorosak.Domain.Media;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
@@ -80,6 +81,18 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<PublicationReview> PublicationReviews => Set<PublicationReview>();
 
     internal DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    internal DbSet<UploadSession> UploadSessions => Set<UploadSession>();
+
+    internal DbSet<UploadPart> UploadParts => Set<UploadPart>();
+
+    internal DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+
+    internal DbSet<MediaVariant> MediaVariants => Set<MediaVariant>();
+
+    internal DbSet<CaptionTrack> CaptionTracks => Set<CaptionTrack>();
+
+    internal DbSet<MediaProcessingJob> MediaProcessingJobs => Set<MediaProcessingJob>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

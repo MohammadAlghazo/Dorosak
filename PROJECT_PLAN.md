@@ -2287,8 +2287,11 @@ Phase 5 مكتملة من ناحية التنفيذ والاختبارات ال�
 
 - Backend Release build: `0 warnings`, `0 errors`.
 - Backend tests: `78 passed`, including domain, application, PostgreSQL integration, API, and architecture suites.
-- Frontend tests: `45 passed` across `17` files; lint, Prettier, and production build passed.
+- Frontend tests: `46 passed` across `18` files; lint, Prettier, production build, and Playwright `8/8` desktop/mobile
+  tests passed.
 - `git diff --check` passed; NuGet/npm audits and bundle/PWA checks passed in the final checkpoint.
+- SSR public route smoke checks passed: `/ar=200`, `/ar/courses=200`, unknown localized route `404`. `ThemeService`
+  now avoids browser-only `dataset` reads during server rendering, and SEO links use SSR-compatible DOM APIs.
 
 #### القرار
 

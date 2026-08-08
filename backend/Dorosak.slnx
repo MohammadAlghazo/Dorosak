@@ -4,6 +4,7 @@
     <Project Path="src/Dorosak.Application/Dorosak.Application.csproj" />
     <Project Path="src/Dorosak.Domain/Dorosak.Domain.csproj" />
     <Project Path="src/Dorosak.Infrastructure/Dorosak.Infrastructure.csproj" />
+    <Project Path="src/Dorosak.MediaWorker/Dorosak.MediaWorker.csproj" />
     <Project Path="src/Dorosak.Worker/Dorosak.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">

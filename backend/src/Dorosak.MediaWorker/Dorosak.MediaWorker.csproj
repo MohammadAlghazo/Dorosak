@@ -1,16 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
-
   <PropertyGroup>
-    <UserSecretsId>dorosak-worker-development</UserSecretsId>
+    <UserSecretsId>dorosak-media-worker-development</UserSecretsId>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Dorosak.Application\Dorosak.Application.csproj" />
     <ProjectReference Include="..\Dorosak.Infrastructure\Dorosak.Infrastructure.csproj" />
   </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Settings.Configuration" />

@@ -28,6 +28,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(AssemblyReference.Assembly, includeInternalTypes: true);
         AddPhase6Handlers(services);
+        AddMediaHandlers(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>,
@@ -50,6 +51,18 @@ public static class DependencyInjection
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.WithdrawPublicationCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetPublicationStatusQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetPublicationStatusQuery>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.PutUploadContentCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.PutUploadContentCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.IssueUploadPartCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.IssueUploadPartCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CompleteUploadCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.CompleteUploadCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CancelUploadCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.CancelUploadCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.GetMediaStatusQuery>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.GetMediaStatusQuery>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CreateDownloadGrantCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.CreateDownloadGrantCommand>>();
         services.AddAutoMapper(
             configuration => configuration.LicenseKey = autoMapperLicenseKey,
             AssemblyReference.Assembly);
@@ -91,6 +104,17 @@ public static class DependencyInjection
         AddQueryHandler<Features.Phase6.SuggestCourseSuggestionsQuery, IReadOnlyList<string>>(services);
     }
 
+    private static void AddMediaHandlers(IServiceCollection services)
+    {
+        AddMediaCommandHandler<Features.Media.CreateUploadSessionCommand, Features.Media.UploadSessionResponse>(services);
+        AddMediaCommandHandler<Features.Media.PutUploadContentCommand, Features.Media.UploadSessionResponse>(services);
+        AddMediaCommandHandler<Features.Media.IssueUploadPartCommand, Features.Media.UploadPartResponse>(services);
+        AddMediaCommandHandler<Features.Media.CompleteUploadCommand, Features.Media.UploadSessionResponse>(services);
+        AddMediaCommandHandler<Features.Media.CancelUploadCommand, Features.Media.UploadSessionResponse>(services);
+        AddMediaCommandHandler<Features.Media.CreateDownloadGrantCommand, Features.Media.DownloadGrantResponse>(services);
+        AddMediaQueryHandler<Features.Media.GetMediaStatusQuery, Features.Media.MediaStatusResponse>(services);
+    }
+
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
         where TResponse : notnull =>
@@ -102,4 +126,16 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Phase6.Phase6QueryHandler<TRequest, TResponse>>();
+
+    private static void AddMediaCommandHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Media.MediaCommandHandler<TRequest, TResponse>>();
+
+    private static void AddMediaQueryHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Media.MediaQueryHandler<TRequest, TResponse>>();
 }

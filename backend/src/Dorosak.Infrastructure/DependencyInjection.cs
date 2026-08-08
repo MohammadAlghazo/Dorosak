@@ -7,6 +7,8 @@ using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
+using Dorosak.Infrastructure.Media;
+using Dorosak.Application.Features.Media;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +30,10 @@ public static class DependencyInjection
             DatabaseConfiguration.Configure(options, databaseConnection));
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DorosakDbContext>());
         services.AddScoped<IIdempotencyStore, EfCoreIdempotencyStore>();
+        services.AddScoped<IMediaService, MediaService>();
+        services.AddScoped<IMediaAccessReader, MediaAccessReader>();
+        services.AddScoped<IMediaJobStore, MediaJobStore>();
+        services.AddScoped<IMediaProcessingStore, MediaProcessingStore>();
         services.AddScoped<Phase6Service>();
         services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());
@@ -60,6 +66,46 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(PasswordBreachOptions.SectionName))
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Password breach URL is invalid.")
             .ValidateOnStart();
+        services.AddOptions<MediaOptions>()
+            .Bind(configuration.GetSection(MediaOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Environment), "Media environment is required.")
+            .Validate(options => options.MaxStreamBytes > 0 && options.MaxStreamBytes <= 32L * 1024 * 1024,
+                "Media stream limit must be between 1 byte and 32 MiB.")
+            .Validate(options => options.MultipartMinimumBytes >= 8L * 1024 * 1024,
+                "Multipart uploads must be at least 8 MiB.")
+            .Validate(options => options.PartSizeBytes >= options.MultipartMinimumBytes && options.PartSizeBytes <= 64L * 1024 * 1024,
+                "Media part size must be between the multipart minimum and 64 MiB.")
+            .Validate(options => options.MaxPartBytes >= options.PartSizeBytes && options.MaxPartBytes <= 64L * 1024 * 1024,
+                "Media maximum part size is invalid.")
+            .Validate(options => options.SessionTtl > TimeSpan.Zero && options.SessionTtl <= TimeSpan.FromDays(7),
+                "Media session TTL must be positive and no longer than seven days.")
+            .Validate(options => options.TeacherQuotaBytes > 0 && options.CourseQuotaBytes > 0 && options.StudentQuotaBytes > 0,
+                "Media quotas must be positive.")
+            .Validate(options => options.TeacherDailyQuotaBytes > 0 && options.StudentDailyQuotaBytes > 0,
+                "Media daily quotas must be positive.")
+            .Validate(options => options.MaxConcurrentSessions > 0 && options.MaxConcurrentSessions <= 20,
+                "Media concurrent session limit is invalid.")
+            .Validate(options => options.WorkerMaxAttempts is >= 1 and <= 10 && options.WorkerConcurrency is >= 1 and <= 16,
+                "Media worker limits are invalid.")
+            .ValidateOnStart();
+        services.AddOptions<MediaStorageOptions>()
+            .Bind(configuration.GetSection(MediaStorageOptions.SectionName))
+            .Validate(options => !options.Enabled || Uri.TryCreate(options.Endpoint, UriKind.Absolute, out _),
+                "Media object storage endpoint is invalid.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Bucket),
+                "Media object storage bucket is required.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.AccessKey),
+                "Media object storage access key is required.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.SecretKey),
+                "Media object storage secret key is required.")
+            .Validate(options => options.UploadUrlMinutes is >= 1 and <= 10 && options.DownloadUrlMinutes is >= 1 and <= 5,
+                "Media signed URL lifetimes are invalid.")
+            .ValidateOnStart();
+        services.AddSingleton<IObjectStorage>(provider =>
+        {
+            MediaStorageOptions options = provider.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
+            return options.Enabled ? new S3ObjectStorage(options) : new DisabledObjectStorage();
+        });
         services
             .AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))

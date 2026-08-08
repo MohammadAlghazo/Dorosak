@@ -10,6 +10,8 @@ public static class ApiConstants
 
     public const string SearchRateLimitPolicy = "PublicSearch";
 
+    public const string UploadRateLimitPolicy = "MediaUploads";
+
     public const string PublicOutputCachePolicy = "PublicShort";
 
     public const string CatalogOutputCachePolicy = "CatalogPublic";

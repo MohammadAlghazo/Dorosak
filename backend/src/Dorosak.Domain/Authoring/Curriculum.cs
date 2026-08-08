@@ -132,7 +132,8 @@ public sealed class LessonRevision
         string lessonType,
         string content,
         int position,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? mediaAssetId)
     {
         Id = id;
         LessonId = lessonId;
@@ -140,6 +141,7 @@ public sealed class LessonRevision
         Title = title;
         LessonType = lessonType;
         Content = content;
+        MediaAssetId = mediaAssetId;
         Position = position;
         CreatedAt = now;
     }
@@ -156,6 +158,8 @@ public sealed class LessonRevision
 
     public string Content { get; private set; } = string.Empty;
 
+    public Guid? MediaAssetId { get; private set; }
+
     public int Position { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -167,7 +171,8 @@ public sealed class LessonRevision
         string lessonType,
         string content,
         int position,
-        DateTimeOffset now) => new(
+        DateTimeOffset now,
+        Guid? mediaAssetId = null) => new(
             Guid.CreateVersion7(),
             lessonId,
             draftVersion,
@@ -175,5 +180,6 @@ public sealed class LessonRevision
             lessonType,
             content.Trim(),
             position,
-            now);
+            now,
+            mediaAssetId);
 }

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Dorosak.Application.Features.Media;
 using Testcontainers.PostgreSql;
 
 namespace Dorosak.Application.IntegrationTests;
@@ -38,6 +39,21 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     public ServiceProvider Services { get; private set; } = null!;
 
+    private string RedisConnection { get; set; } = string.Empty;
+
+    public IServiceCollection CreateServices()
+    {
+        IConfiguration configuration = CreateConfiguration();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IHostEnvironment>(new IntegrationHostEnvironment());
+        services.AddApplication(null, null);
+        services.AddInfrastructure(configuration);
+        services.AddSingleton<IObjectStorage, TestObjectStorage>();
+        services.AddSingleton<IObjectStorage, TestObjectStorage>();
+        return services;
+    }
+
     public string DatabaseConnection => _postgres.GetConnectionString();
 
     public async ValueTask InitializeAsync()
@@ -46,28 +62,15 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
         string redisConnection =
             $"{_redis.Hostname}:{_redis.GetMappedPublicPort(6379)},password={RedisPassword},abortConnect=false";
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Database"] = DatabaseConnection,
-                ["ConnectionStrings:Redis"] = redisConnection,
-                ["Email:SmtpHost"] = "127.0.0.1",
-                ["Email:SmtpPort"] = "1",
-                ["AdminBootstrap:Enabled"] = "true",
-                ["AdminBootstrap:Email"] = "bootstrap-admin@example.test",
-                ["AdminBootstrap:DisplayName"] = "Bootstrap Administrator",
-                ["AdminBootstrap:TemporaryPassword"] = "temporary bootstrap password",
-                ["AdminBootstrap:TotpSecret"] = "JBSWY3DPEHPK3PXP",
-                ["Catalog:Cursors:SigningKey"] = "Dorosak-integration-cursor-signing-key-2026",
-                ["Catalog:Cursors:Environment"] = "integration",
-            })
-            .Build();
+        RedisConnection = redisConnection;
+        IConfiguration configuration = CreateConfiguration();
 
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IHostEnvironment>(new IntegrationHostEnvironment());
         services.AddApplication(null, null);
         services.AddInfrastructure(configuration);
+        services.AddSingleton<IObjectStorage, TestObjectStorage>();
         Services = services.BuildServiceProvider(new ServiceProviderOptions
         {
             ValidateOnBuild = true,
@@ -78,6 +81,24 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         DorosakDbContext dbContext = scope.ServiceProvider.GetRequiredService<DorosakDbContext>();
         await dbContext.Database.MigrateAsync();
     }
+
+    private IConfiguration CreateConfiguration() => new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Database"] = DatabaseConnection,
+                 ["ConnectionStrings:Redis"] = RedisConnection,
+                ["Email:SmtpHost"] = "127.0.0.1",
+                ["Email:SmtpPort"] = "1",
+                ["AdminBootstrap:Enabled"] = "true",
+                ["AdminBootstrap:Email"] = "bootstrap-admin@example.test",
+                ["AdminBootstrap:DisplayName"] = "Bootstrap Administrator",
+                ["AdminBootstrap:TemporaryPassword"] = "temporary bootstrap password",
+                ["AdminBootstrap:TotpSecret"] = "JBSWY3DPEHPK3PXP",
+                ["Catalog:Cursors:SigningKey"] = "Dorosak-integration-cursor-signing-key-2026",
+                ["Catalog:Cursors:Environment"] = "integration",
+                ["Media:Storage:Enabled"] = "false",
+            })
+            .Build();
 
     public async ValueTask DisposeAsync()
     {
@@ -99,5 +120,50 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
 
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+}
+
+internal sealed class TestObjectStorage : IObjectStorage
+{
+    private readonly Dictionary<string, byte[]> _objects = new(StringComparer.Ordinal);
+
+    public string Provider => "Test";
+
+    public Task<ObjectStorageMultipartUpload> CreateMultipartUploadAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(new ObjectStorageMultipartUpload(Guid.NewGuid().ToString("N"), null));
+
+    public async Task<ObjectStoragePutResult> PutObjectAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken)
+    {
+        using var memory = new MemoryStream();
+        await request.Content.CopyToAsync(memory, cancellationToken);
+        byte[] bytes = memory.ToArray();
+        _objects[request.ObjectKey] = bytes;
+        return new ObjectStoragePutResult($"\"{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes))}\"", null, bytes.Length);
+    }
+
+    public Task<Uri> CreatePartUploadUrlAsync(string objectKey, string uploadId, int partNumber, TimeSpan lifetime, CancellationToken cancellationToken) =>
+        Task.FromResult(new Uri($"https://storage.test/upload/{uploadId}/{partNumber}", UriKind.Absolute));
+
+    public Task<ObjectStorageCompleteResult> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<ObjectStoragePart> parts, CancellationToken cancellationToken) =>
+        Task.FromResult(new ObjectStorageCompleteResult("\"multipart-etag\"", null, null));
+
+    public Task AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<ObjectStorageReadResult> OpenReadAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        if (!_objects.TryGetValue(objectKey, out byte[]? bytes))
+        {
+            throw new StorageUnavailableException("Test object does not exist.");
+        }
+        return Task.FromResult<ObjectStorageReadResult>(new ObjectStorageReadResult(new MemoryStream(bytes), null, null, bytes.Length, "application/octet-stream"));
+    }
+
+    public Task<Uri> CreateDownloadUrlAsync(string objectKey, string fileName, string contentType, TimeSpan lifetime, CancellationToken cancellationToken) =>
+        Task.FromResult(new Uri($"https://storage.test/download/{Guid.NewGuid():N}", UriKind.Absolute));
+
+    public Task DeleteObjectAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        _objects.Remove(objectKey);
+        return Task.CompletedTask;
     }
 }
