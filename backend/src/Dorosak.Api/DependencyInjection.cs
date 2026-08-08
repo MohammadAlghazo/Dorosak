@@ -9,6 +9,7 @@ using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
 using Dorosak.Api.Startup;
+using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -92,6 +93,7 @@ public static class DependencyInjection
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, AdminHighRiskAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, RecentAuthenticationAuthorizationHandler>();
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, ProblemDetailsAuthorizationMiddlewareResultHandler>();
         services.AddAntiforgery(options =>
         {
@@ -171,6 +173,15 @@ public static class DependencyInjection
                 .Expire(TimeSpan.FromSeconds(60))
                 .SetVaryByHeader("Accept-Language")
                 .SetVaryByQuery("*")
+                .VaryByValue(async (context, cancellationToken) =>
+                {
+                    ICatalogProjectionGenerationPort generation = context.RequestServices
+                        .GetRequiredService<ICatalogProjectionGenerationPort>();
+                    long value = await generation.GetAsync(cancellationToken);
+                    return new KeyValuePair<string, string>(
+                        "catalog-generation",
+                        value.ToString(CultureInfo.InvariantCulture));
+                })
                 .Tag(ApiConstants.CatalogCacheTag));
             options.AddPolicy(ApiConstants.TaxonomyOutputCachePolicy, policy => policy
                 .Expire(TimeSpan.FromMinutes(5))

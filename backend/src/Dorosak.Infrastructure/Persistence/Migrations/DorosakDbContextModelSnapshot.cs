@@ -25,6 +25,505 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "unaccent");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Dorosak.Domain.Assessment.Assignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_assignments");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_assignments_created_by_user_id");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_assignments_lesson_id");
+
+                    b.HasIndex("CourseId", "LessonId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_assignments_course_lesson");
+
+                    b.ToTable("assignments", "assessment");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.AssignmentSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssignmentVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_version_id");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<int>("SubmissionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("submission_number");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_assignment_submissions");
+
+                    b.HasIndex("AssignmentVersionId")
+                        .HasDatabaseName("ix_assignment_submissions_assignment_version_id");
+
+                    b.HasIndex("EnrollmentId", "AssignmentVersionId", "SubmissionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_assignment_submissions_enrollment_version_number");
+
+                    b.ToTable("assignment_submissions", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_assignment_submissions_number", "submission_number > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.AssignmentVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("AllowMultipleSubmissions")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allow_multiple_submissions");
+
+                    b.Property<Guid>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("Deadline")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deadline");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("instructions");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("version_number");
+
+                    b.HasKey("Id")
+                        .HasName("pk_assignment_versions");
+
+                    b.HasIndex("AssignmentId", "VersionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_assignment_versions_assignment_number");
+
+                    b.ToTable("assignment_versions", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_assignment_versions_number", "version_number > 0");
+
+                            t.HasCheckConstraint("ck_assignment_versions_status", "status IN ('Draft', 'Ready')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.GradeRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Feedback")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("feedback");
+
+                    b.Property<DateTimeOffset>("GradedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("graded_at");
+
+                    b.Property<Guid>("GradedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("graded_by_user_id");
+
+                    b.Property<int>("RevisionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision_number");
+
+                    b.Property<decimal>("Score")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("score");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_grade_revisions");
+
+                    b.HasIndex("GradedByUserId")
+                        .HasDatabaseName("ix_grade_revisions_graded_by_user_id");
+
+                    b.HasIndex("SubmissionId", "RevisionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_grade_revisions_submission_number");
+
+                    b.ToTable("grade_revisions", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_grade_revisions_number", "revision_number > 0");
+
+                            t.HasCheckConstraint("ck_grade_revisions_score", "score BETWEEN 0 AND 100");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.Quiz", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quizzes");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_quizzes_created_by_user_id");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_quizzes_lesson_id");
+
+                    b.HasIndex("CourseId", "LessonId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quizzes_course_lesson");
+
+                    b.ToTable("quizzes", "assessment");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizAnswer", b =>
+                {
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<decimal?>("AwardedPoints")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("awarded_points");
+
+                    b.Property<string>("SelectedOptionIds")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("selected_option_ids");
+
+                    b.Property<string>("TextAnswer")
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("text_answer");
+
+                    b.HasKey("AttemptId", "QuestionId")
+                        .HasName("pk_quiz_answers");
+
+                    b.HasIndex("QuestionId")
+                        .HasDatabaseName("ix_quiz_answers_question_id");
+
+                    b.ToTable("quiz_answers", "assessment");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_number");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool?>("Passed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("passed");
+
+                    b.Property<Guid>("QuizVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quiz_version_id");
+
+                    b.Property<decimal?>("Score")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("score");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quiz_attempts");
+
+                    b.HasIndex("QuizVersionId")
+                        .HasDatabaseName("ix_quiz_attempts_quiz_version_id");
+
+                    b.HasIndex("EnrollmentId", "QuizVersionId")
+                        .HasDatabaseName("ix_quiz_attempts_enrollment_version");
+
+                    b.HasIndex("EnrollmentId", "QuizVersionId", "AttemptNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quiz_attempts_enrollment_version_number");
+
+                    b.ToTable("quiz_attempts", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_quiz_attempts_number", "attempt_number > 0");
+
+                            t.HasCheckConstraint("ck_quiz_attempts_score", "score IS NULL OR score BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("ck_quiz_attempts_status", "status IN ('InProgress', 'Submitted', 'PendingManualGrade', 'Graded')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AcceptedAnswer")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("accepted_answer");
+
+                    b.Property<decimal>("Points")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("points");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("prompt");
+
+                    b.Property<Guid>("QuizVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quiz_version_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_questions");
+
+                    b.HasIndex("QuizVersionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_questions_version_position");
+
+                    b.ToTable("questions", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_questions_points", "points > 0");
+
+                            t.HasCheckConstraint("ck_questions_position", "position >= 0");
+
+                            t.HasCheckConstraint("ck_questions_type", "type IN ('SingleChoice', 'MultipleChoice', 'TrueFalse', 'ShortAnswer')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizQuestionOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_correct");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("question_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_question_options");
+
+                    b.HasIndex("QuestionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_question_options_question_position");
+
+                    b.ToTable("question_options", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_question_options_position", "position >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_limit");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("Deadline")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deadline");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<decimal>("PassScore")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("pass_score");
+
+                    b.Property<Guid>("QuizId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quiz_id");
+
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("version_number");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quiz_versions");
+
+                    b.HasIndex("QuizId", "VersionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quiz_versions_quiz_number");
+
+                    b.ToTable("quiz_versions", "assessment", t =>
+                        {
+                            t.HasCheckConstraint("ck_quiz_versions_attempt_limit", "attempt_limit BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("ck_quiz_versions_duration", "duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 1440");
+
+                            t.HasCheckConstraint("ck_quiz_versions_number", "version_number > 0");
+
+                            t.HasCheckConstraint("ck_quiz_versions_pass_score", "pass_score BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("ck_quiz_versions_status", "status IN ('Draft', 'Ready')");
+                        });
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Authoring.CourseDraft", b =>
                 {
                     b.Property<Guid>("Id")
@@ -168,6 +667,10 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AssignmentVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_version_id");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasMaxLength(100000)
@@ -200,6 +703,10 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("position");
 
+                    b.Property<Guid?>("QuizVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quiz_version_id");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -209,8 +716,14 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_lesson_revisions");
 
+                    b.HasIndex("AssignmentVersionId")
+                        .HasDatabaseName("ix_lesson_revisions_assignment_version_id");
+
                     b.HasIndex("MediaAssetId")
                         .HasDatabaseName("ix_lesson_revisions_media_asset_id");
+
+                    b.HasIndex("QuizVersionId")
+                        .HasDatabaseName("ix_lesson_revisions_quiz_version_id");
 
                     b.HasIndex("LessonId", "DraftVersion")
                         .IsUnique()
@@ -345,6 +858,137 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_section_revisions_position", "position >= 0");
 
                             t.HasCheckConstraint("ck_section_revisions_version", "draft_version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CatalogDocument", b =>
+                {
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("locale");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("language");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("level");
+
+                    b.Property<string>("NormalizedArabicText")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("normalized_arabic_text");
+
+                    b.Property<long>("ProjectionGeneration")
+                        .HasColumnType("bigint")
+                        .HasColumnName("projection_generation");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("SearchText")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("search_text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("summary");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("ReleaseId", "Locale")
+                        .HasName("pk_catalog_documents");
+
+                    b.HasIndex("Locale", "Slug")
+                        .HasDatabaseName("ix_catalog_documents_locale_slug");
+
+                    b.HasIndex("ReleaseId", "CourseId")
+                        .HasDatabaseName("ix_catalog_documents_release_id_course_id");
+
+                    b.HasIndex("CourseId", "Locale", "ReleaseId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_catalog_documents_course_locale_release");
+
+                    b.HasIndex("Locale", "PublishedAt", "ReleaseId")
+                        .IsDescending()
+                        .HasDatabaseName("ix_catalog_documents_locale_published_release");
+
+                    b.ToTable("catalog_documents", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_catalog_documents_duration", "duration_minutes >= 0");
+
+                            t.HasCheckConstraint("ck_catalog_documents_generation", "projection_generation > 0");
+
+                            t.HasCheckConstraint("ck_catalog_documents_locale", "locale IN ('ar', 'en')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CatalogProjectionState", b =>
+                {
+                    b.Property<bool>("Singleton")
+                        .HasColumnType("boolean")
+                        .HasColumnName("singleton");
+
+                    b.Property<long>("Generation")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("generation");
+
+                    b.HasKey("Singleton")
+                        .HasName("pk_catalog_projection_state");
+
+                    b.ToTable("projection_state", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_catalog_projection_state_singleton", "singleton");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Singleton = true,
+                            Generation = 0L
                         });
                 });
 
@@ -516,6 +1160,10 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("ActiveReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_release_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -543,6 +1191,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("owner_user_id");
 
+                    b.Property<long>("ProjectionGeneration")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("projection_generation");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -556,6 +1210,9 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_courses");
 
+                    b.HasIndex("ActiveReleaseId")
+                        .HasDatabaseName("ix_courses_active_release_id");
+
                     b.HasIndex("OwnerUserId", "UpdatedAt", "Id")
                         .HasDatabaseName("ix_courses_owner_updated_id")
                         .HasFilter("deleted_at IS NULL");
@@ -564,7 +1221,7 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_courses_default_locale", "default_locale IN ('ar', 'en')");
 
-                            t.HasCheckConstraint("ck_courses_status", "status IN ('Draft', 'InReview', 'ChangesRequested', 'ReadyToPublish', 'Archived')");
+                            t.HasCheckConstraint("ck_courses_status", "status IN ('Draft', 'InReview', 'ChangesRequested', 'ReadyToPublish', 'Published', 'Unpublished', 'Archived')");
                         });
                 });
 
@@ -670,6 +1327,550 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_course_localizations_locale", "locale IN ('ar', 'en')");
                         });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseRelease", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<string>("DefaultLocale")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("default_locale");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<int>("ReleaseNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("release_number");
+
+                    b.Property<Guid>("SourceDraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_draft_id");
+
+                    b.Property<long>("SourceDraftVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_draft_version");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_releases");
+
+                    b.HasAlternateKey("Id", "CourseId")
+                        .HasName("ak_course_releases_id_course");
+
+                    b.HasIndex("CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_releases_active_course")
+                        .HasFilter("state = 'Active'");
+
+                    b.HasIndex("PublishedByUserId")
+                        .HasDatabaseName("ix_course_releases_published_by_user_id");
+
+                    b.HasIndex("SourceDraftId")
+                        .HasDatabaseName("ix_course_releases_source_draft_id");
+
+                    b.HasIndex("CourseId", "ReleaseNumber")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_releases_course_number");
+
+                    b.HasIndex("CourseId", "PublishedAt", "Id")
+                        .HasDatabaseName("ix_course_releases_course_published_id");
+
+                    b.HasIndex("CourseId", "SourceDraftId", "SourceDraftVersion")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_releases_course_draft_version");
+
+                    b.ToTable("course_releases", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_releases_default_locale", "default_locale IN ('ar', 'en')");
+
+                            t.HasCheckConstraint("ck_course_releases_draft_version", "source_draft_version > 0");
+
+                            t.HasCheckConstraint("ck_course_releases_manifest_hash", "manifest_hash ~ '^[0-9a-f]{64}$'");
+
+                            t.HasCheckConstraint("ck_course_releases_number", "release_number > 0");
+
+                            t.HasCheckConstraint("ck_course_releases_state", "state IN ('Draft', 'Active', 'Superseded', 'Unpublished')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AssignmentVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_version_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid?>("QuizVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quiz_version_id");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_assessments");
+
+                    b.HasAlternateKey("Id", "ReleaseId")
+                        .HasName("ak_course_release_assessments_id_release");
+
+                    b.HasIndex("AssignmentVersionId")
+                        .HasDatabaseName("ix_course_release_assessments_assignment_version_id");
+
+                    b.HasIndex("QuizVersionId")
+                        .HasDatabaseName("ix_course_release_assessments_quiz_version_id");
+
+                    b.HasIndex("LessonId", "ReleaseId")
+                        .HasDatabaseName("ix_course_release_assessments_lesson_id_release_id");
+
+                    b.HasIndex("ReleaseId", "LessonId", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_assessments_release_lesson_type");
+
+                    b.ToTable("course_release_assessments", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_assessments_position", "position >= 0");
+
+                            t.HasCheckConstraint("ck_course_release_assessments_type", "type IN ('Quiz', 'Assignment')");
+
+                            t.HasCheckConstraint("ck_course_release_assessments_version", "(type = 'Quiz' AND quiz_version_id IS NOT NULL AND assignment_version_id IS NULL) OR (type = 'Assignment' AND quiz_version_id IS NULL AND assignment_version_id IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseCaption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("asset_id");
+
+                    b.Property<Guid>("CaptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("caption_id");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("locale");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_captions");
+
+                    b.HasIndex("AssetId")
+                        .HasDatabaseName("ix_course_release_captions_asset_id");
+
+                    b.HasIndex("CaptionId")
+                        .HasDatabaseName("ix_course_release_captions_caption_id");
+
+                    b.HasIndex("LessonId", "ReleaseId")
+                        .HasDatabaseName("ix_course_release_captions_lesson_id_release_id");
+
+                    b.HasIndex("ReleaseId", "LessonId", "Locale")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_captions_manifest_locale");
+
+                    b.ToTable("course_release_captions", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_captions_locale", "char_length(locale) BETWEEN 2 AND 16");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseInstructor", b =>
+                {
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.HasKey("ReleaseId", "UserId")
+                        .HasName("pk_course_release_instructors");
+
+                    b.HasIndex("ReleaseId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_instructors_release_position");
+
+                    b.ToTable("course_release_instructors", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_instructors_position", "position >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseLesson", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("CompletionRequirement")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("completion_requirement");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("character varying(100000)")
+                        .HasColumnName("content");
+
+                    b.Property<string>("LessonType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("lesson_type");
+
+                    b.Property<Guid?>("MediaAssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("media_asset_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<Guid>("SectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("section_id");
+
+                    b.Property<Guid>("SourceLessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_lesson_id");
+
+                    b.Property<Guid>("SourceRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_revision_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_lessons");
+
+                    b.HasAlternateKey("Id", "ReleaseId")
+                        .HasName("ak_course_release_lessons_id_release");
+
+                    b.HasIndex("MediaAssetId")
+                        .HasDatabaseName("ix_course_release_lessons_media_asset_id");
+
+                    b.HasIndex("SourceLessonId")
+                        .HasDatabaseName("ix_course_release_lessons_source_lesson_id");
+
+                    b.HasIndex("SourceRevisionId")
+                        .HasDatabaseName("ix_course_release_lessons_source_revision_id");
+
+                    b.HasIndex("ReleaseId", "SourceLessonId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_lessons_release_source");
+
+                    b.HasIndex("SectionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_lessons_section_position");
+
+                    b.HasIndex("SectionId", "ReleaseId")
+                        .HasDatabaseName("ix_course_release_lessons_section_id_release_id");
+
+                    b.ToTable("course_release_lessons", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_lessons_completion", "completion_requirement BETWEEN 0 AND 1");
+
+                            t.HasCheckConstraint("ck_course_release_lessons_position", "position >= 0");
+
+                            t.HasCheckConstraint("ck_course_release_lessons_type", "lesson_type IN ('Video', 'Article', 'Document', 'Quiz', 'Assignment')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseLocalization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("locale");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Subtitle")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("subtitle");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_localizations");
+
+                    b.HasIndex("ReleaseId", "Locale")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_localizations_release_locale");
+
+                    b.ToTable("course_release_localizations", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_localizations_locale", "locale IN ('ar', 'en')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseMediaVariant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("asset_id");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("bytes");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("content_type");
+
+                    b.Property<decimal?>("DurationSeconds")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("variant_id");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_media_variants");
+
+                    b.HasIndex("AssetId")
+                        .HasDatabaseName("ix_course_release_media_variants_asset_id");
+
+                    b.HasIndex("VariantId")
+                        .HasDatabaseName("ix_course_release_media_variants_variant_id");
+
+                    b.HasIndex("LessonId", "ReleaseId")
+                        .HasDatabaseName("ix_course_release_media_variants_lesson_id_release_id");
+
+                    b.HasIndex("ReleaseId", "LessonId", "VariantId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_media_variants_manifest");
+
+                    b.ToTable("course_release_media_variants", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_media_variants_bytes", "bytes > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseSection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<Guid>("SourceRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_revision_id");
+
+                    b.Property<Guid>("SourceSectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_section_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_release_sections");
+
+                    b.HasAlternateKey("Id", "ReleaseId")
+                        .HasName("ak_course_release_sections_id_release");
+
+                    b.HasIndex("SourceRevisionId")
+                        .HasDatabaseName("ix_course_release_sections_source_revision_id");
+
+                    b.HasIndex("SourceSectionId")
+                        .HasDatabaseName("ix_course_release_sections_source_section_id");
+
+                    b.HasIndex("ReleaseId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_sections_release_position");
+
+                    b.HasIndex("ReleaseId", "SourceSectionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_release_sections_release_source");
+
+                    b.ToTable("course_release_sections", "catalog", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_release_sections_position", "position >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseTaxonomy", b =>
+                {
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<Guid>("TermId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("term_id");
+
+                    b.Property<bool>("IsCategory")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_category");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.HasKey("ReleaseId", "TermId", "IsCategory")
+                        .HasName("pk_course_release_taxonomy");
+
+                    b.HasIndex("IsCategory", "Code", "ReleaseId")
+                        .HasDatabaseName("ix_course_release_taxonomy_filter");
+
+                    b.ToTable("course_release_taxonomy", "catalog");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Catalog.CourseSlug", b =>
@@ -1087,6 +2288,334 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_security_events_user_occurred_at");
 
                     b.ToTable("security_events", "identity");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Bookmark", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("UserId", "EnrollmentId", "LessonId")
+                        .HasName("pk_bookmarks");
+
+                    b.HasIndex("EnrollmentId")
+                        .HasDatabaseName("ix_bookmarks_enrollment_id");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_bookmarks_lesson_id");
+
+                    b.ToTable("bookmarks", "learning");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.CourseCompletion", b =>
+                {
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.HasKey("EnrollmentId")
+                        .HasName("pk_course_completions");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("ix_course_completions_course_id");
+
+                    b.HasIndex("ReleaseId", "CourseId")
+                        .HasDatabaseName("ix_course_completions_release_id_course_id");
+
+                    b.ToTable("course_completions", "learning");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Enrollment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset>("EnrolledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("enrolled_at");
+
+                    b.Property<Guid>("EntitlementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entitlement_id");
+
+                    b.Property<DateTimeOffset>("LastAccessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_accessed_at");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_enrollments");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("ix_enrollments_course_id");
+
+                    b.HasIndex("EntitlementId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_enrollments_entitlement_id");
+
+                    b.HasIndex("ReleaseId")
+                        .HasDatabaseName("ix_enrollments_release_id");
+
+                    b.HasIndex("ReleaseId", "CourseId")
+                        .HasDatabaseName("ix_enrollments_release_id_course_id");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_enrollments_current_user_course")
+                        .HasFilter("status IN ('Active', 'Completed', 'Suspended')");
+
+                    b.HasIndex("UserId", "LastAccessedAt", "Id")
+                        .IsDescending()
+                        .HasDatabaseName("ix_enrollments_user_last_accessed_id");
+
+                    b.ToTable("enrollments", "learning", t =>
+                        {
+                            t.HasCheckConstraint("ck_enrollments_status", "status IN ('Active', 'Completed', 'Suspended', 'Revoked', 'Expired')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Entitlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_entitlements");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("ix_entitlements_course_id");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_entitlements_active_user_course")
+                        .HasFilter("status = 'Active'");
+
+                    b.ToTable("entitlements", "learning", t =>
+                        {
+                            t.HasCheckConstraint("ck_entitlements_source", "source = 'Free'");
+
+                            t.HasCheckConstraint("ck_entitlements_status", "status IN ('Active', 'Revoked', 'Expired')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.LearningNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_learning_notes");
+
+                    b.HasIndex("EnrollmentId")
+                        .HasDatabaseName("ix_notes_enrollment_id");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_notes_lesson_id");
+
+                    b.HasIndex("UserId", "EnrollmentId", "LessonId", "UpdatedAt")
+                        .HasDatabaseName("ix_learning_notes_user_enrollment_lesson_updated");
+
+                    b.ToTable("notes", "learning");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.LessonProgress", b =>
+                {
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_completed");
+
+                    b.Property<Guid?>("LastClientCommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_client_command_id");
+
+                    b.Property<long>("LastSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_sequence");
+
+                    b.Property<decimal>("PositionSeconds")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)")
+                        .HasColumnName("position_seconds");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("WatchedIntervals")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("watched_intervals");
+
+                    b.HasKey("EnrollmentId", "LessonId")
+                        .HasName("pk_lesson_progress");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_lesson_progress_lesson_id");
+
+                    b.ToTable("lesson_progress", "learning", t =>
+                        {
+                            t.HasCheckConstraint("ck_lesson_progress_position", "position_seconds >= 0");
+
+                            t.HasCheckConstraint("ck_lesson_progress_sequence", "last_sequence >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.RecentlyViewedLesson", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("EnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("enrollment_id");
+
+                    b.Property<Guid>("LessonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lesson_id");
+
+                    b.Property<DateTimeOffset>("ViewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("viewed_at");
+
+                    b.HasKey("UserId", "EnrollmentId", "LessonId")
+                        .HasName("pk_recently_viewed");
+
+                    b.HasIndex("EnrollmentId")
+                        .HasDatabaseName("ix_recently_viewed_enrollment_id");
+
+                    b.HasIndex("LessonId")
+                        .HasDatabaseName("ix_recently_viewed_lesson_id");
+
+                    b.HasIndex("UserId", "ViewedAt")
+                        .IsDescending()
+                        .HasDatabaseName("ix_recently_viewed_user_viewed_at");
+
+                    b.ToTable("recently_viewed", "learning");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Media.CaptionTrack", b =>
@@ -3177,6 +4706,162 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.ToTable("user_tokens", "identity");
                 });
 
+            modelBuilder.Entity("Dorosak.Domain.Assessment.Assignment", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignments_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignments_users_created_by_user_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.CourseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignments_course_lessons_lesson_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.AssignmentSubmission", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.AssignmentVersion", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignment_submissions_assignment_versions_assignment_versi");
+
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignment_submissions_enrollments_enrollment_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.AssignmentVersion", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.Assignment", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_assignment_versions_assignments_assignment_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.GradeRevision", b =>
+                {
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("GradedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_grade_revisions_users_graded_by_user_id");
+
+                    b.HasOne("Dorosak.Domain.Assessment.AssignmentSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_grade_revisions_assignment_submissions_submission_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.Quiz", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quizzes_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quizzes_users_created_by_user_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.CourseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quizzes_lessons_lesson_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizAnswer", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.QuizAttempt", null)
+                        .WithMany()
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quiz_answers_quiz_attempts_attempt_id");
+
+                    b.HasOne("Dorosak.Domain.Assessment.QuizQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quiz_answers_quiz_questions_question_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizAttempt", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quiz_attempts_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Assessment.QuizVersion", null)
+                        .WithMany()
+                        .HasForeignKey("QuizVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quiz_attempts_quiz_versions_quiz_version_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizQuestion", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.QuizVersion", null)
+                        .WithMany()
+                        .HasForeignKey("QuizVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_questions_quiz_versions_quiz_version_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizQuestionOption", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.QuizQuestion", null)
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_question_options_questions_question_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Assessment.QuizVersion", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.Quiz", null)
+                        .WithMany()
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quiz_versions_quizzes_quiz_id");
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Authoring.CourseDraft", b =>
                 {
                     b.HasOne("Dorosak.Domain.Catalog.Course", null)
@@ -3228,6 +4913,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Dorosak.Domain.Authoring.LessonRevision", b =>
                 {
+                    b.HasOne("Dorosak.Domain.Assessment.AssignmentVersion", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_lesson_revisions_assignment_versions_assignment_version_id");
+
                     b.HasOne("Dorosak.Domain.Authoring.CourseLesson", null)
                         .WithMany()
                         .HasForeignKey("LessonId")
@@ -3240,6 +4931,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasForeignKey("MediaAssetId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_lesson_revisions_media_assets_media_asset_id");
+
+                    b.HasOne("Dorosak.Domain.Assessment.QuizVersion", null)
+                        .WithMany()
+                        .HasForeignKey("QuizVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_lesson_revisions_quiz_versions_quiz_version_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Authoring.PublicationReview", b =>
@@ -3282,6 +4979,17 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_section_revisions_sections_section_id");
                 });
 
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CatalogDocument", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId", "CourseId")
+                        .HasPrincipalKey("Id", "CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_catalog_documents_course_releases_release_id_course_id");
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Catalog.Category", b =>
                 {
                     b.HasOne("Dorosak.Domain.Catalog.Category", null)
@@ -3303,6 +5011,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Dorosak.Domain.Catalog.Course", b =>
                 {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_courses_course_releases_active_release_id");
+
                     b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("OwnerUserId")
@@ -3361,6 +5075,216 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_course_localizations_current_slug");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseRelease", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_releases_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_releases_users_published_by_user_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.CourseDraft", null)
+                        .WithMany()
+                        .HasForeignKey("SourceDraftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_releases_course_drafts_source_draft_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseAssessment", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Assessment.AssignmentVersion", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_course_release_assessments_assignment_versions_version_id");
+
+                    b.HasOne("Dorosak.Domain.Assessment.QuizVersion", null)
+                        .WithMany()
+                        .HasForeignKey("QuizVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_course_release_assessments_quiz_versions_version_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_assessments_releases_release_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId", "ReleaseId")
+                        .HasPrincipalKey("Id", "ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_assessments_lessons_lesson_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseCaption", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Media.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_captions_media_assets_asset_id");
+
+                    b.HasOne("Dorosak.Domain.Media.CaptionTrack", null)
+                        .WithMany()
+                        .HasForeignKey("CaptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_captions_caption_tracks_caption_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_captions_course_releases_release_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId", "ReleaseId")
+                        .HasPrincipalKey("Id", "ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_captions_course_release_lessons_lesson_id_re");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseInstructor", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_instructors_course_releases_release_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseLesson", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Media.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("MediaAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_course_release_lessons_media_assets_media_asset_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_lessons_releases_release_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.CourseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("SourceLessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_lessons_lessons_source_lesson_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.LessonRevision", null)
+                        .WithMany()
+                        .HasForeignKey("SourceRevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_lessons_revisions_source_revision_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseSection", null)
+                        .WithMany()
+                        .HasForeignKey("SectionId", "ReleaseId")
+                        .HasPrincipalKey("Id", "ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_lessons_sections_section_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseLocalization", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_localizations_course_releases_release_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseMediaVariant", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Media.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_media_variants_media_assets_asset_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_media_variants_course_releases_release_id");
+
+                    b.HasOne("Dorosak.Domain.Media.MediaVariant", null)
+                        .WithMany()
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_media_variants_media_variants_variant_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId", "ReleaseId")
+                        .HasPrincipalKey("Id", "ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_media_variants_course_release_lessons_lesson");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseSection", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_sections_releases_release_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.SectionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("SourceRevisionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_sections_revisions_source_revision_id");
+
+                    b.HasOne("Dorosak.Domain.Authoring.CourseSection", null)
+                        .WithMany()
+                        .HasForeignKey("SourceSectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_sections_sections_source_section_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Catalog.CourseReleaseTaxonomy", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_release_taxonomy_course_releases_release_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Catalog.CourseSlug", b =>
@@ -3447,6 +5371,169 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_security_events_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Bookmark", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_bookmarks_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_bookmarks_course_release_lessons_lesson_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_bookmarks_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.CourseCompletion", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_completions_courses_course_id");
+
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithOne()
+                        .HasForeignKey("Dorosak.Domain.Learning.CourseCompletion", "EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_completions_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId", "CourseId")
+                        .HasPrincipalKey("Id", "CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_completions_course_releases_release_id_course_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Enrollment", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_enrollments_courses_course_id");
+
+                    b.HasOne("Dorosak.Domain.Learning.Entitlement", null)
+                        .WithMany()
+                        .HasForeignKey("EntitlementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_enrollments_entitlements_entitlement_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_enrollments_users_user_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId", "CourseId")
+                        .HasPrincipalKey("Id", "CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_enrollments_course_releases_release_id_course_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.Entitlement", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_entitlements_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_entitlements_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.LearningNote", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_notes_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_notes_course_release_lessons_lesson_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_notes_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.LessonProgress", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_lesson_progress_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_lesson_progress_course_release_lessons_lesson_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Learning.RecentlyViewedLesson", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.Enrollment", null)
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_recently_viewed_enrollments_enrollment_id");
+
+                    b.HasOne("Dorosak.Domain.Catalog.CourseReleaseLesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_recently_viewed_course_release_lessons_lesson_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_recently_viewed_users_user_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Media.CaptionTrack", b =>

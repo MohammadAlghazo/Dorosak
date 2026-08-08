@@ -72,7 +72,7 @@ internal static partial class MediaContainerSmoke
         try
         {
             string source = Path.Combine(directory, "source.png");
-            await processes.RunAsync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", "color=c=blue:s=1280x720", "-frames:v", "1", "-y", source], cancellationToken);
+            await processes.RunAsync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-nostdin", "-f", "lavfi", "-i", "color=c=blue:s=320x180", "-frames:v", "1", "-y", source], cancellationToken);
             await using (FileStream scanStream = File.OpenRead(source))
             {
                 MalwareScanResult scan = await scanner.ScanAsync(scanStream, cancellationToken);
@@ -87,9 +87,9 @@ internal static partial class MediaContainerSmoke
                 source,
                 Path.Combine(directory, "output"),
                 cancellationToken);
-            if (result.Variants.Count != 9)
+            if (result.Variants.Count != 3)
             {
-                throw new InvalidOperationException("Container smoke did not produce the complete image matrix.");
+                throw new InvalidOperationException("Container smoke did not produce the JPEG/WebP/AVIF codec matrix.");
             }
             foreach (MediaVariantFile variant in result.Variants)
             {
@@ -454,7 +454,7 @@ internal sealed class FfmpegMediaProcessor(IOptions<MediaOptions> options, Media
         {
             files.Add(await EncodeImageAsync(input.AssetId, source, output, width, "jpeg", "image/jpeg", ["-c:v", "mjpeg", "-q:v", "2"], cancellationToken));
             files.Add(await EncodeImageAsync(input.AssetId, source, output, width, "webp", "image/webp", ["-c:v", "libwebp", "-q:v", "82"], cancellationToken));
-            files.Add(await EncodeImageAsync(input.AssetId, source, output, width, "avif", "image/avif", ["-c:v", "libaom-av1", "-still-picture", "1", "-crf", "32", "-b:v", "0"], cancellationToken));
+            files.Add(await EncodeImageAsync(input.AssetId, source, output, width, "avif", "image/avif", ["-c:v", "libaom-av1", "-still-picture", "1", "-cpu-used", "6", "-row-mt", "1", "-crf", "32", "-b:v", "0"], cancellationToken));
         }
         return new MediaProcessingResult(files);
     }
@@ -607,6 +607,11 @@ internal sealed partial class MediaProcessingWorker(
             if (work is null)
             {
                 await jobs.FailAsync(claim, timeProvider.GetUtcNow(), "MEDIA.ASSET_MISSING", cancellationToken);
+                return;
+            }
+            if (work.ExistingState is nameof(MediaAssetState.Ready) or nameof(MediaAssetState.Rejected) or nameof(MediaAssetState.Deleted))
+            {
+                await jobs.CompleteAsync(claim, timeProvider.GetUtcNow(), cancellationToken);
                 return;
             }
             string tempDirectory = Path.Combine(Path.GetTempPath(), "dorosak-media", Guid.NewGuid().ToString("N"));

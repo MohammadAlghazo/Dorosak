@@ -95,6 +95,38 @@
         </div>
       </dl>
 
+      <aside class="enrollment-panel" aria-labelledby="enrollment-title">
+        <div>
+          <p class="section-number">START / 00</p>
+          <h2 id="enrollment-title">
+            {{ locale.locale() === 'ar' ? 'ابدأ بهذا الإصدار' : 'Start this release' }}
+          </h2>
+          <p>
+            {{
+              locale.locale() === 'ar'
+                ? 'التسجيل مجاني ويثبت الإصدار الحالي لمساحتك التعليمية.'
+                : 'Enrollment is free and pins this release to your learning space.'
+            }}
+          </p>
+        </div>
+        <button type="button" [disabled]="enrolling()" (click)="enroll(course.courseId)">
+          {{
+            enrolling()
+              ? locale.locale() === 'ar'
+                ? 'جار التسجيل…'
+                : 'Enrolling…'
+              : locale.locale() === 'ar'
+                ? 'سجل مجاناً'
+                : 'Enroll for free'
+          }}
+        </button>
+        @if (enrollmentError()) {
+          <p class="enrollment-error" role="alert">
+            <code>{{ enrollmentError() }}</code>
+          </p>
+        }
+      </aside>
+
       <div class="course-body">
         <section aria-labelledby="about-course">
           <p class="section-number">01</p>

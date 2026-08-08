@@ -1,7 +1,9 @@
 using Dorosak.Application.Common.Persistence;
+using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Identity;
+using Dorosak.Domain.Learning;
 using Dorosak.Domain.Media;
 using Dorosak.Domain.Operations;
 using Dorosak.Domain.Profiles;
@@ -93,6 +95,62 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<CaptionTrack> CaptionTracks => Set<CaptionTrack>();
 
     internal DbSet<MediaProcessingJob> MediaProcessingJobs => Set<MediaProcessingJob>();
+
+    internal DbSet<CourseRelease> CourseReleases => Set<CourseRelease>();
+
+    internal DbSet<CourseReleaseSection> CourseReleaseSections => Set<CourseReleaseSection>();
+
+    internal DbSet<CourseReleaseLesson> CourseReleaseLessons => Set<CourseReleaseLesson>();
+
+    internal DbSet<CourseReleaseAssessment> CourseReleaseAssessments => Set<CourseReleaseAssessment>();
+
+    internal DbSet<CourseReleaseMediaVariant> CourseReleaseMediaVariants => Set<CourseReleaseMediaVariant>();
+
+    internal DbSet<CourseReleaseCaption> CourseReleaseCaptions => Set<CourseReleaseCaption>();
+
+    internal DbSet<CourseReleaseLocalization> CourseReleaseLocalizations => Set<CourseReleaseLocalization>();
+
+    internal DbSet<CourseReleaseInstructor> CourseReleaseInstructors => Set<CourseReleaseInstructor>();
+
+    internal DbSet<CourseReleaseTaxonomy> CourseReleaseTaxonomies => Set<CourseReleaseTaxonomy>();
+
+    internal DbSet<CatalogDocument> CatalogDocuments => Set<CatalogDocument>();
+
+    internal DbSet<CatalogProjectionState> CatalogProjectionStates => Set<CatalogProjectionState>();
+
+    internal DbSet<Entitlement> Entitlements => Set<Entitlement>();
+
+    internal DbSet<Enrollment> Enrollments => Set<Enrollment>();
+
+    internal DbSet<LessonProgress> LessonProgress => Set<LessonProgress>();
+
+    internal DbSet<CourseCompletion> CourseCompletions => Set<CourseCompletion>();
+
+    internal DbSet<Bookmark> Bookmarks => Set<Bookmark>();
+
+    internal DbSet<LearningNote> LearningNotes => Set<LearningNote>();
+
+    internal DbSet<RecentlyViewedLesson> RecentlyViewedLessons => Set<RecentlyViewedLesson>();
+
+    internal DbSet<Quiz> Quizzes => Set<Quiz>();
+
+    internal DbSet<QuizVersion> QuizVersions => Set<QuizVersion>();
+
+    internal DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
+
+    internal DbSet<QuizQuestionOption> QuizQuestionOptions => Set<QuizQuestionOption>();
+
+    internal DbSet<QuizAttempt> QuizAttempts => Set<QuizAttempt>();
+
+    internal DbSet<QuizAnswer> QuizAnswers => Set<QuizAnswer>();
+
+    internal DbSet<Assignment> Assignments => Set<Assignment>();
+
+    internal DbSet<AssignmentVersion> AssignmentVersions => Set<AssignmentVersion>();
+
+    internal DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
+
+    internal DbSet<GradeRevision> GradeRevisions => Set<GradeRevision>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Dorosak.Api.Extensions;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Publishing;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
@@ -45,10 +46,22 @@ public sealed class PublicCatalogController(ISender sender) : ControllerBase
     [OutputCache(PolicyName = ApiConstants.CatalogOutputCachePolicy)]
     public async Task<IActionResult> GetCourse(string slug, CancellationToken cancellationToken)
     {
-        Result<CatalogCourseResponse> result = await sender.Send(
-            new GetPublicCourseQuery(GetLocale(), slug),
+        Result<PublicCourseLookupResponse> result = await sender.Send(
+            new ResolvePublicCourseQuery(GetLocale(), slug),
             cancellationToken);
-        return this.ToActionResult(result);
+        if (!result.IsSuccess)
+        {
+            return this.ToActionResult(result);
+        }
+        if (result.Value.RedirectSlug is { } redirectSlug)
+        {
+            string location = Url.ActionLink(
+                nameof(GetCourse),
+                values: new { version = "1", slug = redirectSlug }) ??
+                $"/api/v1/catalog/courses/{Uri.EscapeDataString(redirectSlug)}";
+            return RedirectPermanentPreserveMethod(location);
+        }
+        return Ok(new ApiResponse<PublicCourseDetailResponse>(result.Value.Course!));
     }
 
     [HttpGet("categories")]

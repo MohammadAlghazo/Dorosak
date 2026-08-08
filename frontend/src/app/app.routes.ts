@@ -281,6 +281,29 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'my-learning',
+        canActivate: [sessionGuard],
+        loadComponent: () =>
+          import('./shells/workspace-shell/workspace-shell.component').then(
+            (module) => module.WorkspaceShellComponent,
+          ),
+        children: [
+          {
+            path: '',
+            loadComponent: () =>
+              import('./features/learning/my-learning-page.component').then(
+                (module) => module.MyLearningPageComponent,
+              ),
+            data: {
+              titleAr: 'مساراتي',
+              titleEn: 'My learning',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
+        ],
+      },
+      {
         path: 'learn',
         canActivate: [sessionGuard],
         loadComponent: () =>
@@ -288,6 +311,32 @@ export const routes: Routes = [
             (module) => module.LearningShellComponent,
           ),
         children: [
+          {
+            path: ':enrollmentId',
+            loadComponent: () =>
+              import('./features/learning/learning-page.component').then(
+                (module) => module.LearningPageComponent,
+              ),
+            data: {
+              titleAr: 'مساحة التعلم',
+              titleEn: 'Learning space',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
+          {
+            path: ':enrollmentId/lessons/:lessonId',
+            loadComponent: () =>
+              import('./features/learning/learning-page.component').then(
+                (module) => module.LearningPageComponent,
+              ),
+            data: {
+              titleAr: 'مساحة الدرس',
+              titleEn: 'Lesson workspace',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
           {
             path: 'media/:assetId',
             loadComponent: () =>
@@ -297,19 +346,6 @@ export const routes: Routes = [
             data: {
               titleAr: 'وسائط الدرس',
               titleEn: 'Lesson media',
-              indexing: 'noindex',
-              renderMode: 'client',
-            },
-          },
-          {
-            path: '**',
-            loadComponent: () =>
-              import('./features/learning/learning-page.component').then(
-                (module) => module.LearningPageComponent,
-              ),
-            data: {
-              titleAr: 'مساحة التعلم',
-              titleEn: 'Learning space',
               indexing: 'noindex',
               renderMode: 'client',
             },

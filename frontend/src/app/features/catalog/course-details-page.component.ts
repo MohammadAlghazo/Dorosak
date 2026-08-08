@@ -1,6 +1,17 @@
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router, RouterLink } from '@angular/router';
+import { ApiProblem } from '../../core/api/api-problem';
 import type { PublicCoursePrice } from '../../core/api/discovery-api.types';
+import { LearningApiClient } from '../../core/api/learning-api.client';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { SeoService } from '../../core/i18n/seo.service';
 import { CourseDetailsStore } from './course-details.store';
@@ -16,7 +27,13 @@ import { CourseDetailsStore } from './course-details.store';
 export class CourseDetailsPageComponent {
   protected readonly locale = inject(LocaleService);
   protected readonly store = inject(CourseDetailsStore);
+  protected readonly session = inject(SessionStore);
+  protected readonly enrolling = signal(false);
+  protected readonly enrollmentError = signal<string | null>(null);
   private readonly seo = inject(SeoService);
+  private readonly learningApi = inject(LearningApiClient);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     effect(() => {
@@ -41,5 +58,32 @@ export class CourseDetailsPageComponent {
       : this.locale.locale() === 'ar'
         ? 'مدفوع'
         : 'Paid';
+  }
+
+  protected enroll(courseId: string): void {
+    if (!this.session.isAuthenticated()) {
+      void this.router.navigate(['/', this.locale.locale(), 'auth', 'sign-in'], {
+        queryParams: { returnUrl: this.router.url },
+      });
+      return;
+    }
+    if (this.enrolling()) return;
+    this.enrolling.set(true);
+    this.enrollmentError.set(null);
+    this.learningApi
+      .enroll(courseId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (enrollment) => {
+          this.enrolling.set(false);
+          void this.router.navigate(['/', this.locale.locale(), 'learn', enrollment.id]);
+        },
+        error: (error: unknown) => {
+          this.enrolling.set(false);
+          this.enrollmentError.set(
+            error instanceof ApiProblem ? error.code : 'LEARNING.ENROLL_FAILED',
+          );
+        },
+      });
   }
 }

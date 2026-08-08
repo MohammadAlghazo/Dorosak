@@ -1,3 +1,4 @@
+using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Media;
@@ -128,6 +129,8 @@ internal sealed class LessonRevisionConfiguration : IEntityTypeConfiguration<Les
         builder.Property(revision => revision.LessonType).HasMaxLength(30).IsRequired();
         builder.Property(revision => revision.Content).HasMaxLength(100000).IsRequired();
         builder.HasIndex(revision => revision.MediaAssetId).HasDatabaseName("ix_lesson_revisions_media_asset_id");
+        builder.HasIndex(revision => revision.QuizVersionId).HasDatabaseName("ix_lesson_revisions_quiz_version_id");
+        builder.HasIndex(revision => revision.AssignmentVersionId).HasDatabaseName("ix_lesson_revisions_assignment_version_id");
         builder.HasIndex(revision => new { revision.LessonId, revision.DraftVersion })
             .IsUnique()
             .HasDatabaseName("uq_lesson_revisions_lesson_version");
@@ -141,6 +144,16 @@ internal sealed class LessonRevisionConfiguration : IEntityTypeConfiguration<Les
             .HasForeignKey(revision => revision.MediaAssetId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("fk_lesson_revisions_media_assets_media_asset_id");
+        builder.HasOne<QuizVersion>()
+            .WithMany()
+            .HasForeignKey(revision => revision.QuizVersionId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_lesson_revisions_quiz_versions_quiz_version_id");
+        builder.HasOne<AssignmentVersion>()
+            .WithMany()
+            .HasForeignKey(revision => revision.AssignmentVersionId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_lesson_revisions_assignment_versions_assignment_version_id");
     }
 }
 

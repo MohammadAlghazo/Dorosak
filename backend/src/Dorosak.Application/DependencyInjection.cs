@@ -28,7 +28,9 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(AssemblyReference.Assembly, includeInternalTypes: true);
         AddPhase6Handlers(services);
+        AddPublishingHandlers(services);
         AddMediaHandlers(services);
+        AddLearningHandlers(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>,
@@ -39,6 +41,8 @@ public static class DependencyInjection
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCurriculumQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCurriculumCommand>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.UpdateCurriculumCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.StartNewDraftCommand>,
+            Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.StartNewDraftCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.AddCollaboratorCommand>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.AddCollaboratorCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.RemoveCollaboratorCommand>,
@@ -82,6 +86,7 @@ public static class DependencyInjection
         AddCommandHandler<Features.Phase6.UpdateCourseMetadataCommand, Features.Phase6.CourseMutationResponse>(services);
         AddCommandHandler<Features.Phase6.ArchiveCourseCommand, Features.Phase6.CourseMutationResponse>(services);
         AddCommandHandler<Features.Phase6.UpdateCurriculumCommand, Features.Phase6.CourseMutationResponse>(services);
+        AddCommandHandler<Features.Phase6.StartNewDraftCommand, Features.Phase6.CourseMutationResponse>(services);
         AddCommandHandler<Features.Phase6.AddCollaboratorCommand, Features.Phase6.CourseCollaboratorResponse>(services);
         AddCommandHandler<Features.Phase6.RemoveCollaboratorCommand, Features.Phase6.OperationCompleted>(services);
         AddCommandHandler<Features.Phase6.TransferCourseOwnershipCommand, Features.Phase6.CourseMutationResponse>(services);
@@ -101,9 +106,10 @@ public static class DependencyInjection
         AddQueryHandler<Features.Phase6.GetCategoriesQuery, Features.Phase6.PagedResponse<Features.Phase6.CategoryResponse>>(services);
         AddQueryHandler<Features.Phase6.GetTagsQuery, Features.Phase6.PagedResponse<Features.Phase6.TagResponse>>(services);
         AddQueryHandler<Features.Phase6.GetCatalogCoursesQuery, Features.Phase6.PagedResponse<Features.Phase6.CatalogCourseResponse>>(services);
-        AddQueryHandler<Features.Phase6.GetPublicCourseQuery, Features.Phase6.CatalogCourseResponse>(services);
-        AddQueryHandler<Features.Phase6.SearchCoursesQuery, Features.Phase6.PagedResponse<Features.Phase6.SearchCourseResponse>>(services);
-        AddQueryHandler<Features.Phase6.SuggestCourseSuggestionsQuery, IReadOnlyList<string>>(services);
+        AddQueryHandler<Features.Phase6.GetPublicCourseQuery, Features.Phase6.PublicCourseDetailResponse>(services);
+        AddQueryHandler<Features.Phase6.SearchCoursesQuery, Features.Phase6.SearchPageResponse>(services);
+        AddQueryHandler<Features.Phase6.SuggestCourseSuggestionsQuery,
+            IReadOnlyList<Features.Phase6.PublicSearchSuggestionResponse>>(services);
     }
 
     private static void AddMediaHandlers(IServiceCollection services)
@@ -116,6 +122,48 @@ public static class DependencyInjection
         AddMediaCommandHandler<Features.Media.CancelUploadCommand, Features.Media.UploadSessionResponse>(services);
         AddMediaCommandHandler<Features.Media.CreateDownloadGrantCommand, Features.Media.DownloadGrantResponse>(services);
         AddMediaQueryHandler<Features.Media.GetMediaStatusQuery, Features.Media.MediaStatusResponse>(services);
+    }
+
+    private static void AddPublishingHandlers(IServiceCollection services)
+    {
+        services.AddScoped<Features.Publishing.IPublishingCoordinator, Features.Publishing.PublishingCoordinator>();
+        services.AddTransient<MediatR.IRequestHandler<Features.Publishing.PublishCourseCommand,
+            Common.Results.Result<Features.Publishing.CourseReleaseResponse>>,
+            Features.Publishing.PublishCourseCommandHandler>();
+        services.AddTransient<MediatR.IRequestHandler<Features.Publishing.UnpublishCourseCommand,
+            Common.Results.Result<Features.Publishing.CourseReleaseResponse>>,
+            Features.Publishing.UnpublishCourseCommandHandler>();
+        services.AddTransient<MediatR.IRequestHandler<Features.Publishing.ActivateCourseReleaseCommand,
+            Common.Results.Result<Features.Publishing.CourseReleaseResponse>>,
+            Features.Publishing.ActivateCourseReleaseCommandHandler>();
+        services.AddTransient<MediatR.IRequestHandler<Features.Publishing.ResolvePublicCourseQuery,
+            Common.Results.Result<Features.Publishing.PublicCourseLookupResponse>>,
+            Features.Publishing.ResolvePublicCourseQueryHandler>();
+    }
+
+    private static void AddLearningHandlers(IServiceCollection services)
+    {
+        AddLearningHandler<Features.Learning.EnrollCourseCommand, Features.Learning.EnrollmentResponse>(services);
+        AddLearningHandler<Features.Learning.GetEnrollmentsQuery, IReadOnlyList<Features.Learning.EnrollmentResponse>>(services);
+        AddLearningHandler<Features.Learning.GetLearningManifestQuery, Features.Learning.LearningManifestResponse>(services);
+        AddLearningHandler<Features.Learning.GetLearningLessonQuery, Features.Learning.LearningLessonResponse>(services);
+        AddLearningHandler<Features.Learning.UpdateLessonProgressCommand, Features.Learning.ProgressResponse>(services);
+        AddLearningHandler<Features.Learning.GetLearningNotesQuery, IReadOnlyList<Features.Learning.LearningNoteResponse>>(services);
+        AddLearningHandler<Features.Learning.UpsertLearningNoteCommand, Features.Learning.LearningNoteResponse>(services);
+        AddLearningHandler<Features.Learning.DeleteLearningNoteCommand, Features.Learning.LearningOperationResponse>(services);
+        AddLearningHandler<Features.Learning.AddBookmarkCommand, Features.Learning.BookmarkResponse>(services);
+        AddLearningHandler<Features.Learning.DeleteBookmarkCommand, Features.Learning.LearningOperationResponse>(services);
+        AddLearningHandler<Features.Learning.MarkRecentlyViewedCommand, Features.Learning.LearningOperationResponse>(services);
+        AddLearningHandler<Features.Learning.CreateQuizVersionCommand, Features.Learning.QuizVersionResponse>(services);
+        AddLearningHandler<Features.Learning.MarkQuizVersionReadyCommand, Features.Learning.QuizVersionResponse>(services);
+        AddLearningHandler<Features.Learning.StartQuizAttemptCommand, Features.Learning.QuizAttemptResponse>(services);
+        AddLearningHandler<Features.Learning.GetQuizAttemptQuery, Features.Learning.QuizAttemptResponse>(services);
+        AddLearningHandler<Features.Learning.SubmitQuizAttemptCommand, Features.Learning.QuizAttemptResponse>(services);
+        AddLearningHandler<Features.Learning.GradeQuizAttemptCommand, Features.Learning.GradeResponse>(services);
+        AddLearningHandler<Features.Learning.CreateAssignmentVersionCommand, Features.Learning.AssignmentVersionResponse>(services);
+        AddLearningHandler<Features.Learning.MarkAssignmentVersionReadyCommand, Features.Learning.AssignmentVersionResponse>(services);
+        AddLearningHandler<Features.Learning.SubmitAssignmentCommand, Features.Learning.AssignmentSubmissionResponse>(services);
+        AddLearningHandler<Features.Learning.GradeAssignmentCommand, Features.Learning.GradeResponse>(services);
     }
 
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
@@ -141,4 +189,10 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Media.MediaQueryHandler<TRequest, TResponse>>();
+
+    private static void AddLearningHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Learning.LearningHandler<TRequest, TResponse>>();
 }

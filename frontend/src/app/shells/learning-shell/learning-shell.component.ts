@@ -7,7 +7,8 @@ import { LocaleService } from '../../core/i18n/locale.service';
   imports: [RouterLink, RouterOutlet],
   template: `
     <header>
-      <a [routerLink]="['/', locale.locale(), 'dashboard']">← {{ locale.copy().dashboard }}</a
+      <a [routerLink]="['/', locale.locale(), 'my-learning']"
+        >← {{ locale.locale() === 'ar' ? 'مساراتي' : 'My learning' }}</a
       ><strong>{{ locale.copy().brand }}</strong>
     </header>
     <main id="main-content" tabindex="-1"><router-outlet /></main>

@@ -4,11 +4,11 @@
 |---|---|
 | Document | `PROJECT_PLAN.md` |
 | Status | Approved architecture baseline |
-| Version | `1.4.0` |
-| Date | `2026-08-07` |
+| Version | `1.6.0` |
+| Date | `2026-08-08` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `6. Catalog and Authoring Drafts` |
+| Current delivery phase | `8. Learning, Assessments, and Publishing` (local checkpoint complete) |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Production database | Neon PostgreSQL |
 
@@ -1954,6 +1954,8 @@ app/
 | `ADR-016` | Separate Production Redis services for cache, rate limits, and realtime | Accepted |
 | `ADR-017` | Phase 5 browser identity, session rotation, MFA, and permission contracts | Accepted |
 | `ADR-018` | Phase 6 catalog, authoring drafts, review, and release boundary contracts | Accepted |
+| `ADR-019` | Phase 7 media uploads, quarantine, processing, delivery, and MediaWorker contracts | Accepted |
+| `ADR-020` | Phase 8 immutable releases, learning, assessments, and publishing contracts | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -2207,8 +2209,8 @@ git status
 ### 6. حالة التسليم الحالية
 ===========================
 
-هذا القسم تاريخي خاص بإغلاق Phase 2. تم تنفيذ Phase 3 وPhase 4 وPhase 5 بعده، ثم أغلقت Phase 6 بعد تحققها في
-`2026-08-07`. المرحلة التالية هي Phase 7، ولا تبدأ حتى يؤكد المستخدم بكتابة `تم`.
+هذا القسم تاريخي خاص بإغلاق Phase 2. تم تنفيذ Phase 3 إلى Phase 8 بعده؛ تقارير الإغلاق التفصيلية للمرحلة الخامسة وما
+بعدها موجودة أدناه.
 
 ===========================
 ### 7. Phase 5 Identity and Security Report
@@ -2295,4 +2297,101 @@ Phase 5 مكتملة من ناحية التنفيذ والاختبارات ال�
 
 #### القرار
 
-Phase 6 مكتملة. المرحلة التالية هي Phase 7 Media and Content Delivery، ولا تبدأ قبل تأكيد المستخدم بكلمة `تم`.
+Phase 6 مكتملة. تم تنفيذ Phase 7 والتحقق منها في `2026-08-08`.
+
+===========================
+### 9. Phase 7 Media and Content Delivery Report
+===========================
+
+#### المنجز
+
+- Provider-neutral media storage عبر `IObjectStorage` مع S3-compatible MinIO adapter، server-generated quarantine/ready
+  keys، private originals، short-lived presigned upload/download grants، وsafe filenames.
+- Upload sessions للـstream والمultipart، per-part SHA-256/ETag، duplicate-part protection، idempotent completion/cancel،
+  quotas/reservations، cleanup، and bounded request streaming دون تحميل الملف كاملاً في الذاكرة.
+- Media lifecycle `Initiated -> Uploaded -> Scanning -> Processing -> Ready` مع `Rejected`, `RecoveryPending`, `Deleted`،
+  PostgreSQL media schema، concrete configuration، migration، schema compatibility marker، وruntime grants.
+- `Dorosak.MediaWorker` مستقل مع non-root pinned Docker image، bounded concurrency، PostgreSQL `SKIP LOCKED` claims،
+  retries/jitter، ClamAV INSTREAM fail-closed، magic-byte/structure validation، bounded PDF parsing، FFmpeg/ffprobe
+  processing، image JPEG/WebP/AVIF matrix، HLS/fMP4 renditions، master playlist/poster، WebVTT captions، cleanup، metrics،
+  وcontainer smoke.
+- Media authorization على owner/editor/co-instructor/Media.ManageAny، hidden private resources as `404`، Ready-only download
+  grants، assignment submissions/enrollment/Azure Blob/CDN explicitly deferred إلى phases المخصصة.
+- Angular lazy upload UI مع stream/multipart progress، pause/resume/cancel/retry، offline/file-reselect states، IndexedDB
+  metadata-only resume، dedicated direct-storage client بلا bearer/CSRF/API headers، protected-media service-worker exclusion،
+  وaccessible Arabic/English status/progress/error states.
+
+#### الترحيلات والوثائق
+
+- `20260808014905_Phase7MediaStorageMetadata`: media schema/tables, states, checks, indexes, grants, and compatibility marker.
+- `docs/adr/ADR-019-phase-7-media-contracts.md`: accepted upload, storage, scanning, processing, delivery, quota, and
+  frontend contracts.
+
+#### بوابات التحقق
+
+- Restore locked and `dotnet format --verify-no-changes`: passed.
+- Backend Release build: `12 projects`, `0 warnings`, `0 errors`.
+- Backend suite: `110 passed`, `0 failed`, `0 skipped`.
+- Frontend tests: `53 passed`; lint, format, production build, PWA/budget checks passed.
+- Playwright public SSR: `8/8` desktop/mobile passed; `/ar=200`, `/ar/courses=200`, unknown localized route `404`.
+- Real MinIO multipart/presigned round-trip, ClamAV clean/EICAR, MediaWorker container smoke, and non-root codec matrix
+  passed.
+- NuGet/npm vulnerability audits, Docker Compose validation, and `git diff --check` passed.
+
+#### القرارات المؤجلة
+
+- Azure Blob/CDN signing, replication/disaster recovery: Phase 12.
+- Enrollment entitlement: implemented in Phase 8.
+- Text assignment submissions and grading: implemented in Phase 8؛ binary assignment uploads remain deferred to Phase 9.
+
+#### القرار
+
+Phase 7 مكتملة من ناحية التنفيذ والاختبارات المحلية، وتم تنفيذ Phase 8 والتحقق منها كما هو موضح في التقرير التالي.
+
+===========================
+### 10. Phase 8 Learning, Assessments, and Publishing Report
+===========================
+
+#### المنجز
+
+- `CourseRelease` immutable مع manifest ثابت، أرقام release متزايدة، activation/unpublish ذريين، catalog projections
+  مرتبطة بالrelease، وإبقاء enrollment القديمة مثبتة على release السابقة بعد supersede أو unpublish.
+- `PublishingCoordinator` مع readiness checks للmedia والassessment، Admin-only activation، MFA/recent-auth policy،
+  idempotency، audit reason، ومنع drafts من public catalog/search/details.
+- free entitlements/enrollment، learner manifest، lesson access، monotonic/idempotent progress، course completion، notes،
+  bookmarks، recently viewed، وقواعد ملكية تخفي الموارد غير المسموحة كـ`404`.
+- quiz/assignment versioning وready lifecycle، attempt limits/duration/deadlines، objective scoring، manual grading، text
+  submissions، وappend-only grade revisions. تتحقق الخيارات حسب نوع السؤال وترفض option IDs الأجنبية.
+- Angular enrollment CTA، `my-learning`، learning workspace/player، progress، notes، bookmarks، quizzes، assignments،
+  instructor publication controls، وtyped API contracts مع Arabic/English وRTL/LTR states.
+- protected media grants تعمل من lesson release manifest فقط، ولا تدخل protected responses أو credentials في PWA caches.
+
+#### الترحيلات والوثائق
+
+- `20260808134406_Phase8ReleaseCatalog`: catalog release، learning، assessment، projection trigger، constraints، indexes،
+  runtime grants، وimmutable release protections.
+- `20260808152531_Phase8LearningCommandDedupe`: server-side progress command deduplication عبر
+  `last_client_command_id`.
+- `docs/adr/ADR-020-phase-8-release-learning-contracts.md`: العقود المعتمدة للنشر والتسجيل والتعلم والتقييم.
+
+#### بوابات التحقق
+
+- Backend build: `12 projects`, `0 warnings`, `0 errors`; `dotnet format --verify-no-changes` passed.
+- Backend suite: `121 passed`, `0 failed`, `0 skipped` عبر domain/application/PostgreSQL/API/architecture/MediaWorker.
+- Phase 8 PostgreSQL workflows: `2/2` passed وتشمل release pinning بعد unpublish، idempotent progress، quiz scoring، text
+  submission، grade revision، وإكمال المقرر.
+- Frontend tests: `56 passed` عبر `22` files؛ ESLint، Prettier، production SSR build، PWA، وbundle budgets passed.
+- Playwright public SSR/hydration/security baseline: `8/8` desktop/mobile passed على fresh server؛ unknown routes ترجع
+  `404` والworkspaces المحمية لا تسرب private SSR data.
+- `git diff --check` passed؛ لا يوجد commit أو push ضمن هذا checkpoint المحلي.
+
+#### القرارات المؤجلة
+
+- Binary assignment uploads وmalware-scanned submission attachments: Phase 9.
+- Paid enrollment، orders، refunds، subscriptions، وcommerce-owned entitlements: Phase 10.
+- Azure Blob/CDN، production promotion، signing، وstaging deployment: Phase 12 وما بعدها.
+
+#### القرار
+
+Phase 8 مكتملة من ناحية التنفيذ والاختبارات المحلية في `2026-08-08`. يبقى GitHub checkpoint بطلب صريح من المستخدم،
+ولا تبدأ Phase 9 قبل تأكيد المستخدم وفق بروتوكول التسليم.

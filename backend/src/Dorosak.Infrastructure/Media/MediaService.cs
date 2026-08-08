@@ -783,7 +783,7 @@ internal sealed class MediaService(
 
 }
 
-internal sealed class MediaAccessReader(DorosakDbContext dbContext)
+internal sealed class MediaAccessReader(DorosakDbContext dbContext, TimeProvider timeProvider)
     : IMediaAccessReader
 {
     public Task<bool> CanAccessAssetAsync(Guid assetId, Guid userId, CancellationToken cancellationToken) =>
@@ -796,6 +796,7 @@ internal sealed class MediaAccessReader(DorosakDbContext dbContext)
 
     private async Task<bool> CanAccessAssetQuery(Guid assetId, Guid userId, CancellationToken cancellationToken)
     {
+        DateTimeOffset now = timeProvider.GetUtcNow();
         if (await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId && asset.OwnerUserId == userId, cancellationToken))
         {
             return true;
@@ -810,7 +811,16 @@ internal sealed class MediaAccessReader(DorosakDbContext dbContext)
         }
 
         return await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId && asset.CourseId != null &&
-            dbContext.CourseInstructors.Any(instructor => instructor.CourseId == asset.CourseId && instructor.UserId == userId), cancellationToken);
+            (dbContext.CourseInstructors.Any(instructor => instructor.CourseId == asset.CourseId && instructor.UserId == userId) ||
+             dbContext.Enrollments.Any(enrollment => enrollment.UserId == userId &&
+                 enrollment.CourseId == asset.CourseId &&
+                 (enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Active ||
+                  enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Completed) &&
+                  dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
+                      entitlement.Status == Dorosak.Domain.Learning.EntitlementStatus.Active &&
+                      (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)) &&
+                 dbContext.CourseReleaseMediaVariants.Any(variant => variant.ReleaseId == enrollment.ReleaseId && variant.AssetId == assetId))),
+            cancellationToken);
     }
 }
 

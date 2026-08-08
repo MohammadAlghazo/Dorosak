@@ -1,12 +1,17 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ApiProblem } from '../../core/api/api-problem';
+import { AdminPhase6ApiClient } from '../../core/api/admin-phase6-api.client';
+import type { CourseRelease } from '../../core/api/learning-api.types';
 import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { CourseEditorStore } from './course-editor.store';
 
 @Component({
   selector: 'drs-publication-page',
-  imports: [RouterLink],
+  imports: [FormsModule, RouterLink],
   template: `
     <section class="workflow-page" aria-labelledby="publication-title">
       <a class="back-link" [routerLink]="['../']">
@@ -23,8 +28,8 @@ import { CourseEditorStore } from './course-editor.store';
           <p>
             {{
               locale.locale() === 'ar'
-                ? 'الموافقة تجعل الدورة جاهزة للنشر، ولا تنشر إصدارًا عامًا في هذه المرحلة.'
-                : 'Approval marks the course ready to publish; it does not create a public release in this phase.'
+                ? 'بعد الموافقة يستطيع المسؤول إنشاء إصدار عام ثابت أو إلغاء نشره.'
+                : 'After approval, an administrator can create or unpublish an immutable public release.'
             }}
           </p>
         </div>
@@ -145,6 +150,79 @@ import { CourseEditorStore } from './course-editor.store';
               {{ locale.locale() === 'ar' ? 'جارٍ تحديث الحالة…' : 'Updating status…' }}
             </p>
           }
+          @if (session.hasPermission('Course.PublishAny')) {
+            <section class="release-gate" aria-labelledby="release-gate-title">
+              <p class="eyebrow">ADMIN RELEASE GATE</p>
+              <h3 id="release-gate-title">
+                {{ locale.locale() === 'ar' ? 'تفعيل الإصدار العام' : 'Activate public release' }}
+              </h3>
+              <p>
+                {{
+                  locale.locale() === 'ar'
+                    ? 'تتطلب العملية MFA ودخولاً حديثاً وسبب تدقيق واضحاً.'
+                    : 'This operation requires MFA, recent authentication, and a clear audit reason.'
+                }}
+              </p>
+              <label>
+                {{ locale.locale() === 'ar' ? 'سبب التدقيق' : 'Audit reason' }}
+                <textarea
+                  [(ngModel)]="auditReason"
+                  rows="3"
+                  minlength="8"
+                  maxlength="1000"
+                  [placeholder]="
+                    locale.locale() === 'ar'
+                      ? 'مثال: اكتملت مراجعة المحتوى والوسائط'
+                      : 'Example: content and media review completed'
+                  "
+                ></textarea>
+              </label>
+              <div class="action-row">
+                @if (publication.courseStatus !== 'Published') {
+                  <button
+                    class="primary-button"
+                    type="button"
+                    [disabled]="releaseBusy() || auditReason.trim().length < 8"
+                    (click)="activateRelease()"
+                  >
+                    {{ locale.locale() === 'ar' ? 'انشر الإصدار' : 'Publish release' }}
+                  </button>
+                } @else {
+                  <button
+                    class="danger-button"
+                    type="button"
+                    [disabled]="releaseBusy() || auditReason.trim().length < 8"
+                    (click)="unpublishRelease()"
+                  >
+                    {{ locale.locale() === 'ar' ? 'ألغ النشر' : 'Unpublish' }}
+                  </button>
+                }
+              </div>
+              @if (releaseResult(); as release) {
+                <dl class="detail-grid release-result">
+                  <div>
+                    <dt>{{ locale.locale() === 'ar' ? 'الحالة' : 'State' }}</dt>
+                    <dd>{{ release.state }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ locale.locale() === 'ar' ? 'رقم الإصدار' : 'Release number' }}</dt>
+                    <dd>#{{ release.releaseNumber }}</dd>
+                  </div>
+                  <div>
+                    <dt>SHA-256</dt>
+                    <dd>
+                      <code>{{ release.manifestHash.slice(0, 16) }}…</code>
+                    </dd>
+                  </div>
+                </dl>
+              }
+              @if (releaseError()) {
+                <p class="form-alert" role="alert">
+                  <code>{{ releaseError() }}</code>
+                </p>
+              }
+            </section>
+          }
         </article>
       }
     </section>
@@ -156,7 +234,13 @@ export class PublicationPageComponent {
   protected readonly store = inject(CourseEditorStore);
   protected readonly session = inject(SessionStore);
   private readonly route = inject(ActivatedRoute);
+  private readonly adminApi = inject(AdminPhase6ApiClient);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly courseId = routeCourseId(this.route);
+  protected readonly releaseBusy = signal(false);
+  protected readonly releaseResult = signal<CourseRelease | null>(null);
+  protected readonly releaseError = signal<string | null>(null);
+  protected auditReason = '';
 
   constructor() {
     this.store.loadPublication(this.courseId);
@@ -164,6 +248,36 @@ export class PublicationPageComponent {
 
   protected reload(): void {
     this.store.loadPublication(this.courseId);
+  }
+
+  protected activateRelease(): void {
+    this.mutateRelease('publish');
+  }
+
+  protected unpublishRelease(): void {
+    this.mutateRelease('unpublish');
+  }
+
+  private mutateRelease(operation: 'publish' | 'unpublish'): void {
+    const reason = this.auditReason.trim();
+    if (reason.length < 8 || this.releaseBusy()) return;
+    this.releaseBusy.set(true);
+    this.releaseError.set(null);
+    const request =
+      operation === 'publish'
+        ? this.adminApi.publishCourse(this.courseId, reason)
+        : this.adminApi.unpublishCourse(this.courseId, reason);
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (release) => {
+        this.releaseBusy.set(false);
+        this.releaseResult.set(release);
+        this.store.loadPublication(this.courseId);
+      },
+      error: (error: unknown) => {
+        this.releaseBusy.set(false);
+        this.releaseError.set(error instanceof ApiProblem ? error.code : 'PUBLICATION.FAILED');
+      },
+    });
   }
 }
 

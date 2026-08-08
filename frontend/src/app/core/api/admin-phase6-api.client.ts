@@ -2,6 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, type Observable, switchMap } from 'rxjs';
 import type { ApiEnvelope } from './api-envelope';
+import type { CourseRelease } from './learning-api.types';
 import { IdentityApiClient } from './identity-api.client';
 import { authenticatedMutationContext, authenticatedReadContext } from './phase6-api.helpers';
 import type {
@@ -58,6 +59,14 @@ export class AdminPhase6ApiClient {
       `admin/publication-reviews/${encodeURIComponent(reviewId)}/decision`,
       { decision, reason },
     );
+  }
+
+  publishCourse(courseId: string, auditReason: string): Observable<CourseRelease> {
+    return this.releaseMutation(courseId, 'publish', auditReason);
+  }
+
+  unpublishCourse(courseId: string, auditReason: string): Observable<CourseRelease> {
+    return this.releaseMutation(courseId, 'unpublish', auditReason);
   }
 
   getCategories(limit = 100, cursor: string | null = null): Observable<CursorPage<Category>> {
@@ -120,6 +129,27 @@ export class AdminPhase6ApiClient {
           context: authenticatedMutationContext(),
           headers,
         }),
+      ),
+      map((response) => response.data),
+    );
+  }
+
+  private releaseMutation(
+    courseId: string,
+    operation: 'publish' | 'unpublish',
+    auditReason: string,
+  ): Observable<CourseRelease> {
+    const headers = auditHeaders(auditReason).set(
+      'Idempotency-Key',
+      globalThis.crypto.randomUUID(),
+    );
+    return this.identity.bootstrapCsrf().pipe(
+      switchMap(() =>
+        this.http.post<ApiEnvelope<CourseRelease>>(
+          `admin/courses/${encodeURIComponent(courseId)}/${operation}`,
+          null,
+          { context: authenticatedMutationContext(), headers },
+        ),
       ),
       map((response) => response.data),
     );

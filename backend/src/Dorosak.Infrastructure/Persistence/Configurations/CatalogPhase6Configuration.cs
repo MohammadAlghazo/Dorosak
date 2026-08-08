@@ -14,12 +14,13 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
             table.HasCheckConstraint("ck_courses_default_locale", "default_locale IN ('ar', 'en')");
             table.HasCheckConstraint(
                 "ck_courses_status",
-                "status IN ('Draft', 'InReview', 'ChangesRequested', 'ReadyToPublish', 'Archived')");
+                 "status IN ('Draft', 'InReview', 'ChangesRequested', 'ReadyToPublish', 'Published', 'Unpublished', 'Archived')");
         });
         builder.HasKey(course => course.Id).HasName("pk_courses");
         builder.Property(course => course.Id).ValueGeneratedNever();
         builder.Property(course => course.DefaultLocale).HasMaxLength(2).IsRequired();
         builder.Property(course => course.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(course => course.ProjectionGeneration).HasDefaultValue(0L);
         builder.Property(course => course.DeletionReason).HasMaxLength(1000);
         builder.HasIndex(course => new { course.OwnerUserId, course.UpdatedAt, course.Id })
             .HasDatabaseName("ix_courses_owner_updated_id")
@@ -29,6 +30,11 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
             .HasForeignKey(course => course.OwnerUserId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("fk_courses_users_owner_user_id");
+        builder.HasOne<CourseRelease>()
+            .WithMany()
+            .HasForeignKey(course => course.ActiveReleaseId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("fk_courses_course_releases_active_release_id");
     }
 }
 

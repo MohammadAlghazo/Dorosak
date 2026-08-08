@@ -85,7 +85,18 @@ public sealed record LessonInput(
     int Position,
     string Title,
     string LessonType,
-    string Content);
+    string Content,
+    Guid? MediaAssetId = null,
+    Guid? QuizVersionId = null,
+    Guid? AssignmentVersionId = null);
+
+public sealed record StartNewDraftCommand(Guid UserId, Guid CourseId)
+    : ITransactionalCommand<CourseMutationResponse>, IPhase6AuthorizedRequest
+{
+    Guid IPhase6AuthorizedRequest.UserId => UserId;
+    Guid IPhase6AuthorizedRequest.CourseId => CourseId;
+    CourseAccess IPhase6AuthorizedRequest.Access => CourseAccess.Owner;
+}
 
 public sealed record SectionInput(
     Guid? Id,
@@ -224,7 +235,7 @@ public sealed record GetCatalogCoursesQuery(
     int Limit,
     string? Cursor) : IQuery<PagedResponse<CatalogCourseResponse>>;
 
-public sealed record GetPublicCourseQuery(string Locale, string Slug) : IQuery<CatalogCourseResponse>;
+public sealed record GetPublicCourseQuery(string Locale, string Slug) : IQuery<PublicCourseDetailResponse>;
 
 public sealed record SearchCoursesQuery(
     string Locale,
@@ -232,9 +243,10 @@ public sealed record SearchCoursesQuery(
     CatalogFilterContract Filters,
     string Sort,
     int Limit,
-    string? Cursor) : IQuery<PagedResponse<SearchCourseResponse>>;
+    string? Cursor) : IQuery<SearchPageResponse>;
 
-public sealed record SuggestCourseSuggestionsQuery(string Locale, string Query) : IQuery<IReadOnlyList<string>>;
+public sealed record SuggestCourseSuggestionsQuery(string Locale, string Query, int Limit)
+    : IQuery<IReadOnlyList<PublicSearchSuggestionResponse>>;
 
 internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service service)
     : IRequestHandler<TRequest, Result<TResponse>>
@@ -251,6 +263,7 @@ internal sealed class Phase6CommandHandler<TRequest, TResponse>(IPhase6Service s
             UpdateCourseMetadataCommand command => Cast(service.UpdateCourseMetadataAsync(command, cancellationToken)),
             ArchiveCourseCommand command => Cast(service.ArchiveCourseAsync(command, cancellationToken)),
             UpdateCurriculumCommand command => Cast(service.UpdateCurriculumAsync(command, cancellationToken)),
+            StartNewDraftCommand command => Cast(service.StartNewDraftAsync(command, cancellationToken)),
             AddCollaboratorCommand command => Cast(service.AddCollaboratorAsync(command, cancellationToken)),
             RemoveCollaboratorCommand command => Cast(service.RemoveCollaboratorAsync(command, cancellationToken)),
             TransferCourseOwnershipCommand command => Cast(service.TransferCourseOwnershipAsync(command, cancellationToken)),

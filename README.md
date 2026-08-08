@@ -4,10 +4,11 @@ Dorosak is an Arabic-first educational platform for students, instructors, and p
 
 ## Project Status
 
-The repository contains the production backend foundation plus Phase 5 identity/security and Phase 6 catalog/authoring:
-teacher onboarding, course drafts and revisions, taxonomy, publication review, public discovery contracts, Angular
-catalog/search flows, instructor authoring, and administrative review. Immutable releases, media, learning, commerce,
-and enrollment remain in subsequent phases.
+The repository contains the production backend foundation plus Phase 5 identity/security, Phase 6 catalog/authoring,
+Phase 7 media/content delivery, and Phase 8 learning/assessment/publishing. Implemented flows include immutable course
+releases, release-backed discovery, free enrollment, learner manifests and progress, notes/bookmarks, quizzes, text
+assignments with grading revisions, protected delivery grants, and the corresponding Arabic/English Angular workspaces.
+Engagement/realtime, commerce, binary assignment uploads, and production Azure/CDN deployment remain in subsequent phases.
 
 ## Architecture
 

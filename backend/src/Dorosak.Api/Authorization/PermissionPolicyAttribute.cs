@@ -17,3 +17,11 @@ public sealed class AdminHighRiskPolicyAttribute : AuthorizeAttribute
         Policy = $"{PermissionPolicyProvider.HighRiskPrefix}{permission}";
     }
 }
+
+public sealed class RecentAuthenticationPolicyAttribute : AuthorizeAttribute
+{
+    public RecentAuthenticationPolicyAttribute(string permission)
+    {
+        Policy = $"{PermissionPolicyProvider.RecentAuthenticationPrefix}{permission}";
+    }
+}

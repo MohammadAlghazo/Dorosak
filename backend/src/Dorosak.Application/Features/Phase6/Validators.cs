@@ -243,6 +243,8 @@ internal sealed class GetCatalogCoursesQueryValidator : AbstractValidator<GetCat
     }
 }
 
+internal sealed class StartNewDraftCommandValidator : AbstractValidator<StartNewDraftCommand>;
+
 internal sealed class GetPublicCourseQueryValidator : AbstractValidator<GetPublicCourseQuery>
 {
     public GetPublicCourseQueryValidator()
@@ -269,5 +271,6 @@ internal sealed class SuggestCourseSuggestionsQueryValidator : AbstractValidator
     {
         RuleFor(request => request.Locale).Must(Phase6Validation.IsLocale);
         RuleFor(request => request.Query).MaximumLength(200);
+        RuleFor(request => request.Limit).InclusiveBetween(1, 20);
     }
 }

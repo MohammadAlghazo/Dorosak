@@ -71,7 +71,10 @@ public sealed record LessonResponse(
     int Position,
     string Title,
     string LessonType,
-    string Content);
+    string Content,
+    Guid? MediaAssetId = null,
+    Guid? QuizVersionId = null,
+    Guid? AssignmentVersionId = null);
 
 public sealed record PublicationStatusResponse(
     Guid CourseId,
@@ -111,7 +114,6 @@ public sealed record TaxonomyLocalizationResponse(string Locale, string Name);
 public sealed record CatalogCourseResponse(
     Guid CourseId,
     Guid ReleaseId,
-    string Locale,
     string Slug,
     string Title,
     string Summary,
@@ -129,12 +131,32 @@ public sealed record PublicTaxonomyTermResponse(Guid Id, string Code, string Nam
 
 public sealed record PublicCoursePriceResponse(string Type, string? Amount, string? Currency);
 
+public sealed record PublicCourseLocalizationResponse(string Locale, string Slug);
+
+public sealed record PublicCourseDetailResponse(
+    Guid CourseId,
+    Guid ReleaseId,
+    string Slug,
+    string Title,
+    string Summary,
+    string Language,
+    string Level,
+    int DurationMinutes,
+    IReadOnlyList<PublicInstructorResponse> Instructors,
+    IReadOnlyList<PublicTaxonomyTermResponse> Categories,
+    IReadOnlyList<PublicTaxonomyTermResponse> Tags,
+    PublicCoursePriceResponse? Price,
+    string Locale,
+    string DefaultLocale,
+    string Description,
+    IReadOnlyList<string> LearningOutcomes,
+    IReadOnlyList<PublicCourseLocalizationResponse> Localizations);
+
 public sealed record HighlightSegment(string Text, bool Matched);
 
 public sealed record SearchCourseResponse(
     Guid CourseId,
     Guid ReleaseId,
-    string Locale,
     string Slug,
     string Title,
     string Summary,
@@ -147,6 +169,16 @@ public sealed record SearchCourseResponse(
     PublicCoursePriceResponse? Price,
     IReadOnlyList<HighlightSegment> TitleHighlight,
     IReadOnlyList<HighlightSegment> SummaryHighlight);
+
+public sealed record SearchPageResponse(
+    IReadOnlyList<SearchCourseResponse> Items,
+    string? NextCursor,
+    bool HasMore,
+    string? Correction);
+
+public sealed record PublicSearchSuggestionResponse(
+    string? Slug,
+    IReadOnlyList<HighlightSegment> Segments);
 
 public sealed record CatalogFilterContract(
     string? CategoryCode = null,

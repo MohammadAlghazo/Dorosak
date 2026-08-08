@@ -58,9 +58,17 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'profiles' AND table_name IN ('teacher_profiles', 'teacher_applications')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(0L, await ExecuteScalarAsync<long>(
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'catalog' AND table_name IN ('course_releases', 'catalog_documents')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(7L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'learning' AND table_name IN ('entitlements', 'enrollments', 'lesson_progress', 'course_completions', 'bookmarks', 'notes', 'recently_viewed')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(10L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'grade_revisions')",
             TestContext.Current.CancellationToken));
         Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,

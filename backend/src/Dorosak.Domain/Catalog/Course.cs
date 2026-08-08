@@ -8,6 +8,8 @@ public enum CourseStatus
     InReview,
     ChangesRequested,
     ReadyToPublish,
+    Published,
+    Unpublished,
     Archived,
 }
 
@@ -30,6 +32,7 @@ public sealed class Course
         OwnerUserId = ownerUserId;
         DefaultLocale = NormalizeLocale(defaultLocale);
         Status = CourseStatus.Draft;
+        ProjectionGeneration = 0;
         CreatedAt = now;
         UpdatedAt = now;
     }
@@ -41,6 +44,10 @@ public sealed class Course
     public string DefaultLocale { get; private set; } = string.Empty;
 
     public CourseStatus Status { get; private set; }
+
+    public Guid? ActiveReleaseId { get; private set; }
+
+    public long ProjectionGeneration { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -87,9 +94,52 @@ public sealed class Course
         UpdatedAt = now;
     }
 
+    public void StartNewDraft(DateTimeOffset now)
+    {
+        if (Status is not (CourseStatus.Published or CourseStatus.Unpublished or CourseStatus.Draft or CourseStatus.ChangesRequested) || DeletedAt is not null)
+        {
+            InvalidTransition("started as a new draft");
+        }
+
+        Status = CourseStatus.Draft;
+        UpdatedAt = now;
+    }
+
+    public void ActivateRelease(Guid releaseId, long projectionGeneration, DateTimeOffset now)
+    {
+        if (releaseId == Guid.Empty || projectionGeneration <= ProjectionGeneration ||
+            Status is not (CourseStatus.ReadyToPublish or CourseStatus.Published or CourseStatus.Unpublished))
+        {
+            InvalidTransition("published");
+        }
+
+        ActiveReleaseId = releaseId;
+        ProjectionGeneration++;
+        Status = CourseStatus.Published;
+        UpdatedAt = now;
+    }
+
+    public void Unpublish(long projectionGeneration, DateTimeOffset now)
+    {
+        if (ActiveReleaseId is null || projectionGeneration <= ProjectionGeneration || Status is not (
+                CourseStatus.Published or
+                CourseStatus.Draft or
+                CourseStatus.InReview or
+                CourseStatus.ChangesRequested or
+                CourseStatus.ReadyToPublish))
+        {
+            InvalidTransition("unpublished");
+        }
+
+        ActiveReleaseId = null;
+        ProjectionGeneration++;
+        Status = CourseStatus.Unpublished;
+        UpdatedAt = now;
+    }
+
     public void Archive(Guid actorUserId, string reason, DateTimeOffset now)
     {
-        if (Status is CourseStatus.ReadyToPublish or CourseStatus.Archived)
+        if (Status is CourseStatus.ReadyToPublish or CourseStatus.Published or CourseStatus.Unpublished or CourseStatus.Archived)
         {
             InvalidTransition("archived");
         }

@@ -52,6 +52,10 @@ public interface IPhase6Service
         UpdateCurriculumCommand request,
         CancellationToken cancellationToken);
 
+    Task<Result<CourseMutationResponse>> StartNewDraftAsync(
+        StartNewDraftCommand request,
+        CancellationToken cancellationToken);
+
     Task<Result<CourseCollaboratorResponse>> AddCollaboratorAsync(
         AddCollaboratorCommand request,
         CancellationToken cancellationToken);
@@ -104,15 +108,15 @@ public interface IPhase6Service
         GetCatalogCoursesQuery request,
         CancellationToken cancellationToken);
 
-    Task<Result<CatalogCourseResponse>> GetPublicCourseAsync(
+    Task<Result<PublicCourseDetailResponse>> GetPublicCourseAsync(
         GetPublicCourseQuery request,
         CancellationToken cancellationToken);
 
-    Task<Result<PagedResponse<SearchCourseResponse>>> SearchAsync(
+    Task<Result<SearchPageResponse>> SearchAsync(
         SearchCoursesQuery request,
         CancellationToken cancellationToken);
 
-    Task<Result<IReadOnlyList<string>>> SuggestionsAsync(
+    Task<Result<IReadOnlyList<PublicSearchSuggestionResponse>>> SuggestionsAsync(
         SuggestCourseSuggestionsQuery request,
         CancellationToken cancellationToken);
 }

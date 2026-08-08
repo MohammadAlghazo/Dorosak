@@ -1,10 +1,13 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Asp.Versioning;
 using Dorosak.Api.Authorization;
 using Dorosak.Api.Contracts;
 using Dorosak.Api.Extensions;
+using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +25,65 @@ namespace Dorosak.Api.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outputCacheStore) : ControllerBase
 {
+    [HttpPost("courses/{courseId:guid}/publish")]
+    [AdminHighRiskPolicy(Permissions.CoursePublishAny)]
+    [ProducesResponseType(typeof(ApiResponse<CourseReleaseResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> PublishCourse(
+        Guid courseId,
+        [FromHeader(Name = "Idempotency-Key"), Required, StringLength(200, MinimumLength = 1)] string? idempotencyKey,
+        [FromHeader(Name = "X-Audit-Reason"), Required, StringLength(1000, MinimumLength = 8)] string? auditReason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return MissingIdempotencyKey();
+        }
+        Result<CourseReleaseResponse> result = await sender.Send(
+            new PublishCourseCommand(userId, courseId, idempotencyKey, auditReason ?? string.Empty),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            await outputCacheStore.EvictByTagAsync(ApiConstants.CatalogCacheTag, cancellationToken);
+        }
+        return this.ToActionResult(result);
+    }
+
+    [HttpPost("courses/{courseId:guid}/unpublish")]
+    [AdminHighRiskPolicy(Permissions.CoursePublishAny)]
+    [ProducesResponseType(typeof(ApiResponse<CourseReleaseResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UnpublishCourse(
+        Guid courseId,
+        [FromHeader(Name = "Idempotency-Key"), Required, StringLength(200, MinimumLength = 1)] string? idempotencyKey,
+        [FromHeader(Name = "X-Audit-Reason"), Required, StringLength(1000, MinimumLength = 8)] string? auditReason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return MissingIdempotencyKey();
+        }
+        Result<CourseReleaseResponse> result = await sender.Send(
+            new UnpublishCourseCommand(userId, courseId, idempotencyKey, auditReason ?? string.Empty),
+            cancellationToken);
+        if (result.IsSuccess)
+        {
+            await outputCacheStore.EvictByTagAsync(ApiConstants.CatalogCacheTag, cancellationToken);
+        }
+        return this.ToActionResult(result);
+    }
     [HttpGet("teacher-applications")]
     [AdminHighRiskPolicy(Permissions.TeacherApplicationReviewAny)]
     public async Task<IActionResult> GetTeacherApplications(
@@ -180,6 +242,10 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
     }
 
     private bool TryGetUserId(out Guid userId) => Guid.TryParse(User.FindFirstValue("sub"), out userId);
+
+    private IActionResult MissingIdempotencyKey() => this.ToActionResult(
+        Result.Failure<CourseReleaseResponse>(ResultError.Validation(
+            new Dictionary<string, string[]> { ["Idempotency-Key"] = ["The Idempotency-Key header is required."] })));
 
     private string GetLocale()
     {

@@ -4,6 +4,7 @@ using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Phase6;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Dorosak.Api.Controllers;
@@ -15,6 +16,7 @@ namespace Dorosak.Api.Controllers;
 public sealed class SearchController(ISender sender) : ControllerBase
 {
     [HttpGet]
+    [OutputCache(PolicyName = ApiConstants.CatalogOutputCachePolicy)]
     public async Task<IActionResult> Search(
         [FromQuery(Name = "q")] string query = "",
         [FromQuery] string? categoryCode = null,
@@ -30,7 +32,7 @@ public sealed class SearchController(ISender sender) : ControllerBase
         CancellationToken cancellationToken = default)
     {
         Response.Headers["X-Robots-Tag"] = "noindex,follow";
-        Result<PagedResponse<SearchCourseResponse>> result = await sender.Send(
+        Result<SearchPageResponse> result = await sender.Send(
             new SearchCoursesQuery(
                 GetLocale(),
                 query,
@@ -43,12 +45,14 @@ public sealed class SearchController(ISender sender) : ControllerBase
     }
 
     [HttpGet("suggestions")]
+    [OutputCache(PolicyName = ApiConstants.CatalogOutputCachePolicy)]
     public async Task<IActionResult> Suggestions(
         [FromQuery(Name = "q")] string query = "",
+        [FromQuery] int limit = 8,
         CancellationToken cancellationToken = default)
     {
-        Result<IReadOnlyList<string>> result = await sender.Send(
-            new SuggestCourseSuggestionsQuery(GetLocale(), query),
+        Result<IReadOnlyList<PublicSearchSuggestionResponse>> result = await sender.Send(
+            new SuggestCourseSuggestionsQuery(GetLocale(), query, limit),
             cancellationToken);
         return this.ToActionResult(result);
     }

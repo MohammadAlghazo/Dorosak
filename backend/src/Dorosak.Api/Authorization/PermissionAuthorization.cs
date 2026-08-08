@@ -4,6 +4,7 @@ using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Dorosak.Api.Authorization;
 
@@ -13,6 +14,11 @@ public sealed class PermissionRequirement(string permission) : IAuthorizationReq
 }
 
 public sealed class AdminHighRiskRequirement(string permission) : IAuthorizationRequirement
+{
+    public string Permission { get; } = permission;
+}
+
+public sealed class RecentAuthenticationRequirement(string permission) : IAuthorizationRequirement
 {
     public string Permission { get; } = permission;
 }
@@ -52,7 +58,8 @@ public sealed class PermissionAuthorizationHandler(DorosakDbContext dbContext)
 
 public sealed class AdminHighRiskAuthorizationHandler(
     DorosakDbContext dbContext,
-    TimeProvider timeProvider) : AuthorizationHandler<AdminHighRiskRequirement>
+    TimeProvider timeProvider,
+    IOptions<IdentitySecurityOptions> securityOptions) : AuthorizationHandler<AdminHighRiskRequirement>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
@@ -64,9 +71,12 @@ public sealed class AdminHighRiskAuthorizationHandler(
             return;
         }
 
+        CancellationToken cancellationToken = context.Resource is HttpContext httpContext
+            ? httpContext.RequestAborted
+            : CancellationToken.None;
         ApplicationUser? user = await dbContext.Users.AsNoTracking().SingleOrDefaultAsync(
             candidate => candidate.Id == userId && candidate.AuthorizationVersion == version,
-            CancellationToken.None);
+            cancellationToken);
         if (user is null || !user.IsActive || !user.TwoFactorEnabled ||
             !context.User.FindAll("amr").Any(claim => claim.Value is "otp" or "recovery"))
         {
@@ -80,8 +90,11 @@ public sealed class AdminHighRiskAuthorizationHandler(
         }
 
         string? authTimeValue = context.User.FindFirstValue("auth_time");
+        DateTimeOffset now = timeProvider.GetUtcNow();
         if (!long.TryParse(authTimeValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out long authTime) ||
-            timeProvider.GetUtcNow() - DateTimeOffset.FromUnixTimeSeconds(authTime) > TimeSpan.FromMinutes(15))
+            DateTimeOffset.FromUnixTimeSeconds(authTime) > now.AddMinutes(1) ||
+            now - DateTimeOffset.FromUnixTimeSeconds(authTime) >
+            TimeSpan.FromMinutes(securityOptions.Value.RecentAuthenticationMinutes))
         {
             return;
         }
@@ -103,7 +116,57 @@ public sealed class AdminHighRiskAuthorizationHandler(
                     item.roleClaim.ClaimType == IdentityConstants.PermissionClaimType &&
                     item.roleClaim.ClaimValue == requirement.Permission &&
                     item.role.NormalizedName == "ADMIN",
-                CancellationToken.None);
+                cancellationToken);
+        if (allowed)
+        {
+            context.Succeed(requirement);
+        }
+    }
+}
+
+public sealed class RecentAuthenticationAuthorizationHandler(
+    DorosakDbContext dbContext,
+    TimeProvider timeProvider,
+    IOptions<IdentitySecurityOptions> securityOptions) : AuthorizationHandler<RecentAuthenticationRequirement>
+{
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        RecentAuthenticationRequirement requirement)
+    {
+        if (!Guid.TryParse(context.User.FindFirstValue("sub"), out Guid userId) ||
+            !int.TryParse(context.User.FindFirstValue("authz_ver"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int version) ||
+            !long.TryParse(context.User.FindFirstValue("auth_time"), NumberStyles.Integer, CultureInfo.InvariantCulture, out long authTime))
+        {
+            return;
+        }
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        DateTimeOffset authenticatedAt = DateTimeOffset.FromUnixTimeSeconds(authTime);
+        if (authenticatedAt > now.AddMinutes(1) ||
+            now - authenticatedAt > TimeSpan.FromMinutes(securityOptions.Value.RecentAuthenticationMinutes))
+        {
+            return;
+        }
+        string? auditReason = (context.Resource as HttpContext)?.Request.Headers["X-Audit-Reason"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(auditReason) || auditReason.Trim().Length < 8)
+        {
+            return;
+        }
+        CancellationToken cancellationToken = context.Resource is HttpContext httpContext
+            ? httpContext.RequestAborted
+            : CancellationToken.None;
+        bool allowed = await dbContext.Users.AsNoTracking().AnyAsync(
+            user => user.Id == userId && user.IsActive && user.AuthorizationVersion == version,
+            cancellationToken) && await dbContext.UserRoles.AsNoTracking()
+            .Join(
+                dbContext.RoleClaims.AsNoTracking(),
+                userRole => userRole.RoleId,
+                roleClaim => roleClaim.RoleId,
+                (userRole, roleClaim) => new { userRole, roleClaim })
+            .AnyAsync(
+                item => item.userRole.UserId == userId &&
+                    item.roleClaim.ClaimType == IdentityConstants.PermissionClaimType &&
+                    item.roleClaim.ClaimValue == requirement.Permission,
+                cancellationToken);
         if (allowed)
         {
             context.Succeed(requirement);
@@ -116,6 +179,7 @@ public sealed class PermissionPolicyProvider(
 {
     public const string Prefix = "Permission:";
     public const string HighRiskPrefix = "AdminHighRisk:";
+    public const string RecentAuthenticationPrefix = "RecentAuthentication:";
 
     public override Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
@@ -133,6 +197,14 @@ public sealed class PermissionPolicyProvider(
             return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .AddRequirements(new AdminHighRiskRequirement(permission))
+                .Build());
+        }
+        if (policyName.StartsWith(RecentAuthenticationPrefix, StringComparison.Ordinal))
+        {
+            string permission = policyName[RecentAuthenticationPrefix.Length..];
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new RecentAuthenticationRequirement(permission))
                 .Build());
         }
 

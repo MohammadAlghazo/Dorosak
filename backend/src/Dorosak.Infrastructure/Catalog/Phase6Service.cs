@@ -5,6 +5,7 @@ using System.Text;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Publishing;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Common;
@@ -23,7 +24,7 @@ internal sealed class Phase6Service(
     UserManager<ApplicationUser> userManager,
     CatalogCursorCodec cursorCodec,
     SearchTelemetry searchTelemetry,
-    TimeProvider timeProvider) : IPhase6Service, ICourseAccessReader
+    TimeProvider timeProvider) : IPhase6Service, ICourseAccessReader, IPublicCatalogPort
 {
     private const string InvalidCursorCode = "CURSOR.INVALID";
 
@@ -581,7 +582,10 @@ internal sealed class Phase6Service(
                     NormalizeLessonType(lessonInput.LessonType),
                     lessonInput.Content,
                     lessonInput.Position,
-                    now);
+                    now,
+                    lessonInput.MediaAssetId,
+                    lessonInput.QuizVersionId,
+                    lessonInput.AssignmentVersionId);
                 dbContext.LessonRevisions.Add(lessonRevision);
                 if (isNewLesson)
                 {
@@ -620,6 +624,30 @@ internal sealed class Phase6Service(
         }
         if (pendingSectionPointers.Count > 0 || pendingLessonPointers.Count > 0)
         {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return Result.Success(new CourseMutationResponse(course.Id, course.Status.ToString(), draft.Version));
+    }
+
+    public async Task<Result<CourseMutationResponse>> StartNewDraftAsync(
+        StartNewDraftCommand request,
+        CancellationToken cancellationToken)
+    {
+        Course? course = await FindLockedAccessibleCourseAsync(request.CourseId, request.UserId, CourseAccess.Owner, cancellationToken);
+        if (course is null)
+        {
+            return Result.Failure<CourseMutationResponse>(CourseNotFound());
+        }
+
+        await LockDraftAsync(course.Id, cancellationToken);
+        CourseDraft draft = await dbContext.CourseDrafts.SingleAsync(candidate => candidate.CourseId == course.Id, cancellationToken);
+        if (course.Status is CourseStatus.Published or CourseStatus.Unpublished)
+        {
+            DateTimeOffset now = timeProvider.GetUtcNow();
+            course.StartNewDraft(now);
+            draft.Advance(draft.Version, now);
+            AddAudit(request.UserId, "course.draft-started", "Course", course.Id, null);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -1191,70 +1219,367 @@ internal sealed class Phase6Service(
             new TaxonomyLocalizationResponse(NormalizeLocale(input.Locale), input.Name.Trim())).ToArray()));
     }
 
-    public Task<Result<PagedResponse<CatalogCourseResponse>>> GetCatalogAsync(
+    public async Task<Result<PagedResponse<CatalogCourseResponse>>> GetCatalogAsync(
         GetCatalogCoursesQuery request,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         string locale = NormalizeLocale(request.Locale);
         string sort = NormalizeCatalogSort(request.Sort);
         int limit = NormalizeLimit(request.Limit, 24);
         string canonical = CanonicalPublicQuery(locale, string.Empty, request.Filters, sort, limit);
-        if (!cursorCodec.TryRead(request.Cursor, "catalog", canonical, out _, out _))
+        if (!cursorCodec.TryRead(request.Cursor, "catalog", canonical, out DateTimeOffset? after, out Guid? afterId))
         {
-            return Task.FromResult(CursorFailure<PagedResponse<CatalogCourseResponse>>());
+            return CursorFailure<PagedResponse<CatalogCourseResponse>>();
         }
 
-        // Phase 6 has no CourseRelease/catalog projection by design; drafts are never a fallback.
-        return Task.FromResult(Result.Success(new PagedResponse<CatalogCourseResponse>([], null, false)));
+        IQueryable<CatalogDocument> query = ApplyCatalogFilters(ActiveCatalogDocuments(locale), request.Filters);
+        if (after is { } timestamp && afterId is { } id)
+        {
+            query = query.Where(document =>
+                document.PublishedAt < timestamp ||
+                document.PublishedAt == timestamp && document.ReleaseId.CompareTo(id) < 0);
+        }
+        List<CatalogDocument> documents = await query
+            .OrderByDescending(document => document.PublishedAt)
+            .ThenByDescending(document => document.ReleaseId)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+        bool hasMore = documents.Count > limit;
+        List<CatalogDocument> items = documents.Take(limit).ToList();
+        CatalogReleaseParts parts = await LoadCatalogReleasePartsAsync(
+            items.Select(document => document.ReleaseId).ToArray(),
+            cancellationToken);
+        string? nextCursor = hasMore
+            ? cursorCodec.Create("catalog", canonical, items[^1].PublishedAt, items[^1].ReleaseId)
+            : null;
+        return Result.Success(new PagedResponse<CatalogCourseResponse>(
+            items.Select(document => MapCatalog(document, parts)).ToArray(),
+            nextCursor,
+            hasMore));
     }
 
-    public Task<Result<CatalogCourseResponse>> GetPublicCourseAsync(
+    public async Task<Result<PublicCourseDetailResponse>> GetPublicCourseAsync(
         GetPublicCourseQuery request,
         CancellationToken cancellationToken)
     {
-        _ = NormalizeLocale(request.Locale);
-        _ = cancellationToken;
-        return Task.FromResult(Result.Failure<CatalogCourseResponse>(NotFound(
+        Result<PublicCourseLookupResponse> lookup = await ResolveAsync(
+            new ResolvePublicCourseQuery(request.Locale, request.Slug),
+            cancellationToken);
+        return lookup.IsSuccess && lookup.Value.Course is { } course
+            ? Result.Success(course)
+            : Result.Failure<PublicCourseDetailResponse>(NotFound(
             "CATALOG.COURSE_NOT_FOUND",
-            "The published course was not found.")));
+            "The published course was not found."));
     }
 
-    public Task<Result<PagedResponse<SearchCourseResponse>>> SearchAsync(
+    public async Task<Result<SearchPageResponse>> SearchAsync(
         SearchCoursesQuery request,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         long started = Stopwatch.GetTimestamp();
         string locale = NormalizeLocale(request.Locale);
         string normalizedQuery = SearchTextNormalizer.Normalize(request.Query, locale);
         string sort = NormalizeSearchSort(request.Sort, normalizedQuery.Length == 0);
         int limit = NormalizeLimit(request.Limit, 20);
         string canonical = CanonicalPublicQuery(locale, normalizedQuery, request.Filters, sort, limit);
-        if (!cursorCodec.TryRead(request.Cursor, "search", canonical, out _, out _))
+        if (!cursorCodec.TryRead(request.Cursor, "search", canonical, out DateTimeOffset? after, out Guid? afterId))
         {
-            return Task.FromResult(CursorFailure<PagedResponse<SearchCourseResponse>>());
+            return CursorFailure<SearchPageResponse>();
         }
 
-        var response = new PagedResponse<SearchCourseResponse>([], null, false);
+        IQueryable<CatalogDocument> query = ApplyCatalogFilters(ActiveCatalogDocuments(locale), request.Filters);
+        if (normalizedQuery.Length > 0)
+        {
+            query = locale == "ar"
+                ? query.Where(document => document.NormalizedArabicText.Contains(normalizedQuery))
+                : query.Where(document => document.SearchText.Contains(normalizedQuery));
+        }
+        if (after is { } timestamp && afterId is { } id)
+        {
+            query = query.Where(document =>
+                document.PublishedAt < timestamp ||
+                document.PublishedAt == timestamp && document.ReleaseId.CompareTo(id) < 0);
+        }
+        List<CatalogDocument> documents = await query
+            .OrderByDescending(document => document.PublishedAt)
+            .ThenByDescending(document => document.ReleaseId)
+            .Take(limit + 1)
+            .ToListAsync(cancellationToken);
+        bool hasMore = documents.Count > limit;
+        List<CatalogDocument> items = documents.Take(limit).ToList();
+        CatalogReleaseParts parts = await LoadCatalogReleasePartsAsync(
+            items.Select(document => document.ReleaseId).ToArray(),
+            cancellationToken);
+        string? nextCursor = hasMore
+            ? cursorCodec.Create("search", canonical, items[^1].PublishedAt, items[^1].ReleaseId)
+            : null;
+        var response = new SearchPageResponse(
+            items.Select(document => MapSearch(document, parts, request.Query)).ToArray(),
+            nextCursor,
+            hasMore,
+            null);
         searchTelemetry.Record(
             locale,
             normalizedQuery,
-            0,
+            response.Items.Count,
             Stopwatch.GetElapsedTime(started),
             sort,
             request.Filters);
-        return Task.FromResult(Result.Success(response));
+        return Result.Success(response);
     }
 
-    public Task<Result<IReadOnlyList<string>>> SuggestionsAsync(
+    public async Task<Result<IReadOnlyList<PublicSearchSuggestionResponse>>> SuggestionsAsync(
         SuggestCourseSuggestionsQuery request,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         string locale = NormalizeLocale(request.Locale);
         string normalized = SearchTextNormalizer.Normalize(request.Query, locale);
-        return Task.FromResult(Result.Success<IReadOnlyList<string>>(normalized.Length < 2 ? [] : []));
+        if (normalized.Length < 2)
+        {
+            return Result.Success<IReadOnlyList<PublicSearchSuggestionResponse>>([]);
+        }
+        IQueryable<CatalogDocument> query = ActiveCatalogDocuments(locale);
+        query = locale == "ar"
+            ? query.Where(document => document.NormalizedArabicText.Contains(normalized))
+            : query.Where(document => document.SearchText.Contains(normalized));
+        List<CatalogDocument> candidates = await query
+            .OrderByDescending(document => document.PublishedAt)
+            .ThenByDescending(document => document.ReleaseId)
+            .Take(request.Limit * 4)
+            .ToListAsync(cancellationToken);
+        PublicSearchSuggestionResponse[] suggestions = candidates
+            .DistinctBy(document => document.Title, StringComparer.OrdinalIgnoreCase)
+            .Take(request.Limit)
+            .Select(document => new PublicSearchSuggestionResponse(
+                document.Slug,
+                Highlight(document.Title, request.Query)))
+            .ToArray();
+        return Result.Success<IReadOnlyList<PublicSearchSuggestionResponse>>(suggestions);
+    }
+
+    public async Task<Result<PublicCourseLookupResponse>> ResolveAsync(
+        ResolvePublicCourseQuery request,
+        CancellationToken cancellationToken)
+    {
+        string locale = NormalizeLocale(request.Locale);
+        string slug = request.Slug.Trim().ToLowerInvariant();
+        CatalogDocument? active = await ActiveCatalogDocuments(locale)
+            .SingleOrDefaultAsync(document => document.Slug == slug, cancellationToken);
+        if (active is not null)
+        {
+            CatalogReleaseParts parts = await LoadCatalogReleasePartsAsync([active.ReleaseId], cancellationToken);
+            PublicCourseDetailResponse detail = await MapDetailAsync(active, parts, cancellationToken);
+            return Result.Success(new PublicCourseLookupResponse(detail, null));
+        }
+
+        Guid? historicalCourseId = await dbContext.CatalogDocuments.AsNoTracking()
+            .Where(document => document.Locale == locale && document.Slug == slug)
+            .Select(document => (Guid?)document.CourseId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (historicalCourseId is not { } courseId)
+        {
+            return Result.Failure<PublicCourseLookupResponse>(NotFound(
+                "CATALOG.COURSE_NOT_FOUND",
+                "The published course was not found."));
+        }
+        CatalogDocument? current = await ActiveCatalogDocuments(locale)
+            .SingleOrDefaultAsync(document => document.CourseId == courseId, cancellationToken);
+        return current is null
+            ? Result.Failure<PublicCourseLookupResponse>(NotFound(
+                "CATALOG.COURSE_NOT_FOUND",
+                "The published course was not found."))
+            : Result.Success(new PublicCourseLookupResponse(null, current.Slug));
+    }
+
+    private IQueryable<CatalogDocument> ActiveCatalogDocuments(string locale) =>
+        from document in dbContext.CatalogDocuments.AsNoTracking()
+        join course in dbContext.Courses.AsNoTracking() on document.CourseId equals course.Id
+        where document.Locale == locale && course.DeletedAt == null && course.ActiveReleaseId == document.ReleaseId
+        select document;
+
+    private IQueryable<CatalogDocument> ApplyCatalogFilters(
+        IQueryable<CatalogDocument> query,
+        CatalogFilterContract filters)
+    {
+        if (!string.IsNullOrWhiteSpace(filters.Price) &&
+            !string.Equals(filters.Price.Trim(), "free", StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(_ => false);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.CategoryCode))
+        {
+            string code = filters.CategoryCode.Trim().ToLowerInvariant();
+            query = query.Where(document => dbContext.CourseReleaseTaxonomies.Any(term =>
+                term.ReleaseId == document.ReleaseId && term.IsCategory && term.Code == code));
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Tag))
+        {
+            string code = filters.Tag.Trim().ToLowerInvariant();
+            query = query.Where(document => dbContext.CourseReleaseTaxonomies.Any(term =>
+                term.ReleaseId == document.ReleaseId && !term.IsCategory && term.Code == code));
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Language))
+        {
+            string language = filters.Language.Trim().ToLowerInvariant();
+            query = query.Where(document => document.Language == language);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Level))
+        {
+            string level = NormalizeLevel(filters.Level);
+            query = query.Where(document => document.Level == level);
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Instructor))
+        {
+            string instructor = filters.Instructor.Trim();
+            query = query.Where(document => dbContext.CourseReleaseInstructors.Any(item =>
+                item.ReleaseId == document.ReleaseId && item.DisplayName.Contains(instructor)));
+        }
+        if (!string.IsNullOrWhiteSpace(filters.Duration))
+        {
+            string duration = filters.Duration.Trim().ToLowerInvariant();
+            query = duration switch
+            {
+                "under-60" or "short" => query.Where(document => document.DurationMinutes < 60),
+                "60-120" or "medium" => query.Where(document => document.DurationMinutes >= 60 && document.DurationMinutes <= 120),
+                "over-120" or "long" => query.Where(document => document.DurationMinutes > 120),
+                _ => query.Where(_ => false),
+            };
+        }
+        return query;
+    }
+
+    private async Task<CatalogReleaseParts> LoadCatalogReleasePartsAsync(
+        Guid[] releaseIds,
+        CancellationToken cancellationToken)
+    {
+        if (releaseIds.Length == 0)
+        {
+            return new CatalogReleaseParts(
+                new Dictionary<Guid, List<PublicInstructorResponse>>(),
+                new Dictionary<Guid, List<ReleaseTaxonomyItem>>());
+        }
+        List<CourseReleaseInstructor> instructors = await dbContext.CourseReleaseInstructors.AsNoTracking()
+            .Where(instructor => releaseIds.Contains(instructor.ReleaseId))
+            .OrderBy(instructor => instructor.Position)
+            .ToListAsync(cancellationToken);
+        List<CourseReleaseTaxonomy> taxonomy = await dbContext.CourseReleaseTaxonomies.AsNoTracking()
+            .Where(term => releaseIds.Contains(term.ReleaseId))
+            .OrderBy(term => term.IsCategory ? 0 : 1)
+            .ThenBy(term => term.Code)
+            .ToListAsync(cancellationToken);
+        Dictionary<Guid, List<PublicInstructorResponse>> instructorMap = instructors
+            .GroupBy(instructor => instructor.ReleaseId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(instructor => new PublicInstructorResponse(
+                    instructor.UserId,
+                    instructor.DisplayName)).ToList());
+        Dictionary<Guid, List<ReleaseTaxonomyItem>> taxonomyMap = taxonomy
+            .GroupBy(term => term.ReleaseId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(term => new ReleaseTaxonomyItem(
+                    term.TermId,
+                    term.Code,
+                    term.Name,
+                    term.IsCategory)).ToList());
+        return new CatalogReleaseParts(instructorMap, taxonomyMap);
+    }
+
+    private static CatalogCourseResponse MapCatalog(CatalogDocument document, CatalogReleaseParts parts)
+    {
+        List<ReleaseTaxonomyItem> terms = parts.Taxonomy.GetValueOrDefault(document.ReleaseId) ?? [];
+        return new CatalogCourseResponse(
+            document.CourseId,
+            document.ReleaseId,
+            document.Slug,
+            document.Title,
+            document.Summary,
+            document.Language,
+            PublicLevel(document.Level),
+            document.DurationMinutes,
+            parts.Instructors.GetValueOrDefault(document.ReleaseId) ?? [],
+            terms.Where(term => term.IsCategory)
+                .Select(term => new PublicTaxonomyTermResponse(term.Id, term.Code, term.Name))
+                .ToArray(),
+            terms.Where(term => !term.IsCategory)
+                .Select(term => new PublicTaxonomyTermResponse(term.Id, term.Code, term.Name))
+                .ToArray(),
+            new PublicCoursePriceResponse("free", null, null));
+    }
+
+    private async Task<PublicCourseDetailResponse> MapDetailAsync(
+        CatalogDocument document,
+        CatalogReleaseParts parts,
+        CancellationToken cancellationToken)
+    {
+        CourseRelease release = await dbContext.CourseReleases.AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == document.ReleaseId, cancellationToken);
+        PublicCourseLocalizationResponse[] localizations = await dbContext.CourseReleaseLocalizations.AsNoTracking()
+            .Where(localization => localization.ReleaseId == document.ReleaseId)
+            .OrderBy(localization => localization.Locale)
+            .Select(localization => new PublicCourseLocalizationResponse(localization.Locale, localization.Slug))
+            .ToArrayAsync(cancellationToken);
+        CatalogCourseResponse summary = MapCatalog(document, parts);
+        return new PublicCourseDetailResponse(
+            summary.CourseId,
+            summary.ReleaseId,
+            summary.Slug,
+            summary.Title,
+            summary.Summary,
+            summary.Language,
+            summary.Level,
+            summary.DurationMinutes,
+            summary.Instructors,
+            summary.Categories,
+            summary.Tags,
+            summary.Price,
+            document.Locale,
+            release.DefaultLocale,
+            document.Description,
+            [],
+            localizations);
+    }
+
+    private static SearchCourseResponse MapSearch(
+        CatalogDocument document,
+        CatalogReleaseParts parts,
+        string query)
+    {
+        CatalogCourseResponse course = MapCatalog(document, parts);
+        return new SearchCourseResponse(
+            course.CourseId,
+            course.ReleaseId,
+            course.Slug,
+            course.Title,
+            course.Summary,
+            course.Language,
+            course.Level,
+            course.DurationMinutes,
+            course.Instructors,
+            course.Categories,
+            course.Tags,
+            course.Price,
+            Highlight(course.Title, query),
+            Highlight(course.Summary, query));
+    }
+
+    private static HighlightSegment[] Highlight(string value, string query)
+    {
+        string normalizedQuery = query.Trim();
+        if (normalizedQuery.Length == 0)
+        {
+            return [new HighlightSegment(value, false)];
+        }
+        int index = value.IndexOf(normalizedQuery, StringComparison.OrdinalIgnoreCase);
+        return index < 0
+            ? [new HighlightSegment(value, false)]
+            : new HighlightSegment[]
+            {
+                new HighlightSegment(value[..index], false),
+                new HighlightSegment(value.Substring(index, normalizedQuery.Length), true),
+                new HighlightSegment(value[(index + normalizedQuery.Length)..], false),
+            }.Where(segment => segment.Text.Length > 0).ToArray();
     }
 
     public async Task<bool> CanAccessAsync(
@@ -1540,7 +1865,10 @@ internal sealed class Phase6Service(
                     lesson.Position,
                     lessonRevision.Title,
                     lessonRevision.LessonType,
-                    lessonRevision.Content);
+                    lessonRevision.Content,
+                    lessonRevision.MediaAssetId,
+                    lessonRevision.QuizVersionId,
+                    lessonRevision.AssignmentVersionId);
             }).ToArray();
             return new SectionResponse(section.Id, section.Position, revision.Title, lessonResponses);
         }).ToArray();
@@ -1758,6 +2086,15 @@ internal sealed class Phase6Service(
         _ => throw new ArgumentOutOfRangeException(nameof(level)),
     };
 
+    private static string PublicLevel(string level) => level switch
+    {
+        "Beginner" => "beginner",
+        "Intermediate" => "intermediate",
+        "Advanced" => "advanced",
+        "AllLevels" => "beginner",
+        _ => throw new InvalidOperationException("The catalog level is invalid."),
+    };
+
     private static string NormalizeLessonType(string type) => type.Trim().ToLowerInvariant() switch
     {
         "video" => "Video",
@@ -1899,4 +2236,10 @@ internal sealed class Phase6Service(
     }
 
     private sealed record CourseSummaryParts(long DraftVersion, string Title, string Slug);
+
+    private sealed record ReleaseTaxonomyItem(Guid Id, string Code, string Name, bool IsCategory);
+
+    private sealed record CatalogReleaseParts(
+        IReadOnlyDictionary<Guid, List<PublicInstructorResponse>> Instructors,
+        IReadOnlyDictionary<Guid, List<ReleaseTaxonomyItem>> Taxonomy);
 }

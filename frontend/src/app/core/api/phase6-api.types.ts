@@ -4,7 +4,13 @@ export type LessonType = 'Video' | 'Article' | 'Document' | 'Quiz' | 'Assignment
 export type TeacherApplicationStatus =
   'Pending' | 'InReview' | 'Approved' | 'Rejected' | 'Withdrawn';
 export type CourseStatus =
-  'Draft' | 'InReview' | 'ChangesRequested' | 'ReadyToPublish' | 'Archived';
+  | 'Draft'
+  | 'InReview'
+  | 'ChangesRequested'
+  | 'ReadyToPublish'
+  | 'Published'
+  | 'Unpublished'
+  | 'Archived';
 
 export interface CursorPage<T> {
   items: readonly T[];

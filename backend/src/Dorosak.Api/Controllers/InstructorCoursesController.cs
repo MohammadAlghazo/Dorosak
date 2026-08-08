@@ -165,6 +165,21 @@ public sealed class InstructorCoursesController(ISender sender) : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpPost("{courseId:guid}/drafts")]
+    [PermissionPolicy(Permissions.CourseUpdateOwn)]
+    public async Task<IActionResult> StartNewDraft(Guid courseId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<CourseMutationResponse> result = await sender.Send(
+            new StartNewDraftCommand(userId, courseId),
+            cancellationToken);
+        SetEtag(result);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost("{courseId:guid}/collaborators")]
     [PermissionPolicy(Permissions.CourseUpdateOwn)]
     public async Task<IActionResult> AddCollaborator(
