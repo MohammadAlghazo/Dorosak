@@ -1,0 +1,182 @@
+<section class="workflow-page workflow-page-wide" aria-labelledby="media-upload-title">
+  <a class="back-link" [routerLink]="['../']">
+    {{ locale.locale() === 'ar' ? 'العودة إلى بيانات الدورة' : 'Back to course metadata' }}
+  </a>
+  <header class="workflow-heading workflow-heading-row">
+    <div>
+      <p class="identity-kicker">
+        {{ locale.locale() === 'ar' ? 'مكتبة المسودة' : 'Draft library' }}
+      </p>
+      <h1 id="media-upload-title">
+        {{ locale.locale() === 'ar' ? 'رفع وسائط الدورة' : 'Upload course media' }}
+      </h1>
+      <p>
+        {{
+          locale.locale() === 'ar'
+            ? 'تظل الملفات خاصة حتى انتهاء الفحص والتجهيز.'
+            : 'Files remain private until scanning and processing finish.'
+        }}
+      </p>
+    </div>
+    <nav
+      class="section-tabs"
+      [attr.aria-label]="locale.locale() === 'ar' ? 'أقسام المسودة' : 'Draft sections'"
+    >
+      <a [routerLink]="['../']">{{ locale.locale() === 'ar' ? 'البيانات' : 'Metadata' }}</a>
+      <a [routerLink]="['../curriculum']">{{
+        locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
+      }}</a>
+      <a [routerLink]="['../media']" aria-current="page">{{
+        locale.locale() === 'ar' ? 'الوسائط' : 'Media'
+      }}</a>
+      <a [routerLink]="['../publication']">{{
+        locale.locale() === 'ar' ? 'النشر' : 'Publication'
+      }}</a>
+    </nav>
+  </header>
+
+  <p class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement() }}</p>
+
+  <article class="workflow-card upload-card">
+    <div class="upload-type">
+      <label for="media-purpose">{{
+        locale.locale() === 'ar' ? 'نوع الوسائط' : 'Media type'
+      }}</label>
+      <select id="media-purpose" [value]="purpose()" (change)="choosePurpose($event)">
+        <option value="CourseImage">
+          {{ locale.locale() === 'ar' ? 'صورة الدورة' : 'Course image' }}
+        </option>
+        <option value="CourseDocument">
+          {{ locale.locale() === 'ar' ? 'مستند PDF' : 'PDF document' }}
+        </option>
+        <option value="SourceVideo">
+          {{ locale.locale() === 'ar' ? 'فيديو مصدر' : 'Source video' }}
+        </option>
+      </select>
+    </div>
+
+    <input
+      #fileInput
+      class="sr-only"
+      type="file"
+      [accept]="acceptedTypes()"
+      (change)="chooseFile($event)"
+    />
+    <div
+      class="upload-dropzone"
+      [class.upload-dropzone-active]="dragging()"
+      role="button"
+      tabindex="0"
+      (click)="fileInput.click()"
+      (keydown)="activateFileInput($event, fileInput)"
+      (dragover)="allowDrop($event)"
+      (dragleave)="leaveDrop()"
+      (drop)="drop($event)"
+    >
+      <strong>{{ locale.locale() === 'ar' ? 'أسقط الملف هنا' : 'Drop the file here' }}</strong>
+      <span>{{
+        locale.locale() === 'ar' ? 'أو اختره من جهازك' : 'or choose it from your device'
+      }}</span>
+      <small>
+        {{
+          locale.locale() === 'ar'
+            ? 'النوع والاسم إرشادات أولية فقط؛ يتحقق الخادم من المحتوى.'
+            : 'Type and name are client hints only; the server verifies file content.'
+        }}
+      </small>
+    </div>
+
+    @if (store.state().fileName) {
+      <div class="upload-summary">
+        <div>
+          <span>{{ locale.locale() === 'ar' ? 'الملف' : 'File' }}</span>
+          <strong>{{ store.state().fileName }}</strong>
+        </div>
+        <div>
+          <span>{{ locale.locale() === 'ar' ? 'الحجم' : 'Size' }}</span>
+          <strong>{{ formatBytes(store.state().totalBytes) }}</strong>
+        </div>
+        @if (store.state().assetId) {
+          <div>
+            <span>{{ locale.locale() === 'ar' ? 'معرّف الوسائط' : 'Media ID' }}</span>
+            <code>{{ store.state().assetId }}</code>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="upload-status" [class.upload-status-error]="store.state().status === 'error'">
+      <div class="upload-status-heading">
+        <strong role="status">{{ statusText() }}</strong>
+        <span>{{ store.progressPercent() }}%</span>
+      </div>
+      <progress
+        [value]="store.state().uploadedBytes"
+        [max]="store.state().totalBytes || 1"
+        [attr.aria-label]="locale.locale() === 'ar' ? 'تقدم الرفع الكلي' : 'Total upload progress'"
+      ></progress>
+      @if (store.state().errorCode) {
+        <p class="upload-error" role="alert">
+          {{ errorText(store.state().errorCode) }} <code>{{ store.state().errorCode }}</code>
+        </p>
+      }
+    </div>
+
+    @if (store.state().parts.length > 0) {
+      <ol
+        class="upload-parts"
+        [attr.aria-label]="locale.locale() === 'ar' ? 'أجزاء الملف' : 'File parts'"
+      >
+        @for (part of store.state().parts; track part.partNumber) {
+          <li>
+            <span>{{ locale.locale() === 'ar' ? 'الجزء' : 'Part' }} {{ part.partNumber }}</span>
+            <progress
+              [value]="part.loaded"
+              [max]="part.size || 1"
+              [attr.aria-label]="
+                (locale.locale() === 'ar' ? 'تقدم الجزء ' : 'Progress for part ') + part.partNumber
+              "
+            ></progress>
+            <span>{{ part.state }}</span>
+          </li>
+        }
+      </ol>
+    }
+
+    <div class="upload-actions">
+      @if (store.canPause()) {
+        <button class="secondary-button" type="button" (click)="store.pause()">
+          {{ locale.locale() === 'ar' ? 'إيقاف مؤقت' : 'Pause' }}
+        </button>
+      }
+      @if (store.canResume()) {
+        <button class="primary-button" type="button" (click)="store.resume()">
+          {{
+            store.state().needsFile
+              ? locale.locale() === 'ar'
+                ? 'أعد اختيار الملف أعلاه'
+                : 'Reselect the file above'
+              : locale.locale() === 'ar'
+                ? 'متابعة'
+                : 'Resume'
+          }}
+        </button>
+        @if (store.state().status === 'error' && !store.state().needsFile) {
+          <button class="secondary-button" type="button" (click)="store.retry()">
+            {{ locale.locale() === 'ar' ? 'إعادة محاولة الجزء' : 'Retry failed part' }}
+          </button>
+        }
+      }
+      @if (
+        store.state().assetId &&
+        store.state().status !== 'ready' &&
+        store.state().status !== 'rejected' &&
+        store.state().status !== 'cancelled'
+      ) {
+        <button class="danger-button" type="button" (click)="store.cancel()">
+          {{ locale.locale() === 'ar' ? 'إلغاء الرفع' : 'Cancel upload' }}
+        </button>
+      }
+    </div>
+  </article>
+</section>

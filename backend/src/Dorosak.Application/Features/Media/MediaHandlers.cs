@@ -13,6 +13,7 @@ internal sealed class MediaCommandHandler<TRequest, TResponse>(IMediaService ser
         request switch
         {
             CreateUploadSessionCommand command => Cast(service.CreateUploadSessionAsync(command, cancellationToken)),
+            CreateCaptionUploadCommand command => Cast(service.CreateCaptionUploadAsync(command, cancellationToken)),
             PutUploadContentCommand command => Cast(service.PutUploadContentAsync(command, cancellationToken)),
             IssueUploadPartCommand command => Cast(service.IssueUploadPartAsync(command, cancellationToken)),
             CompleteUploadCommand command => Cast(service.CompleteUploadAsync(command, cancellationToken)),
@@ -27,6 +28,20 @@ internal sealed class MediaCommandHandler<TRequest, TResponse>(IMediaService ser
         return result.IsSuccess
             ? Result.Success((TResponse)(object)result.Value!)
             : Result.Failure<TResponse>(result.Failure);
+    }
+}
+
+internal sealed class CreateCaptionUploadValidator : AbstractValidator<CreateCaptionUploadCommand>
+{
+    public CreateCaptionUploadValidator()
+    {
+        RuleFor(command => command.UserId).NotEmpty();
+        RuleFor(command => command.AssetId).NotEmpty();
+        RuleFor(command => command.Locale).Matches("^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$").MaximumLength(16);
+        RuleFor(command => command.Label).NotEmpty().MaximumLength(120);
+        RuleFor(command => command.ExpectedBytes).GreaterThan(0).LessThanOrEqualTo(10L * 1024 * 1024);
+        RuleFor(command => command.FileName).NotEmpty().MaximumLength(255).Must(name => Path.GetExtension(name).Equals(".vtt", StringComparison.OrdinalIgnoreCase));
+        RuleFor(command => command.IdempotencyKey).NotEmpty().MaximumLength(200);
     }
 }
 

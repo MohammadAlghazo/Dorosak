@@ -36,6 +36,7 @@ import { CourseEditorStore } from './course-editor.store';
           <a [routerLink]="['../curriculum']">{{
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
           }}</a>
+          <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
           <a [routerLink]="['../publication']" aria-current="page">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>

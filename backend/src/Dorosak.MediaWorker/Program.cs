@@ -3,6 +3,7 @@ using Dorosak.Application;
 using Dorosak.Infrastructure;
 using Dorosak.Infrastructure.MediaWorker;
 using Dorosak.Infrastructure.Observability;
+using OpenTelemetry.Metrics;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -23,10 +24,18 @@ try
         builder.Configuration["Licensing:AutoMapperKey"]);
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddDorosakObservability(builder.Configuration, "Dorosak.MediaWorker", false);
+    builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddMeter(MediaWorkerTelemetry.MeterName));
     builder.Services.AddMediaWorkerServices(builder.Configuration);
 
     using IHost host = builder.Build();
-    await host.RunAsync();
+    if (args.Contains("--container-smoke", StringComparer.Ordinal))
+    {
+        await MediaContainerSmoke.RunAsync(host.Services, CancellationToken.None);
+    }
+    else
+    {
+        await host.RunAsync();
+    }
 }
 catch (Exception exception)
 {

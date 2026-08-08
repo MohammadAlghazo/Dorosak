@@ -1,4 +1,4 @@
-import { HttpErrorResponse, type HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, type HttpInterceptorFn, HttpXhrBackend } from '@angular/common/http';
 import { inject } from '@angular/core';
 import {
   catchError,
@@ -21,6 +21,7 @@ import {
   RETRY_IDEMPOTENT_GET,
   SKIP_AUTH,
   SKIP_REFRESH,
+  XHR_UPLOAD_PROGRESS,
 } from './api-context';
 import { normalizeApiProblem } from './api-problem';
 import { RuntimeConfigService } from './runtime-config.service';
@@ -149,6 +150,11 @@ export const telemetryInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
+
+// The application uses fetch by default for SSR, but fetch cannot report browser upload progress.
+// This final transport switch retains all preceding API interceptors for streamed media uploads.
+export const xhrUploadProgressInterceptor: HttpInterceptorFn = (request, next) =>
+  request.context.get(XHR_UPLOAD_PROGRESS) ? inject(HttpXhrBackend).handle(request) : next(request);
 
 const retryDelay = (error: HttpErrorResponse, retryCount: number): number => {
   const retryAfter = error.headers.get('Retry-After');

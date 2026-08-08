@@ -9,6 +9,14 @@ public enum MediaPurpose
     CourseDocument,
     AssignmentSubmission,
     SourceVideo,
+    Caption,
+}
+
+public enum CaptionTrackState
+{
+    Pending,
+    Ready,
+    Rejected,
 }
 
 public enum UploadSessionState
@@ -274,6 +282,8 @@ public sealed class MediaAsset
         long declaredBytes,
         string declaredSha256,
         string quarantineObjectKey,
+        string storageProvider,
+        string storageContainer,
         DateTimeOffset now)
     {
         Id = id;
@@ -285,6 +295,8 @@ public sealed class MediaAsset
         DeclaredBytes = declaredBytes;
         DeclaredSha256 = declaredSha256;
         QuarantineObjectKey = quarantineObjectKey;
+        StorageProvider = storageProvider;
+        StorageContainer = storageContainer;
         State = MediaAssetState.Initiated;
         CreatedAt = now;
         UpdatedAt = now;
@@ -314,6 +326,10 @@ public sealed class MediaAsset
 
     public string QuarantineObjectKey { get; private set; } = string.Empty;
 
+    public string StorageProvider { get; private set; } = string.Empty;
+
+    public string StorageContainer { get; private set; } = string.Empty;
+
     public string? QuarantineETag { get; private set; }
 
     public string? QuarantineVersionId { get; private set; }
@@ -338,6 +354,8 @@ public sealed class MediaAsset
         long declaredBytes,
         string declaredSha256,
         string quarantineObjectKey,
+        string storageProvider,
+        string storageContainer,
         DateTimeOffset now)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(declaredBytes);
@@ -352,6 +370,8 @@ public sealed class MediaAsset
             declaredBytes,
             declaredSha256,
             quarantineObjectKey,
+            storageProvider,
+            storageContainer,
             now);
     }
 
@@ -390,6 +410,16 @@ public sealed class MediaAsset
         if (State != MediaAssetState.Uploaded)
         {
             throw new DomainRuleException("MEDIA.INVALID_SCAN_TRANSITION", "The media asset is not ready for scanning.");
+        }
+        State = MediaAssetState.Scanning;
+        UpdatedAt = now;
+    }
+
+    public void ResumeScanning(DateTimeOffset now)
+    {
+        if (State is not (MediaAssetState.Scanning or MediaAssetState.Processing or MediaAssetState.RecoveryPending))
+        {
+            throw new DomainRuleException("MEDIA.INVALID_RETRY_TRANSITION", "The media asset is not recoverable.");
         }
         State = MediaAssetState.Scanning;
         UpdatedAt = now;
@@ -475,7 +505,10 @@ public sealed class MediaVariant
         string kind,
         string contentType,
         string objectKey,
+        string storageProvider,
+        string storageContainer,
         long bytes,
+        string sha256,
         string etag,
         string? versionId,
         int? width,
@@ -488,7 +521,10 @@ public sealed class MediaVariant
         Kind = kind;
         ContentType = contentType;
         ObjectKey = objectKey;
+        StorageProvider = storageProvider;
+        StorageContainer = storageContainer;
         Bytes = bytes;
+        Sha256 = sha256;
         ETag = etag;
         VersionId = versionId;
         Width = width;
@@ -507,7 +543,13 @@ public sealed class MediaVariant
 
     public string ObjectKey { get; private set; } = string.Empty;
 
+    public string StorageProvider { get; private set; } = string.Empty;
+
+    public string StorageContainer { get; private set; } = string.Empty;
+
     public long Bytes { get; private set; }
+
+    public string Sha256 { get; private set; } = string.Empty;
 
     public string ETag { get; private set; } = string.Empty;
 
@@ -527,14 +569,17 @@ public sealed class MediaVariant
         string kind,
         string contentType,
         string objectKey,
+        string storageProvider,
+        string storageContainer,
         long bytes,
+        string sha256,
         string etag,
         string? versionId,
         int? width,
         int? height,
         decimal? durationSeconds,
         DateTimeOffset now) =>
-        new(id, assetId, kind, contentType, objectKey, bytes, etag, versionId, width, height, durationSeconds, now);
+        new(id, assetId, kind, contentType, objectKey, storageProvider, storageContainer, bytes, sha256, etag, versionId, width, height, durationSeconds, now);
 }
 
 public sealed class CaptionTrack
@@ -546,20 +591,23 @@ public sealed class CaptionTrack
     private CaptionTrack(
         Guid id,
         Guid assetId,
+        Guid sourceMediaAssetId,
         string locale,
         string label,
         string objectKey,
-        long bytes,
-        string etag,
+        string storageProvider,
+        string storageContainer,
         DateTimeOffset now)
     {
         Id = id;
         AssetId = assetId;
+        SourceMediaAssetId = sourceMediaAssetId;
         Locale = locale;
         Label = label;
         ObjectKey = objectKey;
-        Bytes = bytes;
-        ETag = etag;
+        StorageProvider = storageProvider;
+        StorageContainer = storageContainer;
+        State = CaptionTrackState.Pending;
         CreatedAt = now;
     }
 
@@ -567,27 +615,88 @@ public sealed class CaptionTrack
 
     public Guid AssetId { get; private set; }
 
+    public Guid SourceMediaAssetId { get; private set; }
+
+    public CaptionTrackState State { get; private set; }
+
     public string Locale { get; private set; } = string.Empty;
 
     public string Label { get; private set; } = string.Empty;
 
     public string ObjectKey { get; private set; } = string.Empty;
 
-    public long Bytes { get; private set; }
+    public string StorageProvider { get; private set; } = string.Empty;
 
-    public string ETag { get; private set; } = string.Empty;
+    public string StorageContainer { get; private set; } = string.Empty;
+
+    public long? Bytes { get; private set; }
+
+    public string? Sha256 { get; private set; }
+
+    public string? ETag { get; private set; }
+
+    public string? VersionId { get; private set; }
+
+    public string? RejectionCode { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public static CaptionTrack Create(
+    public DateTimeOffset? ReadyAt { get; private set; }
+
+    public DateTimeOffset? RejectedAt { get; private set; }
+
+    public static CaptionTrack CreatePending(
+        Guid id,
         Guid assetId,
+        Guid sourceMediaAssetId,
         string locale,
         string label,
         string objectKey,
-        long bytes,
-        string etag,
-        DateTimeOffset now) =>
-        new(Guid.CreateVersion7(), assetId, locale, label, objectKey, bytes, etag, now);
+        string storageProvider,
+        string storageContainer,
+        DateTimeOffset now)
+    {
+        if (id == Guid.Empty || assetId == Guid.Empty || sourceMediaAssetId == Guid.Empty)
+        {
+            throw new ArgumentException("Caption identifiers are required.");
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentException.ThrowIfNullOrWhiteSpace(objectKey);
+        return new CaptionTrack(id, assetId, sourceMediaAssetId, locale, label, objectKey, storageProvider, storageContainer, now);
+    }
+
+    public void MarkReady(long bytes, string sha256, string etag, string? versionId, DateTimeOffset now)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bytes);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sha256);
+        ArgumentException.ThrowIfNullOrWhiteSpace(etag);
+        if (State == CaptionTrackState.Ready)
+        {
+            return;
+        }
+        if (State == CaptionTrackState.Rejected)
+        {
+            throw new DomainRuleException("MEDIA.CAPTION_REJECTED", "A rejected caption cannot become ready.");
+        }
+        State = CaptionTrackState.Ready;
+        Bytes = bytes;
+        Sha256 = sha256;
+        ETag = etag;
+        VersionId = versionId;
+        ReadyAt = now;
+    }
+
+    public void Reject(string code, DateTimeOffset now)
+    {
+        if (State == CaptionTrackState.Ready)
+        {
+            return;
+        }
+        State = CaptionTrackState.Rejected;
+        RejectionCode = code.Length <= 100 ? code : code[..100];
+        RejectedAt = now;
+    }
 }
 
 public sealed class MediaProcessingJob

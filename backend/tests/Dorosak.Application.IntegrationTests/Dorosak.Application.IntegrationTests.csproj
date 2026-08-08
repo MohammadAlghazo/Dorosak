@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dorosak.Application\Dorosak.Application.csproj" />
     <ProjectReference Include="..\..\src\Dorosak.Infrastructure\Dorosak.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Dorosak.MediaWorker\Dorosak.MediaWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

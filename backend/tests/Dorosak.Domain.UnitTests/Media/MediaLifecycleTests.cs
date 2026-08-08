@@ -59,5 +59,5 @@ public sealed class MediaLifecycleTests
 
     private static MediaAsset CreateAsset(DateTimeOffset now) => MediaAsset.Create(
         Guid.NewGuid(), Guid.NewGuid(), null, MediaPurpose.CourseDocument, "document.pdf", "application/pdf",
-        10, new string('0', 64), "quarantine/test/key", now);
+        10, new string('0', 64), "quarantine/test/key", "Test", "test-media", now);
 }

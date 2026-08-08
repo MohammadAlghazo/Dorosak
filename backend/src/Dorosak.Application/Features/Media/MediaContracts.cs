@@ -13,13 +13,42 @@ public sealed record CreateUploadSessionCommand(
     string FileName,
     string ContentType,
     Guid? CourseId,
-    string IdempotencyKey) : IIdempotentCommand<UploadSessionResponse>
+    string IdempotencyKey,
+    Guid? CaptionTargetAssetId = null,
+    string? CaptionLocale = null,
+    string? CaptionLabel = null) : IIdempotentCommand<UploadSessionResponse>
 {
     public string IdempotencyOperation => "media.upload-session.create";
 
     public string IdempotencyScope => $"user:{UserId:D}";
 
-    public object IdempotencyPayload => new { Purpose, ExpectedBytes, FileName, ContentType, CourseId };
+    public object IdempotencyPayload => new { Purpose, ExpectedBytes, FileName, ContentType, CourseId, CaptionTargetAssetId, CaptionLocale, CaptionLabel };
+
+    public int ResponseSchemaVersion => 1;
+
+    public TimeSpan Retention => TimeSpan.FromHours(25);
+}
+
+public sealed record CreateCaptionUploadCommand(
+    Guid UserId,
+    Guid AssetId,
+    string Locale,
+    string Label,
+    long ExpectedBytes,
+    string FileName,
+    string IdempotencyKey) : IIdempotentCommand<UploadSessionResponse>, IMediaAuthorizedRequest
+{
+    Guid IMediaAuthorizedRequest.UserId => UserId;
+
+    Guid IMediaAuthorizedRequest.MediaId => AssetId;
+
+    MediaAuthorizationTarget IMediaAuthorizedRequest.Target => MediaAuthorizationTarget.Asset;
+
+    public string IdempotencyOperation => "media.caption-upload.create";
+
+    public string IdempotencyScope => $"user:{UserId:D}";
+
+    public object IdempotencyPayload => new { AssetId, Locale, Label, ExpectedBytes, FileName };
 
     public int ResponseSchemaVersion => 1;
 
@@ -140,6 +169,7 @@ public sealed record UploadPartResponse(
     int PartNumber,
     long ExpectedBytes,
     string UploadUrl,
+    string RequiredChecksumSha256,
     DateTimeOffset UrlExpiresAt);
 
 public sealed record MediaVariantResponse(
@@ -147,9 +177,19 @@ public sealed record MediaVariantResponse(
     string Kind,
     string ContentType,
     long Bytes,
+    string Sha256,
     int? Width,
     int? Height,
     decimal? DurationSeconds);
+
+public sealed record CaptionTrackResponse(
+    Guid Id,
+    Guid SourceMediaAssetId,
+    string Locale,
+    string Label,
+    string State,
+    long? Bytes,
+    string? Sha256);
 
 public sealed record MediaStatusResponse(
     Guid AssetId,
@@ -159,7 +199,8 @@ public sealed record MediaStatusResponse(
     long DeclaredBytes,
     long? VerifiedBytes,
     string? RejectionCode,
-    IReadOnlyList<MediaVariantResponse> Variants);
+    IReadOnlyList<MediaVariantResponse> Variants,
+    IReadOnlyList<CaptionTrackResponse> Captions);
 
 public sealed record DownloadGrantResponse(
     Guid AssetId,
@@ -178,7 +219,10 @@ public sealed record MediaProcessingInput(
     string ContentType,
     long DeclaredBytes,
     string DeclaredSha256,
-    string QuarantineObjectKey);
+    string QuarantineObjectKey,
+    Guid? CaptionTrackId = null,
+    Guid? CaptionTargetAssetId = null,
+    string? CaptionObjectKey = null);
 
 public sealed record MediaVariantFile(
     Guid VariantId,
@@ -186,6 +230,7 @@ public sealed record MediaVariantFile(
     string FilePath,
     string ContentType,
     string ObjectKey,
+    string Sha256,
     int? Width = null,
     int? Height = null,
     decimal? DurationSeconds = null,
@@ -218,6 +263,8 @@ public interface IMediaAuthorizedRequest : IAuthorizedRequest
 public interface IMediaService
 {
     Task<Result<UploadSessionResponse>> CreateUploadSessionAsync(CreateUploadSessionCommand request, CancellationToken cancellationToken);
+
+    Task<Result<UploadSessionResponse>> CreateCaptionUploadAsync(CreateCaptionUploadCommand request, CancellationToken cancellationToken);
 
     Task<Result<UploadSessionResponse>> PutUploadContentAsync(PutUploadContentCommand request, CancellationToken cancellationToken);
 
@@ -255,6 +302,8 @@ public interface IObjectStorage
         string objectKey,
         string uploadId,
         int partNumber,
+        long contentLength,
+        string sha256,
         TimeSpan lifetime,
         CancellationToken cancellationToken);
 
@@ -284,11 +333,11 @@ public sealed record ObjectStorageUploadRequest(
 
 public sealed record ObjectStorageMultipartUpload(string UploadId, string? VersionId);
 
-public sealed record ObjectStoragePutResult(string ETag, string? VersionId, long Bytes);
+public sealed record ObjectStoragePutResult(string ETag, string? VersionId, long Bytes, string Provider = "", string Container = "");
 
 public sealed record ObjectStoragePart(int PartNumber, string ETag);
 
-public sealed record ObjectStorageCompleteResult(string ETag, string? VersionId, long? Bytes);
+public sealed record ObjectStorageCompleteResult(string ETag, string? VersionId, long Bytes);
 
 public sealed record ObjectStorageReadResult(Stream Content, string? ETag, string? VersionId, long? ContentLength, string? ContentType) : IAsyncDisposable
 {
@@ -349,6 +398,8 @@ public interface IMediaProcessingStore
 
     Task MarkProcessingAsync(Guid assetId, CancellationToken cancellationToken);
 
+    Task ResetForRetryAsync(Guid assetId, CancellationToken cancellationToken);
+
     Task RejectAsync(Guid assetId, string code, CancellationToken cancellationToken);
 
     Task MarkReadyAsync(
@@ -389,7 +440,7 @@ public static class MediaObjectKeys
                 break;
             }
 
-            buffer[length++] = character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '-' or '_' 
+            buffer[length++] = character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '-' or '_'
                 ? character
                 : '_';
         }
@@ -428,6 +479,8 @@ public sealed class MediaStorageOptions
     public int UploadUrlMinutes { get; set; } = 10;
 
     public int DownloadUrlMinutes { get; set; } = 5;
+
+    public bool CreateBucketIfMissing { get; set; }
 }
 
 public sealed class MediaOptions
@@ -447,6 +500,8 @@ public sealed class MediaOptions
     public long ProfileImageMaxBytes { get; set; } = 10L * 1024 * 1024;
 
     public long CourseImageMaxBytes { get; set; } = 20L * 1024 * 1024;
+
+    public long CaptionMaxBytes { get; set; } = 10L * 1024 * 1024;
 
     public long CourseDocumentMaxBytes { get; set; } = 100L * 1024 * 1024;
 
@@ -473,4 +528,14 @@ public sealed class MediaOptions
     public int WorkerConcurrency { get; set; } = 2;
 
     public TimeSpan WorkerLockDuration { get; set; } = TimeSpan.FromMinutes(5);
+
+    public TimeSpan OrphanGracePeriod { get; set; } = TimeSpan.FromHours(24);
+
+    public long PdfParserMaxBytes { get; set; } = 250L * 1024 * 1024;
+
+    public int PdfParserMaxPages { get; set; } = 2000;
+
+    public TimeSpan ProcessTimeout { get; set; } = TimeSpan.FromMinutes(15);
+
+    public int ProcessOutputCharacterLimit { get; set; } = 65536;
 }

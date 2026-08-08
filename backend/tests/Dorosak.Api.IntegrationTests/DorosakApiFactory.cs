@@ -17,6 +17,7 @@ public sealed class DorosakApiFactory(
             .UseSetting("ConnectionStrings:RedisSecurity", redisConnection)
             .UseSetting("App:PublicUrl", "https://app.dorosak.test")
             .UseSetting("Identity:RefreshRaceWindowSeconds", "1")
+            .UseSetting("Media:Storage:Enabled", "false")
             .UseSetting("Cors:AllowedOrigins:0", "https://app.dorosak.test");
     }
 }

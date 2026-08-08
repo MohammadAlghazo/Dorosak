@@ -289,6 +289,19 @@ export const routes: Routes = [
           ),
         children: [
           {
+            path: 'media/:assetId',
+            loadComponent: () =>
+              import('./features/media-upload/protected-media-page.component').then(
+                (module) => module.ProtectedMediaPageComponent,
+              ),
+            data: {
+              titleAr: 'وسائط الدرس',
+              titleEn: 'Lesson media',
+              indexing: 'noindex',
+              renderMode: 'client',
+            },
+          },
+          {
             path: '**',
             loadComponent: () =>
               import('./features/learning/learning-page.component').then(
@@ -369,6 +382,19 @@ export const routes: Routes = [
                 data: {
                   titleAr: 'منهج الدورة',
                   titleEn: 'Course curriculum',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+              {
+                path: 'media',
+                loadComponent: () =>
+                  import('./features/media-upload/media-upload-page.component').then(
+                    (module) => module.MediaUploadPageComponent,
+                  ),
+                data: {
+                  titleAr: 'وسائط الدورة',
+                  titleEn: 'Course media',
                   indexing: 'noindex',
                   renderMode: 'client',
                 },

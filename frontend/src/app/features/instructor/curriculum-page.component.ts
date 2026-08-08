@@ -60,6 +60,7 @@ interface EditableSection {
           <a [routerLink]="['../curriculum']" aria-current="page">{{
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
           }}</a>
+          <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
           <a [routerLink]="['../publication']">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>

@@ -17,6 +17,8 @@ Phase 8 consumes only Ready media when creating immutable course releases.
 
 - Application code depends on `IObjectStorage`, not a provider SDK. Phase 7 ships an S3-compatible adapter for local MinIO
   and tests. The Azure Blob adapter, CDN signing, replication, and production credentials are Phase 12 deployment work.
+  The production extension point is a new Infrastructure implementation of `IObjectStorage`; domain/application contracts,
+  object-key generation, database metadata, API handlers, and MediaWorker orchestration remain unchanged.
 - The API issues upload sessions and signed URLs. `Dorosak.MediaWorker` exclusively scans and processes uploaded objects.
   It is a separate executable/container with bounded concurrency and no inbound HTTP endpoint.
 - Durable media work is claimed from PostgreSQL with `FOR UPDATE SKIP LOCKED`. This preserves the established database
@@ -125,3 +127,16 @@ Phase 8 consumes only Ready media when creating immutable course releases.
 - Drafts may reference media, but Phase 8 remains responsible for immutable release activation.
 - Azure Blob/CDN implementation and provider disaster-recovery controls remain explicit Phase 12 work, not hidden Phase 7
   assumptions.
+
+### Phase 7 implementation boundaries
+
+- The pinned MediaWorker image produces metadata-stripped JPEG, WebP, and AVIF images at 320, 640, and 1280 pixels when
+  source dimensions permit. Video processing is driven by ffprobe and produces private H.264/AAC fragmented MP4 and
+  six-second fMP4 HLS packages at 360p, 720p, and 1080p when source dimensions permit, plus a master playlist and poster.
+- Caption uploads use the same quarantine, checksum, ClamAV, validation, processing, and Ready lifecycle as other media.
+  UTF-8 WebVTT structure is validated before the private caption object is associated with its target source video.
+- PDF validation is strict and bounded by configured byte, page, and parser stack-depth limits. Encrypted/password-protected,
+  malformed, over-limit, and lenient-only documents remain quarantined and are rejected.
+- Assignment-submission upload creation is explicitly unavailable until Phase 9 supplies a concrete assignment/submission
+  owner. Enrollment-based delivery entitlement is likewise deferred until the enrollment aggregate exists. Azure Blob/CDN
+  signing, CDN-aware HLS authorization, replication, and production provider disaster recovery remain Phase 12 work.

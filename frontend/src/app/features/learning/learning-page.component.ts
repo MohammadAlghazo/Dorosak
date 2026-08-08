@@ -1,12 +1,21 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LocaleService } from '../../core/i18n/locale.service';
 @Component({
   selector: 'drs-learning-page',
   template: `<section>
-    <p>LEARNING / FOCUS MODE</p>
-    <h1>Lesson workspace foundation</h1>
+    <p>{{ locale.locale() === 'ar' ? 'التعلم / وضع التركيز' : 'LEARNING / FOCUS MODE' }}</p>
+    <h1>{{ locale.locale() === 'ar' ? 'مساحة الدرس' : 'Lesson workspace' }}</h1>
     <div class="stage">
-      <span>Protected media remains disabled offline.</span
-      ><strong>Player arrives with Learning and Media phases.</strong>
+      <span>{{
+        locale.locale() === 'ar'
+          ? 'لا تتوفر الوسائط المحمية دون اتصال.'
+          : 'Protected media remains unavailable offline.'
+      }}</span
+      ><strong>{{
+        locale.locale() === 'ar'
+          ? 'اختر وسائط الدرس عند توفرها.'
+          : 'Open lesson media when it becomes available.'
+      }}</strong>
     </div>
   </section>`,
   styles: `
@@ -37,4 +46,6 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LearningPageComponent {}
+export class LearningPageComponent {
+  protected readonly locale = inject(LocaleService);
+}

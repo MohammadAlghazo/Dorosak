@@ -32,6 +32,12 @@
           "Microsoft.Extensions.Options": "10.0.10"
         }
       },
+      "PdfPig": {
+        "type": "Direct",
+        "requested": "[0.1.15, )",
+        "resolved": "0.1.15",
+        "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
+      },
       "Serilog.Extensions.Hosting": {
         "type": "Direct",
         "requested": "[10.0.0, )",
@@ -67,8 +73,8 @@
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.1.3",
-        "contentHash": "IAJXGnwNesYbPzEd9xTSnQ5pygiDTjSQPWA9cJsi1ziHSmpmmBgR952s2qV2YnjcAzq+56uH/Lpi4x0HEw4SsA=="
+        "resolved": "4.0.100.9",
+        "contentHash": "OPYy41jZjXwxxcYRotaq24HDrwUnVtBB/mvg1IwB9D1ICXAtHqMa1sp2hpmlVJCZwjlcrPcTCJIejInvV1vp5g=="
       },
       "FluentValidation": {
         "type": "Transitive",
@@ -644,7 +650,7 @@
       "dorosak.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "AWSSDK.S3": "[4.0.8, )",
+          "AWSSDK.S3": "[4.0.102, )",
           "Dorosak.Application": "[1.0.0, )",
           "Dorosak.Domain": "[1.0.0, )",
           "EFCore.NamingConventions": "[10.0.1, )",
@@ -680,11 +686,11 @@
       },
       "AWSSDK.S3": {
         "type": "CentralTransitive",
-        "requested": "[4.0.8, )",
-        "resolved": "4.0.8",
-        "contentHash": "KrgY2lCdVdFBuiGCJvYixrq5uPWgEcXDDpsXCm+ZryA5ks/6YW8zVD2A38iIBow/EDMezKxdnr21YfMDbWGtIw==",
+        "requested": "[4.0.102, )",
+        "resolved": "4.0.102",
+        "contentHash": "+5ToRNfpNnu1/oEbb1P+4AnHpknda1+eybYkhT6viFC4v772ZONeFYGR1pHgm7Zum0nvLDpSEJl/4y+wggpIpg==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.1.3, 5.0.0)"
+          "AWSSDK.Core": "[4.0.100.9, 5.0.0)"
         }
       },
       "EFCore.NamingConventions": {

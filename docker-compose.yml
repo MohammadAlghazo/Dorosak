@@ -132,6 +132,7 @@ services:
       Media__Storage__Bucket: dorosak-media
       Media__Storage__AccessKey: ${DOROSAK_MINIO_ROOT_USER:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__SecretKey: ${DOROSAK_MINIO_ROOT_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+      Media__Storage__CreateBucketIfMissing: "true"
       HOME: /tmp
     ports:
       - "127.0.0.1:${DOROSAK_API_PORT:-5053}:8080"
@@ -195,6 +196,7 @@ services:
       Media__Storage__Bucket: dorosak-media
       Media__Storage__AccessKey: ${DOROSAK_MINIO_ROOT_USER:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__SecretKey: ${DOROSAK_MINIO_ROOT_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+      Media__Storage__CreateBucketIfMissing: "true"
       Media__ClamAV__Host: clamav
       Media__ClamAV__Port: 3310
       Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
@@ -210,9 +212,10 @@ services:
         condition: service_healthy
     read_only: true
     tmpfs:
-      - /tmp:size=12g,mode=1700
+      - /tmp:size=12g,uid=1654,gid=1654,mode=1700
     mem_limit: 2g
     cpus: 2
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
     logging: *default-logging

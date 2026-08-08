@@ -31,4 +31,8 @@
     <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dorosak.Application.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

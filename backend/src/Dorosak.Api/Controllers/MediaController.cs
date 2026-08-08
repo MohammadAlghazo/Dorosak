@@ -51,6 +51,9 @@ public sealed class MediaController(ISender sender) : ControllerBase
 
     [HttpPut("uploads/{uploadSessionId:guid}/content")]
     [PermissionPolicy(Permissions.MediaUploadOwn)]
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
+    [Consumes("application/octet-stream")]
+    [RequestSizeLimit(33554432)]
     public async Task<IActionResult> PutContent(Guid uploadSessionId, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId))
@@ -76,6 +79,7 @@ public sealed class MediaController(ISender sender) : ControllerBase
 
     [HttpPost("uploads/{uploadSessionId:guid}/parts")]
     [PermissionPolicy(Permissions.MediaUploadOwn)]
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
     public async Task<IActionResult> IssuePart(Guid uploadSessionId, IssuePartRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId))
@@ -90,6 +94,7 @@ public sealed class MediaController(ISender sender) : ControllerBase
 
     [HttpPost("uploads/{uploadSessionId:guid}/complete")]
     [PermissionPolicy(Permissions.MediaUploadOwn)]
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
     public async Task<IActionResult> Complete(Guid uploadSessionId, CompleteUploadRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId))
@@ -110,6 +115,7 @@ public sealed class MediaController(ISender sender) : ControllerBase
 
     [HttpDelete("uploads/{uploadSessionId:guid}")]
     [PermissionPolicy(Permissions.MediaUploadOwn)]
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
     public async Task<IActionResult> Cancel(Guid uploadSessionId, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId))
@@ -154,6 +160,37 @@ public sealed class MediaController(ISender sender) : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpPost("media/{assetId:guid}/captions")]
+    [PermissionPolicy(Permissions.MediaUploadOwn)]
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
+    public async Task<IActionResult> CreateCaptionUpload(
+        Guid assetId,
+        CreateCaptionUploadRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        string? idempotencyKey = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return this.ToActionResult(Result.Failure<UploadSessionResponse>(ResultError.Validation(
+                new Dictionary<string, string[]> { ["Idempotency-Key"] = ["The Idempotency-Key header is required."] })));
+        }
+        Result<UploadSessionResponse> result = await sender.Send(
+            new CreateCaptionUploadCommand(
+                userId,
+                assetId,
+                request.Locale,
+                request.Label,
+                request.ExpectedBytes,
+                request.FileName,
+                idempotencyKey),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     private bool TryGetUserId(out Guid userId) => Guid.TryParse(User.FindFirstValue("sub"), out userId);
 }
 
@@ -169,3 +206,5 @@ public sealed record IssuePartRequest(int PartNumber, long ExpectedBytes, string
 public sealed record CompleteUploadRequest(long TotalBytes, string Sha256, IReadOnlyList<UploadPartInput> Parts);
 
 public sealed record DownloadGrantRequest(Guid? VariantId, string? FileName);
+
+public sealed record CreateCaptionUploadRequest(string Locale, string Label, long ExpectedBytes, string FileName);

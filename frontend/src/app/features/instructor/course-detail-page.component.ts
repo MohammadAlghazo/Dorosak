@@ -50,10 +50,13 @@ type EditableLevel = CourseLevel | '';
           class="section-tabs"
           [attr.aria-label]="locale.locale() === 'ar' ? 'أقسام المسودة' : 'Draft sections'"
         >
-          <a [routerLink]="['../']">{{ locale.locale() === 'ar' ? 'البيانات' : 'Metadata' }}</a>
+          <a [routerLink]="['../']" aria-current="page">{{
+            locale.locale() === 'ar' ? 'البيانات' : 'Metadata'
+          }}</a>
           <a [routerLink]="['../curriculum']">{{
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
           }}</a>
+          <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
           <a [routerLink]="['../publication']">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>

@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
+using Amazon.S3.Util;
 using Dorosak.Application.Features.Media;
 using Microsoft.Extensions.Options;
 
@@ -8,7 +9,10 @@ namespace Dorosak.Infrastructure.Media;
 internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
 {
     private readonly AmazonS3Client _client;
+    private readonly AmazonS3Client _signingClient;
     private readonly MediaStorageOptions _options;
+    private readonly SemaphoreSlim _bucketGate = new(1, 1);
+    private bool _bucketReady;
 
     public S3ObjectStorage(MediaStorageOptions options)
     {
@@ -28,6 +32,15 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                 ForcePathStyle = options.ForcePathStyle,
                 UseHttp = options.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase),
             });
+        _signingClient = string.IsNullOrWhiteSpace(options.PublicEndpoint)
+            ? _client
+            : new AmazonS3Client(options.AccessKey, options.SecretKey, new AmazonS3Config
+            {
+                ServiceURL = options.PublicEndpoint,
+                AuthenticationRegion = options.Region,
+                ForcePathStyle = options.ForcePathStyle,
+                UseHttp = options.PublicEndpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase),
+            });
     }
 
     public string Provider => "S3";
@@ -38,6 +51,7 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
     {
         try
         {
+            await EnsureBucketAsync(cancellationToken);
             var response = await _client.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
             {
                 BucketName = _options.Bucket,
@@ -58,6 +72,7 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
     {
         try
         {
+            await EnsureBucketAsync(cancellationToken);
             var response = await _client.PutObjectAsync(new PutObjectRequest
             {
                 BucketName = _options.Bucket,
@@ -67,7 +82,11 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                 AutoCloseStream = false,
                 AutoResetStreamPosition = false,
             }, cancellationToken);
-            return new ObjectStoragePutResult(response.ETag, response.VersionId, request.ContentLength);
+            return new ObjectStoragePutResult(response.ETag, response.VersionId, request.ContentLength, Provider, _options.Bucket);
+        }
+        catch (UploadContentLengthException)
+        {
+            throw;
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -79,6 +98,8 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
         string objectKey,
         string uploadId,
         int partNumber,
+        long contentLength,
+        string sha256,
         TimeSpan lifetime,
         CancellationToken cancellationToken)
     {
@@ -94,7 +115,9 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                 UploadId = uploadId,
                 PartNumber = partNumber,
             };
-            return Task.FromResult(RewritePublicEndpoint(new Uri(_client.GetPreSignedURL(request), UriKind.Absolute)));
+            request.Headers.ContentLength = contentLength;
+            request.Headers["x-amz-checksum-sha256"] = Convert.ToBase64String(Convert.FromHexString(sha256));
+            return Task.FromResult(NormalizeSignedUrl(_signingClient.GetPreSignedURL(request)));
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -117,7 +140,13 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                 UploadId = uploadId,
                 PartETags = parts.Select(part => new PartETag(part.PartNumber, part.ETag)).ToList(),
             }, cancellationToken);
-            return new ObjectStorageCompleteResult(response.ETag, response.VersionId, null);
+            GetObjectMetadataResponse metadata = await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            {
+                BucketName = _options.Bucket,
+                Key = objectKey,
+                VersionId = response.VersionId,
+            }, cancellationToken);
+            return new ObjectStorageCompleteResult(response.ETag, response.VersionId, metadata.ContentLength);
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -186,7 +215,7 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                     ContentDisposition = $"attachment; filename=\"{MediaObjectKeys.SafeFileName(fileName)}\"",
                 },
             };
-            return Task.FromResult(RewritePublicEndpoint(new Uri(_client.GetPreSignedURL(request), UriKind.Absolute)));
+            return Task.FromResult(NormalizeSignedUrl(_signingClient.GetPreSignedURL(request)));
         }
         catch (Exception exception) when (IsStorageException(exception))
         {
@@ -210,24 +239,62 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
         }
     }
 
-    public void Dispose() => _client.Dispose();
+    public void Dispose()
+    {
+        if (!ReferenceEquals(_client, _signingClient))
+        {
+            _signingClient.Dispose();
+        }
+        _client.Dispose();
+        _bucketGate.Dispose();
+    }
 
     private static bool IsStorageException(Exception exception) =>
         exception is AmazonS3Exception or HttpRequestException or IOException or TaskCanceledException;
 
-    private Uri RewritePublicEndpoint(Uri signedUri)
+    private Uri NormalizeSignedUrl(string value)
     {
-        if (!Uri.TryCreate(_options.PublicEndpoint, UriKind.Absolute, out Uri? publicEndpoint))
+        var signed = new Uri(value, UriKind.Absolute);
+        string endpointValue = string.IsNullOrWhiteSpace(_options.PublicEndpoint) ? _options.Endpoint : _options.PublicEndpoint;
+        var endpoint = new Uri(endpointValue, UriKind.Absolute);
+        return signed.Scheme == endpoint.Scheme
+            ? signed
+            : new UriBuilder(signed) { Scheme = endpoint.Scheme, Port = endpoint.Port }.Uri;
+    }
+
+    private async Task EnsureBucketAsync(CancellationToken cancellationToken)
+    {
+        if (!_options.CreateBucketIfMissing || _bucketReady)
         {
-            return signedUri;
+            return;
         }
-        var builder = new UriBuilder(signedUri)
+        await _bucketGate.WaitAsync(cancellationToken);
+        try
         {
-            Scheme = publicEndpoint.Scheme,
-            Host = publicEndpoint.Host,
-            Port = publicEndpoint.Port,
-        };
-        return builder.Uri;
+            if (_bucketReady)
+            {
+                return;
+            }
+            try
+            {
+                if (!await AmazonS3Util.DoesS3BucketExistV2Async(_client, _options.Bucket))
+                {
+                    await _client.PutBucketAsync(new PutBucketRequest { BucketName = _options.Bucket }, cancellationToken);
+                }
+            }
+            catch (AmazonS3Exception exception) when (exception.StatusCode is System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.Forbidden)
+            {
+                if (exception.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    throw new StorageUnavailableException("Object storage rejected bucket initialization.", exception);
+                }
+            }
+            _bucketReady = true;
+        }
+        finally
+        {
+            _bucketGate.Release();
+        }
     }
 }
 
@@ -241,7 +308,7 @@ internal sealed class DisabledObjectStorage : IObjectStorage
     public Task<ObjectStoragePutResult> PutObjectAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken) =>
         Fail<ObjectStoragePutResult>();
 
-    public Task<Uri> CreatePartUploadUrlAsync(string objectKey, string uploadId, int partNumber, TimeSpan lifetime, CancellationToken cancellationToken) =>
+    public Task<Uri> CreatePartUploadUrlAsync(string objectKey, string uploadId, int partNumber, long contentLength, string sha256, TimeSpan lifetime, CancellationToken cancellationToken) =>
         Fail<Uri>();
 
     public Task<ObjectStorageCompleteResult> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<ObjectStoragePart> parts, CancellationToken cancellationToken) =>

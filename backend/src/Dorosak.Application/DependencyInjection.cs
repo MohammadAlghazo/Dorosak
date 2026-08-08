@@ -63,6 +63,8 @@ public static class DependencyInjection
             Features.Media.MediaResourceAuthorizer<Features.Media.GetMediaStatusQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CreateDownloadGrantCommand>,
             Features.Media.MediaResourceAuthorizer<Features.Media.CreateDownloadGrantCommand>>();
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CreateCaptionUploadCommand>,
+            Features.Media.MediaResourceAuthorizer<Features.Media.CreateCaptionUploadCommand>>();
         services.AddAutoMapper(
             configuration => configuration.LicenseKey = autoMapperLicenseKey,
             AssemblyReference.Assembly);
@@ -107,6 +109,7 @@ public static class DependencyInjection
     private static void AddMediaHandlers(IServiceCollection services)
     {
         AddMediaCommandHandler<Features.Media.CreateUploadSessionCommand, Features.Media.UploadSessionResponse>(services);
+        AddMediaCommandHandler<Features.Media.CreateCaptionUploadCommand, Features.Media.UploadSessionResponse>(services);
         AddMediaCommandHandler<Features.Media.PutUploadContentCommand, Features.Media.UploadSessionResponse>(services);
         AddMediaCommandHandler<Features.Media.IssueUploadPartCommand, Features.Media.UploadPartResponse>(services);
         AddMediaCommandHandler<Features.Media.CompleteUploadCommand, Features.Media.UploadSessionResponse>(services);

@@ -1099,7 +1099,7 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("asset_id");
 
-                    b.Property<long>("Bytes")
+                    b.Property<long?>("Bytes")
                         .HasColumnType("bigint")
                         .HasColumnName("bytes");
 
@@ -1108,7 +1108,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at");
 
                     b.Property<string>("ETag")
-                        .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("e_tag");
@@ -1131,8 +1130,57 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(512)")
                         .HasColumnName("object_key");
 
+                    b.Property<DateTimeOffset?>("ReadyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ready_at");
+
+                    b.Property<DateTimeOffset?>("RejectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
+
+                    b.Property<string>("RejectionCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("rejection_code");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<Guid>("SourceMediaAssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_media_asset_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("StorageContainer")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("storage_container");
+
+                    b.Property<string>("StorageProvider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("storage_provider");
+
+                    b.Property<string>("VersionId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("version_id");
+
                     b.HasKey("Id")
                         .HasName("pk_caption_tracks");
+
+                    b.HasIndex("SourceMediaAssetId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_caption_tracks_source_media_asset_id");
 
                     b.HasIndex("AssetId", "Locale")
                         .IsUnique()
@@ -1140,7 +1188,9 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
 
                     b.ToTable("caption_tracks", "media", t =>
                         {
-                            t.HasCheckConstraint("ck_caption_tracks_bytes", "bytes > 0");
+                            t.HasCheckConstraint("ck_caption_tracks_bytes", "bytes IS NULL OR bytes > 0");
+
+                            t.HasCheckConstraint("ck_caption_tracks_state", "state IN ('Pending', 'Ready', 'Rejected')");
                         });
                 });
 
@@ -1224,6 +1274,18 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("state");
+
+                    b.Property<string>("StorageContainer")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("storage_container");
+
+                    b.Property<string>("StorageProvider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("storage_provider");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1377,6 +1439,24 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(512)")
                         .HasColumnName("object_key");
 
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("StorageContainer")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("storage_container");
+
+                    b.Property<string>("StorageProvider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("storage_provider");
+
                     b.Property<string>("VersionId")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1403,6 +1483,8 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_media_variants_dimensions", "(width IS NULL AND height IS NULL) OR (width > 0 AND height > 0)");
 
                             t.HasCheckConstraint("ck_media_variants_duration", "duration_seconds IS NULL OR duration_seconds >= 0");
+
+                            t.HasCheckConstraint("ck_media_variants_sha256", "sha256 ~ '^[0-9a-f]{64}$'");
                         });
                 });
 
@@ -2198,775 +2280,789 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         {
                             Id = 1,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.ReadOwn",
+                            ClaimValue = "Media.UploadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 2,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.UpdateOwn",
+                            ClaimValue = "Media.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 3,
                             ClaimType = "permission",
-                            ClaimValue = "Security.ManageOwn",
+                            ClaimValue = "Profile.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 4,
                             ClaimType = "permission",
-                            ClaimValue = "Sessions.ManageOwn",
+                            ClaimValue = "Profile.UpdateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 5,
                             ClaimType = "permission",
-                            ClaimValue = "TeacherApplication.CreateOwn",
+                            ClaimValue = "Security.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 6,
                             ClaimType = "permission",
-                            ClaimValue = "Enrollment.CreateOwn",
+                            ClaimValue = "Sessions.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 7,
                             ClaimType = "permission",
-                            ClaimValue = "Enrollment.ReadOwn",
+                            ClaimValue = "TeacherApplication.CreateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 8,
                             ClaimType = "permission",
-                            ClaimValue = "Learning.AccessOwn",
+                            ClaimValue = "Enrollment.CreateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 9,
                             ClaimType = "permission",
-                            ClaimValue = "Progress.UpdateOwn",
+                            ClaimValue = "Enrollment.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 10,
                             ClaimType = "permission",
-                            ClaimValue = "Quiz.AttemptOwn",
+                            ClaimValue = "Learning.AccessOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 11,
                             ClaimType = "permission",
-                            ClaimValue = "Assignment.SubmitOwn",
+                            ClaimValue = "Progress.UpdateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 12,
                             ClaimType = "permission",
-                            ClaimValue = "Review.ManageOwn",
+                            ClaimValue = "Quiz.AttemptOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 13,
                             ClaimType = "permission",
-                            ClaimValue = "Discussion.Participate",
+                            ClaimValue = "Assignment.SubmitOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 14,
                             ClaimType = "permission",
-                            ClaimValue = "Comment.ManageOwn",
+                            ClaimValue = "Review.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 15,
                             ClaimType = "permission",
-                            ClaimValue = "Message.SendAsSelf",
+                            ClaimValue = "Discussion.Participate",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 16,
                             ClaimType = "permission",
-                            ClaimValue = "Conversation.ReadOwn",
+                            ClaimValue = "Comment.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 17,
                             ClaimType = "permission",
-                            ClaimValue = "Notification.ReadOwn",
+                            ClaimValue = "Message.SendAsSelf",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 18,
                             ClaimType = "permission",
-                            ClaimValue = "Certificate.ReadOwn",
+                            ClaimValue = "Conversation.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 19,
                             ClaimType = "permission",
-                            ClaimValue = "Certificate.VerifyPublic",
+                            ClaimValue = "Notification.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 20,
                             ClaimType = "permission",
-                            ClaimValue = "Order.ReadOwn",
+                            ClaimValue = "Certificate.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 21,
                             ClaimType = "permission",
-                            ClaimValue = "Checkout.CreateOwn",
+                            ClaimValue = "Certificate.VerifyPublic",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 22,
                             ClaimType = "permission",
-                            ClaimValue = "Subscription.ManageOwn",
+                            ClaimValue = "Order.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 23,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
+                            ClaimValue = "Checkout.CreateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 24,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.UpdateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
+                            ClaimValue = "Subscription.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546001")
                         },
                         new
                         {
                             Id = 25,
                             ClaimType = "permission",
-                            ClaimValue = "Security.ManageOwn",
+                            ClaimValue = "Media.UploadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 26,
                             ClaimType = "permission",
-                            ClaimValue = "Sessions.ManageOwn",
+                            ClaimValue = "Media.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 27,
                             ClaimType = "permission",
-                            ClaimValue = "TeacherApplication.CreateOwn",
+                            ClaimValue = "Profile.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 28,
                             ClaimType = "permission",
-                            ClaimValue = "Enrollment.CreateOwn",
+                            ClaimValue = "Profile.UpdateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 29,
                             ClaimType = "permission",
-                            ClaimValue = "Enrollment.ReadOwn",
+                            ClaimValue = "Security.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 30,
                             ClaimType = "permission",
-                            ClaimValue = "Learning.AccessOwn",
+                            ClaimValue = "Sessions.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 31,
                             ClaimType = "permission",
-                            ClaimValue = "Progress.UpdateOwn",
+                            ClaimValue = "TeacherApplication.CreateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 32,
                             ClaimType = "permission",
-                            ClaimValue = "Quiz.AttemptOwn",
+                            ClaimValue = "Enrollment.CreateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 33,
                             ClaimType = "permission",
-                            ClaimValue = "Assignment.SubmitOwn",
+                            ClaimValue = "Enrollment.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 34,
                             ClaimType = "permission",
-                            ClaimValue = "Review.ManageOwn",
+                            ClaimValue = "Learning.AccessOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 35,
                             ClaimType = "permission",
-                            ClaimValue = "Discussion.Participate",
+                            ClaimValue = "Progress.UpdateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 36,
                             ClaimType = "permission",
-                            ClaimValue = "Comment.ManageOwn",
+                            ClaimValue = "Quiz.AttemptOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 37,
                             ClaimType = "permission",
-                            ClaimValue = "Message.SendAsSelf",
+                            ClaimValue = "Assignment.SubmitOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 38,
                             ClaimType = "permission",
-                            ClaimValue = "Conversation.ReadOwn",
+                            ClaimValue = "Review.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 39,
                             ClaimType = "permission",
-                            ClaimValue = "Notification.ReadOwn",
+                            ClaimValue = "Discussion.Participate",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 40,
                             ClaimType = "permission",
-                            ClaimValue = "Certificate.ReadOwn",
+                            ClaimValue = "Comment.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 41,
                             ClaimType = "permission",
-                            ClaimValue = "Certificate.VerifyPublic",
+                            ClaimValue = "Message.SendAsSelf",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 42,
                             ClaimType = "permission",
-                            ClaimValue = "Order.ReadOwn",
+                            ClaimValue = "Conversation.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 43,
                             ClaimType = "permission",
-                            ClaimValue = "Checkout.CreateOwn",
+                            ClaimValue = "Notification.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 44,
                             ClaimType = "permission",
-                            ClaimValue = "Subscription.ManageOwn",
+                            ClaimValue = "Certificate.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 45,
                             ClaimType = "permission",
-                            ClaimValue = "Course.Create",
+                            ClaimValue = "Certificate.VerifyPublic",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 46,
                             ClaimType = "permission",
-                            ClaimValue = "Course.ReadOwn",
+                            ClaimValue = "Order.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 47,
                             ClaimType = "permission",
-                            ClaimValue = "Course.UpdateOwn",
+                            ClaimValue = "Checkout.CreateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 48,
                             ClaimType = "permission",
-                            ClaimValue = "Course.DeleteOwn",
+                            ClaimValue = "Subscription.ManageOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 49,
                             ClaimType = "permission",
-                            ClaimValue = "Course.SubmitOwn",
+                            ClaimValue = "Course.Create",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 50,
                             ClaimType = "permission",
-                            ClaimValue = "Media.UploadOwn",
+                            ClaimValue = "Course.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 51,
                             ClaimType = "permission",
-                            ClaimValue = "Media.ReadOwn",
+                            ClaimValue = "Course.UpdateOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 52,
                             ClaimType = "permission",
-                            ClaimValue = "Learning.ViewCourseLearners",
+                            ClaimValue = "Course.DeleteOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 53,
                             ClaimType = "permission",
-                            ClaimValue = "Submission.GradeCourse",
+                            ClaimValue = "Course.SubmitOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 54,
                             ClaimType = "permission",
-                            ClaimValue = "Assessment.ManageCourse",
+                            ClaimValue = "Learning.ViewCourseLearners",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 55,
                             ClaimType = "permission",
-                            ClaimValue = "Announcement.ManageCourse",
+                            ClaimValue = "Submission.GradeCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 56,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ReadEarningsOwn",
+                            ClaimValue = "Assessment.ManageCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 57,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ManagePayoutAccountOwn",
+                            ClaimValue = "Announcement.ManageCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 58,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                            ClaimValue = "Commerce.ReadEarningsOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 59,
                             ClaimType = "permission",
-                            ClaimValue = "Profile.UpdateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                            ClaimValue = "Commerce.ManagePayoutAccountOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546002")
                         },
                         new
                         {
                             Id = 60,
-                            ClaimType = "permission",
-                            ClaimValue = "Security.ManageOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 61,
-                            ClaimType = "permission",
-                            ClaimValue = "Sessions.ManageOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 62,
-                            ClaimType = "permission",
-                            ClaimValue = "TeacherApplication.CreateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 63,
-                            ClaimType = "permission",
-                            ClaimValue = "Enrollment.CreateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 64,
-                            ClaimType = "permission",
-                            ClaimValue = "Enrollment.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 65,
-                            ClaimType = "permission",
-                            ClaimValue = "Learning.AccessOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 66,
-                            ClaimType = "permission",
-                            ClaimValue = "Progress.UpdateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 67,
-                            ClaimType = "permission",
-                            ClaimValue = "Quiz.AttemptOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 68,
-                            ClaimType = "permission",
-                            ClaimValue = "Assignment.SubmitOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 69,
-                            ClaimType = "permission",
-                            ClaimValue = "Review.ManageOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 70,
-                            ClaimType = "permission",
-                            ClaimValue = "Discussion.Participate",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 71,
-                            ClaimType = "permission",
-                            ClaimValue = "Comment.ManageOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 72,
-                            ClaimType = "permission",
-                            ClaimValue = "Message.SendAsSelf",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 73,
-                            ClaimType = "permission",
-                            ClaimValue = "Conversation.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 74,
-                            ClaimType = "permission",
-                            ClaimValue = "Notification.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 75,
-                            ClaimType = "permission",
-                            ClaimValue = "Certificate.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 76,
-                            ClaimType = "permission",
-                            ClaimValue = "Certificate.VerifyPublic",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 77,
-                            ClaimType = "permission",
-                            ClaimValue = "Order.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 78,
-                            ClaimType = "permission",
-                            ClaimValue = "Checkout.CreateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 79,
-                            ClaimType = "permission",
-                            ClaimValue = "Subscription.ManageOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 80,
-                            ClaimType = "permission",
-                            ClaimValue = "Course.Create",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 81,
-                            ClaimType = "permission",
-                            ClaimValue = "Course.ReadOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 82,
-                            ClaimType = "permission",
-                            ClaimValue = "Course.UpdateOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 83,
-                            ClaimType = "permission",
-                            ClaimValue = "Course.DeleteOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 84,
-                            ClaimType = "permission",
-                            ClaimValue = "Course.SubmitOwn",
-                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
-                        },
-                        new
-                        {
-                            Id = 85,
                             ClaimType = "permission",
                             ClaimValue = "Media.UploadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
-                            Id = 86,
+                            Id = 61,
                             ClaimType = "permission",
                             ClaimValue = "Media.ReadOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
+                            Id = 62,
+                            ClaimType = "permission",
+                            ClaimValue = "Profile.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 63,
+                            ClaimType = "permission",
+                            ClaimValue = "Profile.UpdateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 64,
+                            ClaimType = "permission",
+                            ClaimValue = "Security.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 65,
+                            ClaimType = "permission",
+                            ClaimValue = "Sessions.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 66,
+                            ClaimType = "permission",
+                            ClaimValue = "TeacherApplication.CreateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 67,
+                            ClaimType = "permission",
+                            ClaimValue = "Enrollment.CreateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 68,
+                            ClaimType = "permission",
+                            ClaimValue = "Enrollment.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 69,
+                            ClaimType = "permission",
+                            ClaimValue = "Learning.AccessOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 70,
+                            ClaimType = "permission",
+                            ClaimValue = "Progress.UpdateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 71,
+                            ClaimType = "permission",
+                            ClaimValue = "Quiz.AttemptOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 72,
+                            ClaimType = "permission",
+                            ClaimValue = "Assignment.SubmitOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 73,
+                            ClaimType = "permission",
+                            ClaimValue = "Review.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 74,
+                            ClaimType = "permission",
+                            ClaimValue = "Discussion.Participate",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 75,
+                            ClaimType = "permission",
+                            ClaimValue = "Comment.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 76,
+                            ClaimType = "permission",
+                            ClaimValue = "Message.SendAsSelf",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 77,
+                            ClaimType = "permission",
+                            ClaimValue = "Conversation.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 78,
+                            ClaimType = "permission",
+                            ClaimValue = "Notification.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 79,
+                            ClaimType = "permission",
+                            ClaimValue = "Certificate.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 80,
+                            ClaimType = "permission",
+                            ClaimValue = "Certificate.VerifyPublic",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 81,
+                            ClaimType = "permission",
+                            ClaimValue = "Order.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 82,
+                            ClaimType = "permission",
+                            ClaimValue = "Checkout.CreateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 83,
+                            ClaimType = "permission",
+                            ClaimValue = "Subscription.ManageOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 84,
+                            ClaimType = "permission",
+                            ClaimValue = "Course.Create",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 85,
+                            ClaimType = "permission",
+                            ClaimValue = "Course.ReadOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 86,
+                            ClaimType = "permission",
+                            ClaimValue = "Course.UpdateOwn",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
                             Id = 87,
                             ClaimType = "permission",
-                            ClaimValue = "Learning.ViewCourseLearners",
+                            ClaimValue = "Course.DeleteOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 88,
                             ClaimType = "permission",
-                            ClaimValue = "Submission.GradeCourse",
+                            ClaimValue = "Course.SubmitOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 89,
                             ClaimType = "permission",
-                            ClaimValue = "Assessment.ManageCourse",
+                            ClaimValue = "Learning.ViewCourseLearners",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 90,
                             ClaimType = "permission",
-                            ClaimValue = "Announcement.ManageCourse",
+                            ClaimValue = "Submission.GradeCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 91,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ReadEarningsOwn",
+                            ClaimValue = "Assessment.ManageCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 92,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ManagePayoutAccountOwn",
+                            ClaimValue = "Announcement.ManageCourse",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 93,
                             ClaimType = "permission",
-                            ClaimValue = "TeacherApplication.ReviewAny",
+                            ClaimValue = "Commerce.ReadEarningsOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 94,
                             ClaimType = "permission",
-                            ClaimValue = "Course.ReviewAny",
+                            ClaimValue = "Commerce.ManagePayoutAccountOwn",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 95,
                             ClaimType = "permission",
-                            ClaimValue = "Course.PublishAny",
+                            ClaimValue = "TeacherApplication.ReviewAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 96,
                             ClaimType = "permission",
-                            ClaimValue = "Course.ManageAny",
+                            ClaimValue = "Course.ReviewAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 97,
                             ClaimType = "permission",
-                            ClaimValue = "Media.ManageAny",
+                            ClaimValue = "Course.PublishAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 98,
                             ClaimType = "permission",
-                            ClaimValue = "Moderation.ReviewAny",
+                            ClaimValue = "Course.ManageAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 99,
                             ClaimType = "permission",
-                            ClaimValue = "Certificate.RevokeAny",
+                            ClaimValue = "Media.ManageAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 100,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ManageOffers",
+                            ClaimValue = "Moderation.ReviewAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 101,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ManageOrders",
+                            ClaimValue = "Certificate.RevokeAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 102,
                             ClaimType = "permission",
-                            ClaimValue = "Commerce.ManageRefunds",
+                            ClaimValue = "Commerce.ManageOffers",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 103,
                             ClaimType = "permission",
-                            ClaimValue = "User.ReadAny",
+                            ClaimValue = "Commerce.ManageOrders",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 104,
                             ClaimType = "permission",
-                            ClaimValue = "User.ManageAny",
+                            ClaimValue = "Commerce.ManageRefunds",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 105,
                             ClaimType = "permission",
-                            ClaimValue = "Role.ManageAny",
+                            ClaimValue = "User.ReadAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 106,
                             ClaimType = "permission",
-                            ClaimValue = "Catalog.ManageTaxonomy",
+                            ClaimValue = "User.ManageAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 107,
                             ClaimType = "permission",
-                            ClaimValue = "Cms.Manage",
+                            ClaimValue = "Role.ManageAny",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 108,
                             ClaimType = "permission",
-                            ClaimValue = "Settings.Manage",
+                            ClaimValue = "Catalog.ManageTaxonomy",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 109,
                             ClaimType = "permission",
-                            ClaimValue = "FeatureFlag.Manage",
+                            ClaimValue = "Cms.Manage",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 110,
                             ClaimType = "permission",
-                            ClaimValue = "Analytics.Read",
+                            ClaimValue = "Settings.Manage",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
                         },
                         new
                         {
                             Id = 111,
+                            ClaimType = "permission",
+                            ClaimValue = "FeatureFlag.Manage",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 112,
+                            ClaimType = "permission",
+                            ClaimValue = "Analytics.Read",
+                            RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
+                        },
+                        new
+                        {
+                            Id = 113,
                             ClaimType = "permission",
                             ClaimValue = "Audit.Read",
                             RoleId = new Guid("018f3f0e-4380-7b1b-8f8d-b8ea9c546003")
@@ -3361,6 +3457,13 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_caption_tracks_media_assets_asset_id");
+
+                    b.HasOne("Dorosak.Domain.Media.MediaAsset", null)
+                        .WithMany()
+                        .HasForeignKey("SourceMediaAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_caption_tracks_media_assets_source_media_asset_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Media.MediaAsset", b =>

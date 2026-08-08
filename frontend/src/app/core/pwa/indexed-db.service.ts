@@ -20,6 +20,27 @@ export class IndexedDbService {
     );
   }
 
+  async getUserRecord<T>(key: string, userId: string): Promise<T | null> {
+    const database = await this.open();
+    const request = database
+      .transaction('user-data', 'readonly')
+      .objectStore('user-data')
+      .get(key) as IDBRequest<UserScopedRecord | undefined>;
+    const record = await this.request(request);
+    if (record?.userId !== userId || record.expiresAt <= Date.now()) {
+      if (record?.userId === userId) await this.deleteUserRecord(key);
+      return null;
+    }
+    return record.value as T;
+  }
+
+  async deleteUserRecord(key: string): Promise<void> {
+    const database = await this.open();
+    await this.complete(
+      database.transaction('user-data', 'readwrite').objectStore('user-data').delete(key),
+    );
+  }
+
   async purgeUser(userId: string): Promise<void> {
     const database = await this.open();
     const transaction = database.transaction('user-data', 'readwrite');

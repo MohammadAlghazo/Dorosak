@@ -27,6 +27,7 @@ import {
   refreshInterceptor,
   retryInterceptor,
   telemetryInterceptor,
+  xhrUploadProgressInterceptor,
 } from './core/api/api.interceptors';
 import { RuntimeConfigService } from './core/api/runtime-config.service';
 import { isAnonymousPublicReadUrl } from './core/api/public-transfer-cache';
@@ -52,6 +53,7 @@ export const appConfig: ApplicationConfig = {
         bearerInterceptor,
         refreshInterceptor,
         retryInterceptor,
+        xhrUploadProgressInterceptor,
       ]),
     ),
     provideClientHydration(

@@ -59,6 +59,8 @@ public static class Permissions
 
     public static readonly IReadOnlyList<string> Student =
     [
+        MediaUploadOwn,
+        MediaReadOwn,
         ProfileReadOwn,
         ProfileUpdateOwn,
         SecurityManageOwn,

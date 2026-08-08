@@ -94,6 +94,14 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT data_type FROM information_schema.columns WHERE table_schema = 'operations' AND table_name = 'outbox_messages' AND column_name = 'payload'",
             TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'media' AND table_name = 'media_variants' AND column_name = 'sha256'",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'media' AND table_name = 'caption_tracks' AND column_name = 'source_media_asset_id'",
+            TestContext.Current.CancellationToken));
         string compatibilityRange = await ExecuteScalarAsync<string>(
             connection,
             "SELECT minimum_compatible_migration_id || '|' || maximum_compatible_migration_id FROM operations.schema_compatibility WHERE singleton",
@@ -101,6 +109,18 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         string[] boundaries = compatibilityRange.Split('|', 2);
         Assert.Equal("20260806063112_AddSchemaCompatibilityMarker", boundaries[0]);
         Assert.Equal(dbContext.Database.GetMigrations().Last(), boundaries[1]);
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_schema_privilege('dorosak_runtime', 'media', 'USAGE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'media.media_assets', 'SELECT,INSERT,UPDATE,DELETE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'operations.audit_logs', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
 
         string pendingIndex = await ExecuteScalarAsync<string>(
             connection,

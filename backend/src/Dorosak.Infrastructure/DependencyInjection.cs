@@ -2,13 +2,13 @@ using Dorosak.Application.Common.Caching;
 using Dorosak.Application.Common.Idempotency;
 using Dorosak.Application.Common.Identity;
 using Dorosak.Application.Common.Persistence;
+using Dorosak.Application.Features.Media;
 using Dorosak.Infrastructure.Caching;
 using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
-using Dorosak.Infrastructure.Persistence;
 using Dorosak.Infrastructure.Media;
-using Dorosak.Application.Features.Media;
+using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +77,15 @@ public static class DependencyInjection
                 "Media part size must be between the multipart minimum and 64 MiB.")
             .Validate(options => options.MaxPartBytes >= options.PartSizeBytes && options.MaxPartBytes <= 64L * 1024 * 1024,
                 "Media maximum part size is invalid.")
+            .Validate(options => options.ProfileImageMaxBytes > 0 && options.CourseImageMaxBytes > 0 &&
+                options.CaptionMaxBytes > 0 && options.CourseDocumentMaxBytes > 0 &&
+                options.AssignmentSubmissionMaxBytes > 0 && options.SourceVideoMaxBytes > 0,
+                "Media purpose limits must be positive and bounded.")
+            .Validate(options => options.ProfileImageMaxBytes <= 10L * 1024 * 1024 &&
+                options.CourseImageMaxBytes <= 20L * 1024 * 1024 && options.CaptionMaxBytes <= 10L * 1024 * 1024 &&
+                options.CourseDocumentMaxBytes <= 100L * 1024 * 1024 &&
+                options.AssignmentSubmissionMaxBytes <= 250L * 1024 * 1024 && options.SourceVideoMaxBytes <= 10L * 1024 * 1024 * 1024,
+                "Media purpose limits exceed the phase contract.")
             .Validate(options => options.SessionTtl > TimeSpan.Zero && options.SessionTtl <= TimeSpan.FromDays(7),
                 "Media session TTL must be positive and no longer than seven days.")
             .Validate(options => options.TeacherQuotaBytes > 0 && options.CourseQuotaBytes > 0 && options.StudentQuotaBytes > 0,
@@ -87,10 +96,22 @@ public static class DependencyInjection
                 "Media concurrent session limit is invalid.")
             .Validate(options => options.WorkerMaxAttempts is >= 1 and <= 10 && options.WorkerConcurrency is >= 1 and <= 16,
                 "Media worker limits are invalid.")
+            .Validate(options => options.WorkerLockDuration > TimeSpan.Zero && options.WorkerLockDuration <= TimeSpan.FromMinutes(15),
+                "Media worker lock duration is invalid.")
+            .Validate(options => options.OrphanGracePeriod >= TimeSpan.FromHours(1) && options.OrphanGracePeriod <= TimeSpan.FromDays(7),
+                "Media orphan grace period is invalid.")
+            .Validate(options => options.PdfParserMaxBytes > 0 && options.PdfParserMaxBytes <= options.AssignmentSubmissionMaxBytes &&
+                options.PdfParserMaxPages is >= 1 and <= 10000,
+                "Media PDF parser bounds are invalid.")
+            .Validate(options => options.ProcessTimeout >= TimeSpan.FromSeconds(1) && options.ProcessTimeout <= TimeSpan.FromMinutes(30) &&
+                options.ProcessOutputCharacterLimit is >= 4096 and <= 1024 * 1024,
+                "Media process limits are invalid.")
             .ValidateOnStart();
         services.AddOptions<MediaStorageOptions>()
             .Bind(configuration.GetSection(MediaStorageOptions.SectionName))
-            .Validate(options => !options.Enabled || Uri.TryCreate(options.Endpoint, UriKind.Absolute, out _),
+            .Validate(options => !options.Enabled ||
+                Uri.TryCreate(options.Endpoint, UriKind.Absolute, out Uri? endpoint) &&
+                (endpoint.Scheme == Uri.UriSchemeHttps || endpoint.Host is "127.0.0.1" or "localhost" or "minio"),
                 "Media object storage endpoint is invalid.")
             .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Bucket),
                 "Media object storage bucket is required.")
@@ -98,6 +119,9 @@ public static class DependencyInjection
                 "Media object storage access key is required.")
             .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.SecretKey),
                 "Media object storage secret key is required.")
+            .Validate(options => !options.Enabled || string.IsNullOrWhiteSpace(options.PublicEndpoint) ||
+                Uri.TryCreate(options.PublicEndpoint, UriKind.Absolute, out _),
+                "Media object storage public endpoint is invalid.")
             .Validate(options => options.UploadUrlMinutes is >= 1 and <= 10 && options.DownloadUrlMinutes is >= 1 and <= 5,
                 "Media signed URL lifetimes are invalid.")
             .ValidateOnStart();

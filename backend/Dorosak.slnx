@@ -13,5 +13,6 @@
     <Project Path="tests/Dorosak.Application.UnitTests/Dorosak.Application.UnitTests.csproj" />
     <Project Path="tests/Dorosak.ArchitectureTests/Dorosak.ArchitectureTests.csproj" />
     <Project Path="tests/Dorosak.Domain.UnitTests/Dorosak.Domain.UnitTests.csproj" />
+    <Project Path="tests/Dorosak.MediaWorker.UnitTests/Dorosak.MediaWorker.UnitTests.csproj" />
   </Folder>
 </Solution>

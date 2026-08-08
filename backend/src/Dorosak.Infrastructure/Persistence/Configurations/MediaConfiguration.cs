@@ -1,5 +1,5 @@
-using Dorosak.Domain.Media;
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Media;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -80,6 +80,8 @@ internal sealed class MediaAssetConfiguration : IEntityTypeConfiguration<MediaAs
         builder.Property(asset => asset.DeclaredSha256).HasMaxLength(64).IsRequired();
         builder.Property(asset => asset.VerifiedSha256).HasMaxLength(64);
         builder.Property(asset => asset.QuarantineObjectKey).HasMaxLength(512).IsRequired();
+        builder.Property(asset => asset.StorageProvider).HasMaxLength(50).IsRequired();
+        builder.Property(asset => asset.StorageContainer).HasMaxLength(255).IsRequired();
         builder.Property(asset => asset.QuarantineETag).HasMaxLength(512);
         builder.Property(asset => asset.QuarantineVersionId).HasMaxLength(500);
         builder.Property(asset => asset.RejectionCode).HasMaxLength(100);
@@ -101,6 +103,7 @@ internal sealed class MediaVariantConfiguration : IEntityTypeConfiguration<Media
         builder.ToTable("media_variants", "media", table =>
         {
             table.HasCheckConstraint("ck_media_variants_bytes", "bytes > 0");
+            table.HasCheckConstraint("ck_media_variants_sha256", "sha256 ~ '^[0-9a-f]{64}$'");
             table.HasCheckConstraint("ck_media_variants_dimensions", "(width IS NULL AND height IS NULL) OR (width > 0 AND height > 0)");
             table.HasCheckConstraint("ck_media_variants_duration", "duration_seconds IS NULL OR duration_seconds >= 0");
         });
@@ -109,6 +112,9 @@ internal sealed class MediaVariantConfiguration : IEntityTypeConfiguration<Media
         builder.Property(variant => variant.Kind).HasMaxLength(80).IsRequired();
         builder.Property(variant => variant.ContentType).HasMaxLength(120).IsRequired();
         builder.Property(variant => variant.ObjectKey).HasMaxLength(512).IsRequired();
+        builder.Property(variant => variant.StorageProvider).HasMaxLength(50).IsRequired();
+        builder.Property(variant => variant.StorageContainer).HasMaxLength(255).IsRequired();
+        builder.Property(variant => variant.Sha256).HasMaxLength(64).IsRequired();
         builder.Property(variant => variant.ETag).HasMaxLength(512).IsRequired();
         builder.Property(variant => variant.VersionId).HasMaxLength(500);
         builder.HasIndex(variant => new { variant.AssetId, variant.Kind }).IsUnique().HasDatabaseName("uq_media_variants_asset_kind");
@@ -123,16 +129,28 @@ internal sealed class CaptionTrackConfiguration : IEntityTypeConfiguration<Capti
     public void Configure(EntityTypeBuilder<CaptionTrack> builder)
     {
         builder.ToTable("caption_tracks", "media", table =>
-            table.HasCheckConstraint("ck_caption_tracks_bytes", "bytes > 0"));
+        {
+            table.HasCheckConstraint("ck_caption_tracks_bytes", "bytes IS NULL OR bytes > 0");
+            table.HasCheckConstraint("ck_caption_tracks_state", "state IN ('Pending', 'Ready', 'Rejected')");
+        });
         builder.HasKey(track => track.Id).HasName("pk_caption_tracks");
         builder.Property(track => track.Id).ValueGeneratedNever();
+        builder.Property(track => track.State).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(track => track.Locale).HasMaxLength(16).IsRequired();
         builder.Property(track => track.Label).HasMaxLength(120).IsRequired();
         builder.Property(track => track.ObjectKey).HasMaxLength(512).IsRequired();
-        builder.Property(track => track.ETag).HasMaxLength(512).IsRequired();
+        builder.Property(track => track.StorageProvider).HasMaxLength(50).IsRequired();
+        builder.Property(track => track.StorageContainer).HasMaxLength(255).IsRequired();
+        builder.Property(track => track.Sha256).HasMaxLength(64);
+        builder.Property(track => track.ETag).HasMaxLength(512);
+        builder.Property(track => track.VersionId).HasMaxLength(500);
+        builder.Property(track => track.RejectionCode).HasMaxLength(100);
         builder.HasIndex(track => new { track.AssetId, track.Locale }).IsUnique().HasDatabaseName("uq_caption_tracks_asset_locale");
+        builder.HasIndex(track => track.SourceMediaAssetId).IsUnique().HasDatabaseName("uq_caption_tracks_source_media_asset_id");
         builder.HasOne<MediaAsset>().WithMany().HasForeignKey(track => track.AssetId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_caption_tracks_media_assets_asset_id");
+        builder.HasOne<MediaAsset>().WithMany().HasForeignKey(track => track.SourceMediaAssetId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_caption_tracks_media_assets_source_media_asset_id");
     }
 }
 

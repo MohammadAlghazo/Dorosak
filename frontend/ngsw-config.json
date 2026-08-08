@@ -25,6 +25,7 @@
     "!/api/**",
     "!/hubs/**",
     "!/integrations/**",
+    "!/media/**",
     "!/media/signed/**"
   ]
 }

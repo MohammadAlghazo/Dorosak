@@ -1,4 +1,5 @@
 using Dorosak.Application;
+using Dorosak.Application.Features.Media;
 using Dorosak.Infrastructure;
 using Dorosak.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using Dorosak.Application.Features.Media;
 using Testcontainers.PostgreSql;
 
 namespace Dorosak.Application.IntegrationTests;
@@ -50,7 +50,6 @@ public sealed class InfrastructureFixture : IAsyncLifetime
         services.AddApplication(null, null);
         services.AddInfrastructure(configuration);
         services.AddSingleton<IObjectStorage, TestObjectStorage>();
-        services.AddSingleton<IObjectStorage, TestObjectStorage>();
         return services;
     }
 
@@ -79,6 +78,9 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
         await using AsyncServiceScope scope = Services.CreateAsyncScope();
         DorosakDbContext dbContext = scope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "DO $role$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dorosak_runtime') THEN CREATE ROLE dorosak_runtime NOLOGIN; END IF; END $role$;",
+            TestContext.Current.CancellationToken);
         await dbContext.Database.MigrateAsync();
     }
 
@@ -86,7 +88,7 @@ public sealed class InfrastructureFixture : IAsyncLifetime
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Database"] = DatabaseConnection,
-                 ["ConnectionStrings:Redis"] = RedisConnection,
+                ["ConnectionStrings:Redis"] = RedisConnection,
                 ["Email:SmtpHost"] = "127.0.0.1",
                 ["Email:SmtpPort"] = "1",
                 ["AdminBootstrap:Enabled"] = "true",
@@ -126,11 +128,20 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 internal sealed class TestObjectStorage : IObjectStorage
 {
     private readonly Dictionary<string, byte[]> _objects = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _multipartLengths = new(StringComparer.Ordinal);
+
+    public List<string> AbortedUploadIds { get; } = [];
+
+    public List<string> DeletedObjectKeys { get; } = [];
 
     public string Provider => "Test";
 
-    public Task<ObjectStorageMultipartUpload> CreateMultipartUploadAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(new ObjectStorageMultipartUpload(Guid.NewGuid().ToString("N"), null));
+    public Task<ObjectStorageMultipartUpload> CreateMultipartUploadAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken)
+    {
+        string uploadId = Guid.NewGuid().ToString("N");
+        _multipartLengths[uploadId] = request.ContentLength;
+        return Task.FromResult(new ObjectStorageMultipartUpload(uploadId, null));
+    }
 
     public async Task<ObjectStoragePutResult> PutObjectAsync(ObjectStorageUploadRequest request, CancellationToken cancellationToken)
     {
@@ -138,16 +149,20 @@ internal sealed class TestObjectStorage : IObjectStorage
         await request.Content.CopyToAsync(memory, cancellationToken);
         byte[] bytes = memory.ToArray();
         _objects[request.ObjectKey] = bytes;
-        return new ObjectStoragePutResult($"\"{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes))}\"", null, bytes.Length);
+        return new ObjectStoragePutResult($"\"{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes))}\"", null, bytes.Length, "Test", "test-media");
     }
 
-    public Task<Uri> CreatePartUploadUrlAsync(string objectKey, string uploadId, int partNumber, TimeSpan lifetime, CancellationToken cancellationToken) =>
+    public Task<Uri> CreatePartUploadUrlAsync(string objectKey, string uploadId, int partNumber, long contentLength, string sha256, TimeSpan lifetime, CancellationToken cancellationToken) =>
         Task.FromResult(new Uri($"https://storage.test/upload/{uploadId}/{partNumber}", UriKind.Absolute));
 
     public Task<ObjectStorageCompleteResult> CompleteMultipartUploadAsync(string objectKey, string uploadId, IReadOnlyList<ObjectStoragePart> parts, CancellationToken cancellationToken) =>
-        Task.FromResult(new ObjectStorageCompleteResult("\"multipart-etag\"", null, null));
+        Task.FromResult(new ObjectStorageCompleteResult("\"multipart-etag\"", null, _multipartLengths[uploadId]));
 
-    public Task AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task AbortMultipartUploadAsync(string objectKey, string uploadId, CancellationToken cancellationToken)
+    {
+        AbortedUploadIds.Add(uploadId);
+        return Task.CompletedTask;
+    }
 
     public Task<ObjectStorageReadResult> OpenReadAsync(string objectKey, CancellationToken cancellationToken)
     {
@@ -164,6 +179,13 @@ internal sealed class TestObjectStorage : IObjectStorage
     public Task DeleteObjectAsync(string objectKey, CancellationToken cancellationToken)
     {
         _objects.Remove(objectKey);
+        DeletedObjectKeys.Add(objectKey);
         return Task.CompletedTask;
+    }
+
+    public void ClearObservations()
+    {
+        AbortedUploadIds.Clear();
+        DeletedObjectKeys.Clear();
     }
 }
