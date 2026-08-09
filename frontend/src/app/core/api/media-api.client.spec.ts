@@ -150,4 +150,5 @@ const mediaStatus: MediaStatus = {
   verifiedBytes: 8,
   rejectionCode: null,
   variants: [],
+  captions: [],
 };

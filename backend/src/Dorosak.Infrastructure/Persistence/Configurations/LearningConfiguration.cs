@@ -12,7 +12,7 @@ internal sealed class EntitlementConfiguration : IEntityTypeConfiguration<Entitl
     {
         builder.ToTable("entitlements", "learning", table =>
         {
-            table.HasCheckConstraint("ck_entitlements_source", "source = 'Free'");
+            table.HasCheckConstraint("ck_entitlements_source", "source IN ('Free', 'Demo')");
             table.HasCheckConstraint("ck_entitlements_status", "status IN ('Active', 'Revoked', 'Expired')");
         });
         builder.HasKey(entitlement => entitlement.Id).HasName("pk_entitlements");

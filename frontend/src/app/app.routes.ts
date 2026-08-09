@@ -436,6 +436,19 @@ export const routes: Routes = [
                 },
               },
               {
+                path: 'assessments',
+                loadComponent: () =>
+                  import('./features/instructor/assessments-page.component').then(
+                    (module) => module.AssessmentsPageComponent,
+                  ),
+                data: {
+                  titleAr: 'تقييمات الدورة',
+                  titleEn: 'Course assessments',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+              {
                 path: 'publication',
                 loadComponent: () =>
                   import('./features/instructor/publication-page.component').then(

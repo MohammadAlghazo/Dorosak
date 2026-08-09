@@ -192,7 +192,7 @@ public sealed class MediaIntegrationTests(InfrastructureFixture fixture)
     }
 
     [Fact]
-    public async Task AssignmentSubmissionCreation_IsExplicitlyDeferredUntilPhase9()
+    public async Task AssignmentSubmissionCreation_RequiresConcreteSubmissionContext()
     {
         Guid userId = await CreateUserAsync("media-assignment-deferred", TestContext.Current.CancellationToken);
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
@@ -201,7 +201,7 @@ public sealed class MediaIntegrationTests(InfrastructureFixture fixture)
             TestContext.Current.CancellationToken);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("MEDIA.ASSIGNMENT_SUBMISSIONS_DEFERRED", result.Failure.Code);
+        Assert.Equal("MEDIA.ASSIGNMENT_SUBMISSION_REQUIRED", result.Failure.Code);
     }
 
     [Fact]

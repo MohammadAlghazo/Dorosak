@@ -67,6 +67,9 @@ internal sealed class MediaService(
             await dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT pg_advisory_xact_lock(hashtextextended({$"assignment-files:{submissionId:D}"}, 0))",
                 cancellationToken);
+            _ = await dbContext.Database.SqlQuery<int>(
+                    $"SELECT 1 AS \"Value\" FROM assessment.assignment_submissions WHERE id = {submissionId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken);
             DateTimeOffset assignmentNow = timeProvider.GetUtcNow();
             var context = await (
                 from submission in dbContext.AssignmentSubmissions
@@ -98,9 +101,15 @@ internal sealed class MediaService(
                 return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
                     "MEDIA.ASSIGNMENT_SUBMISSION_LOCKED", "Files cannot be added to this assignment submission."));
             }
-            if (await dbContext.AssignmentSubmissionFiles.CountAsync(
-                    file => file.SubmissionId == assignmentSubmission.Id,
-                    cancellationToken) >= _options.AssignmentSubmissionMaxFiles)
+            int activeFileCount = await (
+                from file in dbContext.AssignmentSubmissionFiles.AsNoTracking()
+                join attachedAsset in dbContext.MediaAssets.AsNoTracking() on file.AssetId equals attachedAsset.Id
+                join upload in dbContext.UploadSessions.AsNoTracking() on attachedAsset.Id equals upload.AssetId
+                where file.SubmissionId == assignmentSubmission.Id &&
+                    attachedAsset.State != MediaAssetState.Rejected && attachedAsset.State != MediaAssetState.Deleted &&
+                    upload.State != UploadSessionState.Cancelled && upload.State != UploadSessionState.Expired
+                select file.Id).CountAsync(cancellationToken);
+            if (activeFileCount >= _options.AssignmentSubmissionMaxFiles)
             {
                 return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
                     "MEDIA.ASSIGNMENT_FILE_LIMIT", "The assignment submission file limit has been reached."));
@@ -914,7 +923,14 @@ internal sealed class MediaAccessReader(DorosakDbContext dbContext, TimeProvider
     private async Task<bool> CanAccessAssetQuery(Guid assetId, Guid userId, CancellationToken cancellationToken)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
-        if (await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId && asset.OwnerUserId == userId, cancellationToken))
+        MediaAsset? asset = await dbContext.MediaAssets.AsNoTracking().SingleOrDefaultAsync(
+            candidate => candidate.Id == assetId,
+            cancellationToken);
+        if (asset is null)
+        {
+            return false;
+        }
+        if (asset.Purpose != MediaPurpose.AssignmentSubmission && asset.OwnerUserId == userId)
         {
             return true;
         }
@@ -924,28 +940,43 @@ internal sealed class MediaAccessReader(DorosakDbContext dbContext, TimeProvider
                 item.claim.ClaimValue == Permissions.MediaManageAny, cancellationToken);
         if (hasManagePermission)
         {
-            return await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId, cancellationToken);
+            return true;
         }
 
-        return await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId && asset.CourseId != null &&
-            (dbContext.CourseInstructors.Any(instructor => instructor.CourseId == asset.CourseId && instructor.UserId == userId) ||
-             dbContext.AssignmentSubmissionFiles.Any(file => file.AssetId == assetId &&
-                 dbContext.AssignmentSubmissions.Any(submission => submission.Id == file.SubmissionId &&
-                     dbContext.Enrollments.Any(enrollment => enrollment.Id == submission.EnrollmentId && enrollment.UserId == userId &&
-                         (enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Active ||
-                          enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Completed) &&
-                         dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
-                             entitlement.Status == Dorosak.Domain.Learning.EntitlementStatus.Active &&
-                             (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now))))) ||
-             dbContext.Enrollments.Any(enrollment => enrollment.UserId == userId &&
-                 enrollment.CourseId == asset.CourseId &&
-                 (enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Active ||
-                  enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Completed) &&
-                  dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
-                      entitlement.Status == Dorosak.Domain.Learning.EntitlementStatus.Active &&
-                      (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)) &&
-                 dbContext.CourseReleaseMediaVariants.Any(variant => variant.ReleaseId == enrollment.ReleaseId && variant.AssetId == assetId))),
-            cancellationToken);
+        if (asset.CourseId is not { } courseId)
+        {
+            return false;
+        }
+        if (asset.Purpose == MediaPurpose.AssignmentSubmission)
+        {
+            return await (
+                from file in dbContext.AssignmentSubmissionFiles.AsNoTracking()
+                join submission in dbContext.AssignmentSubmissions.AsNoTracking() on file.SubmissionId equals submission.Id
+                join enrollment in dbContext.Enrollments.AsNoTracking() on submission.EnrollmentId equals enrollment.Id
+                where file.AssetId == assetId &&
+                    (enrollment.Status == EnrollmentStatus.Active || enrollment.Status == EnrollmentStatus.Completed) &&
+                    dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
+                        entitlement.Status == EntitlementStatus.Active &&
+                        (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)) &&
+                    (enrollment.UserId == userId ||
+                     dbContext.Courses.Any(course => course.Id == courseId && course.OwnerUserId == userId) ||
+                     dbContext.CourseInstructors.Any(instructor => instructor.CourseId == courseId &&
+                         instructor.UserId == userId && instructor.Role != CourseCollaboratorRole.Reviewer))
+                select file.Id).AnyAsync(cancellationToken);
+        }
+
+        return await dbContext.CourseInstructors.AsNoTracking().AnyAsync(
+                instructor => instructor.CourseId == courseId && instructor.UserId == userId,
+                cancellationToken) ||
+            await dbContext.Enrollments.AsNoTracking().AnyAsync(enrollment => enrollment.UserId == userId &&
+                enrollment.CourseId == courseId &&
+                (enrollment.Status == EnrollmentStatus.Active || enrollment.Status == EnrollmentStatus.Completed) &&
+                dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
+                    entitlement.Status == EntitlementStatus.Active &&
+                    (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)) &&
+                dbContext.CourseReleaseMediaVariants.Any(variant =>
+                    variant.ReleaseId == enrollment.ReleaseId && variant.AssetId == assetId),
+                cancellationToken);
     }
 }
 

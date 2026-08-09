@@ -2172,6 +2172,196 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("TotalCredits")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("total_credits");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_demo_orders");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("ix_demo_orders_course_id");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id")
+                        .IsDescending()
+                        .HasDatabaseName("ix_demo_orders_user_created_id");
+
+                    b.ToTable("demo_orders", "commerce", t =>
+                        {
+                            t.HasCheckConstraint("ck_demo_orders_currency", "currency = 'DEMO'");
+
+                            t.HasCheckConstraint("ck_demo_orders_status", "status IN ('Pending', 'Completed', 'Failed')");
+
+                            t.HasCheckConstraint("ck_demo_orders_total", "total_credits > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AmountCredits")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount_credits");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("order_id");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderReference")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("provider_reference");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_demo_payments");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_demo_payments_order_id");
+
+                    b.HasIndex("ProviderReference")
+                        .IsUnique()
+                        .HasDatabaseName("uq_demo_payments_provider_reference");
+
+                    b.ToTable("demo_payments", "commerce", t =>
+                        {
+                            t.HasCheckConstraint("ck_demo_payments_amount", "amount_credits > 0");
+
+                            t.HasCheckConstraint("ck_demo_payments_currency", "currency = 'DEMO'");
+
+                            t.HasCheckConstraint("ck_demo_payments_provider", "provider = 'DemoProvider'");
+
+                            t.HasCheckConstraint("ck_demo_payments_status", "status IN ('Succeeded', 'Failed')");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Engagement.CourseReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<short>("Rating")
+                        .HasColumnType("smallint")
+                        .HasColumnName("rating");
+
+                    b.Property<DateTimeOffset?>("RemovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("removed_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_course_reviews");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_course_reviews_user_course");
+
+                    b.HasIndex("CourseId", "Status", "CreatedAt", "Id")
+                        .IsDescending(false, false, true, true)
+                        .HasDatabaseName("ix_course_reviews_course_status_created_id");
+
+                    b.ToTable("course_reviews", "engagement", t =>
+                        {
+                            t.HasCheckConstraint("ck_course_reviews_rating", "rating BETWEEN 1 AND 5");
+
+                            t.HasCheckConstraint("ck_course_reviews_status", "status IN ('Published', 'Hidden', 'Removed')");
+                        });
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Identity.MfaChallenge", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2636,7 +2826,7 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
 
                     b.ToTable("entitlements", "learning", t =>
                         {
-                            t.HasCheckConstraint("ck_entitlements_source", "source = 'Free'");
+                            t.HasCheckConstraint("ck_entitlements_source", "source IN ('Free', 'Demo')");
 
                             t.HasCheckConstraint("ck_entitlements_status", "status IN ('Active', 'Revoked', 'Expired')");
                         });
@@ -5550,6 +5740,50 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_tag_localizations_tags_tag_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoOrder", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_demo_orders_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_demo_orders_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoPayment", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Commerce.DemoOrder", null)
+                        .WithOne()
+                        .HasForeignKey("Dorosak.Domain.Commerce.DemoPayment", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_demo_payments_demo_orders_order_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Engagement.CourseReview", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_reviews_courses_course_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_course_reviews_users_user_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Identity.MfaChallenge", b =>

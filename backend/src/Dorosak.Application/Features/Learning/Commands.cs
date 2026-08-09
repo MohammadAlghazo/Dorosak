@@ -172,6 +172,11 @@ public sealed record GetAssignmentSubmissionQuery(
     Guid AssignmentVersionId,
     Guid SubmissionId) : IQuery<AssignmentSubmissionResponse>;
 
+public sealed record GetCurrentAssignmentSubmissionQuery(
+    Guid UserId,
+    Guid EnrollmentId,
+    Guid AssignmentVersionId) : IQuery<AssignmentSubmissionResponse>;
+
 public sealed record GradeAssignmentCommand(
     Guid ActorUserId,
     Guid CourseId,

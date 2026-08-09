@@ -6,6 +6,8 @@ using Dorosak.Application.Features.Media;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Caching;
 using Dorosak.Infrastructure.Catalog;
+using Dorosak.Infrastructure.Commerce;
+using Dorosak.Infrastructure.Engagement;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Learning;
@@ -37,6 +39,8 @@ public static class DependencyInjection
         services.AddScoped<IMediaJobStore, MediaJobStore>();
         services.AddScoped<IMediaProcessingStore, MediaProcessingStore>();
         services.AddScoped<Application.Features.Learning.ILearningService, LearningService>();
+        services.AddScoped<Application.Features.Commerce.ICommerceService, CommerceService>();
+        services.AddScoped<Application.Features.Engagement.IEngagementService, EngagementService>();
         services.AddScoped<Phase6Service>();
         services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());

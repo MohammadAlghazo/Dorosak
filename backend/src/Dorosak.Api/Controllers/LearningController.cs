@@ -298,6 +298,23 @@ public sealed class LearningController(ISender sender) : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpGet("learning/enrollments/{enrollmentId:guid}/assignments/{assignmentVersionId:guid}/submissions/current")]
+    [PermissionPolicy(Permissions.AssignmentSubmitOwn)]
+    public async Task<IActionResult> GetCurrentAssignmentSubmission(
+        Guid enrollmentId,
+        Guid assignmentVersionId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<AssignmentSubmissionResponse> result = await sender.Send(
+            new GetCurrentAssignmentSubmissionQuery(userId, enrollmentId, assignmentVersionId),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost("learning/enrollments/{enrollmentId:guid}/assignments/{assignmentVersionId:guid}/files")]
     [PermissionPolicy(Permissions.AssignmentSubmitOwn)]
     [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
@@ -318,7 +335,7 @@ public sealed class LearningController(ISender sender) : ControllerBase
         Result<UploadSessionResponse> result = await sender.Send(
             new CreateUploadSessionCommand(
                 userId,
-                Dorosak.Domain.Media.MediaPurpose.AssignmentSubmission.ToString(),
+                "AssignmentSubmission",
                 request.ExpectedBytes,
                 request.FileName,
                 request.ContentType,

@@ -6,6 +6,7 @@ using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Common;
 using Dorosak.Domain.Learning;
+using Dorosak.Domain.Media;
 using Dorosak.Domain.Operations;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
@@ -53,8 +54,9 @@ internal sealed class LearningService(
             cancellationToken);
         if (entitlement is null)
         {
-            entitlement = Entitlement.GrantFree(request.UserId, request.CourseId, now);
-            dbContext.Entitlements.Add(entitlement);
+            return Failure<EnrollmentResponse>(
+                "ENROLLMENT.ENTITLEMENT_REQUIRED",
+                "Complete the demo checkout before enrolling in this course.");
         }
 
         Enrollment enrollment = Enrollment.Create(
@@ -467,7 +469,7 @@ internal sealed class LearningService(
         CancellationToken cancellationToken)
     {
         if (!await CanManageCourseAsync(request.ActorUserId, request.CourseId, cancellationToken) ||
-            !await CourseLessonExistsAsync(request.CourseId, request.LessonId, cancellationToken))
+            !await CourseLessonExistsAsync(request.CourseId, request.LessonId, "Quiz", cancellationToken))
         {
             return Failure<QuizVersionResponse>("ASSESSMENT.NOT_FOUND", "The assessment resource was not found.", notFound: true);
         }
@@ -844,7 +846,7 @@ internal sealed class LearningService(
         CancellationToken cancellationToken)
     {
         if (!await CanManageCourseAsync(request.ActorUserId, request.CourseId, cancellationToken) ||
-            !await CourseLessonExistsAsync(request.CourseId, request.LessonId, cancellationToken))
+            !await CourseLessonExistsAsync(request.CourseId, request.LessonId, "Assignment", cancellationToken))
         {
             return Failure<AssignmentVersionResponse>("ASSESSMENT.NOT_FOUND", "The assessment resource was not found.", notFound: true);
         }
@@ -953,7 +955,13 @@ internal sealed class LearningService(
             request.UserId,
             request.EnrollmentId,
             cancellationToken);
-        AssignmentSubmission? submission = enrollment is null || release is null
+        AssignmentVersion? version = enrollment is null || release is null
+            ? null
+            : await dbContext.AssignmentVersions.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == request.AssignmentVersionId && item.Status == AssessmentVersionStatus.Ready,
+                cancellationToken);
+        AssignmentSubmission? submission = enrollment is null || release is null || version is null ||
+            !await CanAccessAssignmentAsync(version, request.UserId, cancellationToken)
             ? null
             : await dbContext.AssignmentSubmissions.AsNoTracking().SingleOrDefaultAsync(
                 item => item.Id == request.SubmissionId && item.EnrollmentId == enrollment.Id &&
@@ -961,6 +969,40 @@ internal sealed class LearningService(
                     dbContext.CourseReleaseAssessments.Any(reference => reference.ReleaseId == release.Id &&
                         reference.AssignmentVersionId == item.AssignmentVersionId),
                 cancellationToken);
+        return submission is null
+            ? Failure<AssignmentSubmissionResponse>("ASSIGNMENT.SUBMISSION_NOT_FOUND", "The assignment submission was not found.", notFound: true)
+            : Result.Success(await MapAssignmentSubmissionAsync(submission, cancellationToken));
+    }
+
+    public async Task<Result<AssignmentSubmissionResponse>> GetCurrentAssignmentSubmissionAsync(
+        GetCurrentAssignmentSubmissionQuery request,
+        CancellationToken cancellationToken)
+    {
+        (Enrollment? enrollment, CourseRelease? release) = await FindLearningContextAsync(
+            request.UserId,
+            request.EnrollmentId,
+            cancellationToken);
+        AssignmentVersion? version = enrollment is null || release is null
+            ? null
+            : await dbContext.AssignmentVersions.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == request.AssignmentVersionId && item.Status == AssessmentVersionStatus.Ready,
+                cancellationToken);
+        if (enrollment is null || release is null || version is null ||
+            !await CanAccessAssignmentAsync(version, request.UserId, cancellationToken) ||
+            !await dbContext.CourseReleaseAssessments.AsNoTracking().AnyAsync(
+                item => item.ReleaseId == release.Id && item.AssignmentVersionId == version.Id,
+                cancellationToken))
+        {
+            return Failure<AssignmentSubmissionResponse>(
+                "ASSIGNMENT.SUBMISSION_NOT_FOUND",
+                "The assignment submission was not found.",
+                notFound: true);
+        }
+
+        AssignmentSubmission? submission = await dbContext.AssignmentSubmissions.AsNoTracking()
+            .Where(item => item.EnrollmentId == enrollment.Id && item.AssignmentVersionId == version.Id)
+            .OrderByDescending(item => item.SubmissionNumber)
+            .FirstOrDefaultAsync(cancellationToken);
         return submission is null
             ? Failure<AssignmentSubmissionResponse>("ASSIGNMENT.SUBMISSION_NOT_FOUND", "The assignment submission was not found.", notFound: true)
             : Result.Success(await MapAssignmentSubmissionAsync(submission, cancellationToken));
@@ -990,6 +1032,20 @@ internal sealed class LearningService(
         if (submission is null || version is null || assignment is null || !await CanManageCourseAsync(request.ActorUserId, request.CourseId, cancellationToken))
         {
             return Failure<GradeResponse>("ASSIGNMENT.SUBMISSION_NOT_FOUND", "The assignment submission was not found.", notFound: true);
+        }
+        bool hasPendingFiles = await (
+            from file in dbContext.AssignmentSubmissionFiles.AsNoTracking()
+            join asset in dbContext.MediaAssets.AsNoTracking() on file.AssetId equals asset.Id
+            where file.SubmissionId == submission.Id &&
+                asset.State != MediaAssetState.Ready &&
+                asset.State != MediaAssetState.Rejected &&
+                asset.State != MediaAssetState.Deleted
+            select file.Id).AnyAsync(cancellationToken);
+        if (hasPendingFiles)
+        {
+            return Failure<GradeResponse>(
+                "ASSIGNMENT.FILES_NOT_READY",
+                "Assignment files must finish scanning and processing before grading.");
         }
         int revisionNumber = (await dbContext.GradeRevisions.Where(item => item.SubmissionId == submission.Id).Select(item => (int?)item.RevisionNumber).MaxAsync(cancellationToken) ?? 0) + 1;
         GradeRevision revision;
@@ -1128,9 +1184,15 @@ internal sealed class LearningService(
                 item.claim.ClaimType == IdentityConstants.PermissionClaimType &&
                 item.claim.ClaimValue == permission, cancellationToken);
 
-    private Task<bool> CourseLessonExistsAsync(Guid courseId, Guid lessonId, CancellationToken cancellationToken) =>
+    private Task<bool> CourseLessonExistsAsync(
+        Guid courseId,
+        Guid lessonId,
+        string lessonType,
+        CancellationToken cancellationToken) =>
         dbContext.CourseLessons.AsNoTracking().AnyAsync(
-            lesson => lesson.Id == lessonId && dbContext.CourseDrafts.Any(draft => draft.Id == lesson.DraftId && draft.CourseId == courseId && lesson.RemovedAt == null),
+            lesson => lesson.Id == lessonId && lesson.RemovedAt == null && lesson.CurrentRevisionId != null &&
+                dbContext.CourseDrafts.Any(draft => draft.Id == lesson.DraftId && draft.CourseId == courseId) &&
+                dbContext.LessonRevisions.Any(revision => revision.Id == lesson.CurrentRevisionId && revision.LessonType == lessonType),
             cancellationToken);
 
     private async Task<CourseReleaseLocalization?> FindLocalizationAsync(

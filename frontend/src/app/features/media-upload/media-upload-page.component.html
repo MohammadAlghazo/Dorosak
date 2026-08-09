@@ -49,11 +49,16 @@
         <option value="CourseDocument">
           {{ locale.locale() === 'ar' ? 'مستند PDF' : 'PDF document' }}
         </option>
-        <option value="SourceVideo">
-          {{ locale.locale() === 'ar' ? 'فيديو مصدر' : 'Source video' }}
-        </option>
       </select>
     </div>
+
+    <p class="video-deferred-note">
+      {{
+        locale.locale() === 'ar'
+          ? 'رفع الفيديو مؤجل حتى اعتماد سيرفر التخزين والمعالجة وCDN. يمكنك حالياً رفع الصور وملفات PDF.'
+          : 'Video upload is deferred until the storage, processing, and CDN server is selected. Images and PDFs remain available.'
+      }}
+    </p>
 
     <input
       #fileInput

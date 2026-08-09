@@ -29,12 +29,26 @@ public sealed class LearningEndpointTests(ApiFixture fixture)
 
         using HttpRequestMessage enrollRequest = Authorized(
             HttpMethod.Post,
-            $"/api/v1/courses/{courseId:D}/enroll",
+            "/api/v1/commerce/demo-checkout",
             learner.AccessToken);
         enrollRequest.Headers.Add("Idempotency-Key", Guid.CreateVersion7().ToString("N"));
+        enrollRequest.Content = JsonContent.Create(new { courseId, outcome = "success" });
         using HttpResponseMessage enrolled = await fixture.Client.SendAsync(enrollRequest, cancellationToken);
         Assert.Equal(HttpStatusCode.OK, enrolled.StatusCode);
-        Guid enrollmentId = await ReadGuidAsync(enrolled, "id", cancellationToken);
+        Guid enrollmentId = await ReadGuidAsync(enrolled, "enrollmentId", cancellationToken);
+
+        using HttpRequestMessage createReviewRequest = Authorized(HttpMethod.Post, $"/api/v1/courses/{courseId:D}/reviews", learner.AccessToken);
+        createReviewRequest.Headers.Add("Idempotency-Key", Guid.CreateVersion7().ToString("N"));
+        createReviewRequest.Content = JsonContent.Create(new { rating = 5, text = "Strong release contract." });
+        using HttpResponseMessage createdReview = await fixture.Client.SendAsync(createReviewRequest, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, createdReview.StatusCode);
+        Guid reviewId = await ReadGuidAsync(createdReview, "id", cancellationToken);
+        using HttpResponseMessage publicReviews = await fixture.Client.GetAsync($"/api/v1/catalog/courses/{courseId:D}/reviews", cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, publicReviews.StatusCode);
+        using HttpRequestMessage foreignReviewUpdate = Authorized(HttpMethod.Put, $"/api/v1/courses/{courseId:D}/reviews/{reviewId:D}", otherLearner.AccessToken);
+        foreignReviewUpdate.Content = JsonContent.Create(new { rating = 1, text = "Tampered" });
+        using HttpResponseMessage deniedReviewUpdate = await fixture.Client.SendAsync(foreignReviewUpdate, cancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, deniedReviewUpdate.StatusCode);
 
         using HttpRequestMessage learnerManifestRequest = Authorized(
             HttpMethod.Get,

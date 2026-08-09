@@ -1,4 +1,6 @@
 using Dorosak.Application.Common.Results;
+using Dorosak.Application.Features.Commerce;
+using Dorosak.Application.Features.Engagement;
 using Dorosak.Application.Features.Learning;
 using Dorosak.Application.Features.Phase6;
 using Dorosak.Application.Features.Publishing;
@@ -76,15 +78,42 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.True(published.IsSuccess);
         Assert.Equal("Active", published.Value.State);
 
-        Result<EnrollmentResponse> enrolled = await sender.Send(
-            new EnrollCourseCommand(
-                learnerId,
-                created.Value.CourseId,
-                "en",
-                Guid.CreateVersion7().ToString("N")),
+        Result<DemoCheckoutResponse> checkout = await sender.Send(
+            new CreateDemoCheckoutCommand(
+                learnerId, created.Value.CourseId, "success", "en", Guid.CreateVersion7().ToString("N")),
             cancellationToken);
-        Assert.True(enrolled.IsSuccess);
-        Assert.Equal(published.Value.ReleaseId, enrolled.Value.ReleaseId);
+        Assert.True(checkout.IsSuccess);
+        Result<IReadOnlyList<EnrollmentResponse>> learnerEnrollments = await sender.Send(
+            new GetEnrollmentsQuery(learnerId, "en"), cancellationToken);
+        EnrollmentResponse enrolled = Assert.Single(learnerEnrollments.Value);
+        Assert.Equal(published.Value.ReleaseId, enrolled.ReleaseId);
+        Result<CourseReviewResponse> blockedReview = await sender.Send(
+            new CreateCourseReviewCommand(
+                secondLearnerId, created.Value.CourseId, 4, "Not enrolled", Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(blockedReview.IsSuccess);
+        Assert.Equal("REVIEW.ENROLLMENT_REQUIRED", blockedReview.Failure.Code);
+        Result<CourseReviewResponse> review = await sender.Send(
+            new CreateCourseReviewCommand(
+                learnerId, created.Value.CourseId, 5, "Release pinning works.", Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(review.IsSuccess);
+        Result<CourseReviewResponse> duplicateReview = await sender.Send(
+            new CreateCourseReviewCommand(
+                learnerId, created.Value.CourseId, 4, "Duplicate", Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(duplicateReview.IsSuccess);
+        Assert.Equal("REVIEW.ALREADY_EXISTS", duplicateReview.Failure.Code);
+        Result<CourseReviewPageResponse> reviewPage = await sender.Send(
+            new GetCourseReviewsQuery(created.Value.CourseId, 10), cancellationToken);
+        Assert.Equal(5, reviewPage.Value.AverageRating);
+        Assert.Single(reviewPage.Value.Items);
+        Result<CourseReviewResponse> updatedReview = await sender.Send(
+            new UpdateCourseReviewCommand(
+                learnerId, created.Value.CourseId, review.Value.Id, 4, "Updated review."),
+            cancellationToken);
+        Assert.True(updatedReview.IsSuccess);
+        Assert.Equal(4, updatedReview.Value.Rating);
 
         Result<CourseMutationResponse> nextDraft = await sender.Send(
             new StartNewDraftCommand(teacherId, created.Value.CourseId),
@@ -138,7 +167,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.Equal("release-pinned-learning-revised", historicalSlug.Value.RedirectSlug);
 
         Result<LearningManifestResponse> manifest = await sender.Send(
-            new GetLearningManifestQuery(learnerId, enrolled.Value.Id, "en"),
+            new GetLearningManifestQuery(learnerId, enrolled.Id, "en"),
             cancellationToken);
         Assert.True(manifest.IsSuccess);
         LearningLessonSummaryResponse lesson = Assert.Single(Assert.Single(manifest.Value.Sections).Lessons);
@@ -147,13 +176,13 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
             cancellationToken);
         Assert.Equal("Release Pinned Learning", Assert.Single(fallbackEnrollments.Value).Title);
         Result<LearningManifestResponse> fallbackManifest = await sender.Send(
-            new GetLearningManifestQuery(learnerId, enrolled.Value.Id, "ar"),
+            new GetLearningManifestQuery(learnerId, enrolled.Id, "ar"),
             cancellationToken);
         Assert.Equal("Release Pinned Learning", fallbackManifest.Value.Title);
         Guid clientCommandId = Guid.CreateVersion7();
         var progressCommand = new UpdateLessonProgressCommand(
             learnerId,
-            enrolled.Value.Id,
+            enrolled.Id,
             lesson.Id,
             clientCommandId,
             1,
@@ -178,7 +207,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.Equal("Unpublished", unpublished.Value.State);
 
         Result<LearningManifestResponse> pinnedAccess = await sender.Send(
-            new GetLearningManifestQuery(learnerId, enrolled.Value.Id, "en"),
+            new GetLearningManifestQuery(learnerId, enrolled.Id, "en"),
             cancellationToken);
         Assert.True(pinnedAccess.IsSuccess);
         Assert.Equal(published.Value.ReleaseId, pinnedAccess.Value.ReleaseId);
@@ -347,18 +376,18 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
             cancellationToken);
         Assert.True(release.IsSuccess);
 
-        Result<EnrollmentResponse> enrollment = await sender.Send(
-            new EnrollCourseCommand(
-                learnerId,
-                created.Value.CourseId,
-                "en",
-                Guid.CreateVersion7().ToString("N")),
+        Result<DemoCheckoutResponse> assessmentCheckout = await sender.Send(
+            new CreateDemoCheckoutCommand(
+                learnerId, created.Value.CourseId, "success", "en", Guid.CreateVersion7().ToString("N")),
             cancellationToken);
-        Assert.True(enrollment.IsSuccess);
+        Assert.True(assessmentCheckout.IsSuccess);
+        Result<IReadOnlyList<EnrollmentResponse>> assessmentEnrollments = await sender.Send(
+            new GetEnrollmentsQuery(learnerId, "en"), cancellationToken);
+        EnrollmentResponse enrollment = Assert.Single(assessmentEnrollments.Value);
         Result<QuizAttemptResponse> attempt = await sender.Send(
             new StartQuizAttemptCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 quiz.Value.VersionId,
                 Guid.CreateVersion7().ToString("N")),
             cancellationToken);
@@ -372,7 +401,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Result<QuizAttemptResponse> replacementAttempt = await sender.Send(
             new StartQuizAttemptCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 quiz.Value.VersionId,
                 Guid.CreateVersion7().ToString("N")),
             cancellationToken);
@@ -382,7 +411,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Result<QuizAttemptResponse> expiredSubmission = await sender.Send(
             new SubmitQuizAttemptCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 quiz.Value.VersionId,
                 attempt.Value.Id,
                 [],
@@ -396,7 +425,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Result<QuizAttemptResponse> rejectedAnswer = await sender.Send(
             new SubmitQuizAttemptCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 quiz.Value.VersionId,
                 attempt.Value.Id,
                 [new QuizAnswerInput(question.Id, null, [Guid.CreateVersion7()])],
@@ -407,7 +436,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Result<QuizAttemptResponse> scored = await sender.Send(
             new SubmitQuizAttemptCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 quiz.Value.VersionId,
                 attempt.Value.Id,
                 [new QuizAnswerInput(question.Id, null, [correctOptionId])],
@@ -477,7 +506,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Result<AssignmentSubmissionResponse> submission = await sender.Send(
             new SubmitAssignmentCommand(
                 learnerId,
-                enrollment.Value.Id,
+                enrollment.Id,
                 assignment.Value.VersionId,
                 "The enrollment stores the immutable release identifier.",
                 Guid.CreateVersion7().ToString("N")),
@@ -496,7 +525,7 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.Equal(1, grade.Value.RevisionNumber);
 
         Result<LearningManifestResponse> completed = await sender.Send(
-            new GetLearningManifestQuery(learnerId, enrollment.Value.Id, "en"),
+            new GetLearningManifestQuery(learnerId, enrollment.Id, "en"),
             cancellationToken);
         Assert.True(completed.IsSuccess);
         Assert.Equal("Completed", completed.Value.Status);

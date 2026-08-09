@@ -34,6 +34,14 @@ export class MediaApiClient {
     );
   }
 
+  uploadAssignmentStream(
+    uploadSessionId: string,
+    file: File,
+    sha256: string,
+  ): Observable<MediaUploadEvent> {
+    return this.uploadStream(uploadSessionId, file, sha256);
+  }
+
   uploadStream(uploadSessionId: string, file: File, sha256: string): Observable<MediaUploadEvent> {
     return this.identity.bootstrapCsrf().pipe(
       switchMap(() =>

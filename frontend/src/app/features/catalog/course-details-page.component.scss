@@ -91,6 +91,15 @@ article > h1,
 .enrollment-panel button:disabled {
   opacity: 0.65;
 }
+.demo-checkout-actions {
+  display: grid;
+  gap: var(--space-3);
+}
+.enrollment-panel .failure-button {
+  color: #fecdd3;
+  background: transparent;
+  border: 1px solid #fb7185;
+}
 .enrollment-error {
   grid-column: 1 / -1;
   color: #fecdd3;
@@ -98,6 +107,78 @@ article > h1,
 .course-body section {
   padding: clamp(var(--space-5), 5vw, var(--space-8));
   background: var(--color-surface);
+}
+.reviews-section {
+  margin-block-start: var(--space-8);
+  padding: clamp(var(--space-5), 5vw, var(--space-8));
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.review-summary {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  color: var(--color-muted);
+}
+.review-summary strong {
+  color: var(--color-brand);
+  font-size: 2rem;
+}
+.review-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-block: var(--space-5);
+}
+.review-card {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+}
+.review-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.review-card header span,
+.rating-picker button.active {
+  color: #facc15;
+}
+.review-card p {
+  margin-block: var(--space-3) 0;
+  color: var(--color-muted);
+  line-height: 1.7;
+}
+.review-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+.review-actions button {
+  min-block-size: 40px;
+  color: var(--color-brand);
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+.review-form {
+  display: grid;
+  gap: var(--space-3);
+  max-inline-size: 42rem;
+  margin-block-start: var(--space-7);
+}
+.review-form textarea {
+  inline-size: 100%;
+  resize: vertical;
+}
+.rating-picker {
+  display: flex;
+  gap: var(--space-1);
+}
+.rating-picker button {
+  min-block-size: 44px;
+  padding-inline: var(--space-2);
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  font-size: 1.7rem;
 }
 .course-body h2 {
   font-size: clamp(1.6rem, 3vw, 2.5rem);

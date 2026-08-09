@@ -30,6 +30,10 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name IN ('outbox_messages', 'idempotency_records')",
             TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'engagement' AND table_name = 'course_reviews'",
+            TestContext.Current.CancellationToken));
         Assert.Equal(6L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'media' AND table_name IN ('upload_sessions', 'upload_parts', 'media_assets', 'media_variants', 'caption_tracks', 'media_processing_jobs')",
@@ -70,6 +74,10 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'assignment_audience_members', 'quiz_audience_members', 'submission_files', 'grade_revisions', 'quiz_grade_revisions')",
             TestContext.Current.CancellationToken));
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'commerce' AND table_name IN ('demo_orders', 'demo_payments')",
+            TestContext.Current.CancellationToken));
         Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM catalog.categories",
@@ -89,6 +97,14 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.Equal(0L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_name LIKE 'AspNet%'",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.course_reviews', 'SELECT,INSERT,UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.course_reviews', 'DELETE,TRUNCATE')",
             TestContext.Current.CancellationToken));
         Assert.Equal(3L, await ExecuteScalarAsync<long>(
             connection,
@@ -128,6 +144,22 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'operations.audit_logs', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_schema_privilege('dorosak_runtime', 'commerce', 'USAGE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'commerce.demo_orders', 'SELECT,INSERT')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'commerce.demo_orders', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(0L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'commerce' AND column_name IN ('card_number', 'pan', 'cvv', 'bank_account')",
             TestContext.Current.CancellationToken));
         Assert.True(await ExecuteScalarAsync<bool>(
             connection,

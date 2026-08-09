@@ -104,22 +104,36 @@
           <p>
             {{
               locale.locale() === 'ar'
-                ? 'التسجيل مجاني ويثبت الإصدار الحالي لمساحتك التعليمية.'
-                : 'Enrollment is free and pins this release to your learning space.'
+                ? 'هذا دفع تجريبي فقط بقيمة 100 رصيد وهمي. لا تدخل أي بيانات بطاقة.'
+                : 'This is a demo payment for 100 fake credits. Never enter card details.'
             }}
           </p>
         </div>
-        <button type="button" [disabled]="enrolling()" (click)="enroll(course.courseId)">
-          {{
-            enrolling()
-              ? locale.locale() === 'ar'
-                ? 'جار التسجيل…'
-                : 'Enrolling…'
-              : locale.locale() === 'ar'
-                ? 'سجل مجاناً'
-                : 'Enroll for free'
-          }}
-        </button>
+        <div class="demo-checkout-actions">
+          <button
+            type="button"
+            [disabled]="enrolling()"
+            (click)="demoCheckout(course.courseId, 'success')"
+          >
+            {{
+              enrolling()
+                ? locale.locale() === 'ar'
+                  ? 'جار المحاكاة…'
+                  : 'Simulating…'
+                : locale.locale() === 'ar'
+                  ? 'محاكاة دفع ناجح'
+                  : 'Simulate successful payment'
+            }}
+          </button>
+          <button
+            class="failure-button"
+            type="button"
+            [disabled]="enrolling()"
+            (click)="demoCheckout(course.courseId, 'failure')"
+          >
+            {{ locale.locale() === 'ar' ? 'تجربة فشل الدفع' : 'Test payment failure' }}
+          </button>
+        </div>
         @if (enrollmentError()) {
           <p class="enrollment-error" role="alert">
             <code>{{ enrollmentError() }}</code>
@@ -164,6 +178,107 @@
           </section>
         }
       </div>
+
+      <section class="reviews-section" aria-labelledby="course-reviews">
+        <p class="section-number">04</p>
+        <h2 id="course-reviews">
+          {{ locale.locale() === 'ar' ? 'تقييمات المتعلمين' : 'Learner reviews' }}
+        </h2>
+        @if (reviews(); as reviewPage) {
+          <p class="review-summary">
+            <strong>{{ reviewPage.averageRating.toFixed(1) }}/5</strong>
+            <span
+              >{{ reviewPage.totalCount }}
+              {{ locale.locale() === 'ar' ? 'تقييم' : 'reviews' }}</span
+            >
+          </p>
+          @if (!reviewPage.items.length) {
+            <p>{{ locale.locale() === 'ar' ? 'لا توجد تقييمات بعد.' : 'No reviews yet.' }}</p>
+          }
+          <div class="review-list">
+            @for (review of reviewPage.items; track review.id) {
+              <article class="review-card">
+                <header>
+                  <strong>{{ review.authorName }}</strong>
+                  <span aria-label="Rating"
+                    >{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span
+                  >
+                </header>
+                @if (review.text) {
+                  <p>{{ review.text }}</p>
+                }
+                @if (review.userId === session.identity()?.userId) {
+                  <div class="review-actions">
+                    <button type="button" (click)="editReview(review)">
+                      {{ locale.locale() === 'ar' ? 'تعديل' : 'Edit' }}
+                    </button>
+                    <button type="button" (click)="deleteReview(course.courseId, review.id)">
+                      {{ locale.locale() === 'ar' ? 'حذف' : 'Delete' }}
+                    </button>
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        }
+        @if (session.isAuthenticated()) {
+          <form
+            class="review-form"
+            (submit)="$event.preventDefault(); submitReview(course.courseId)"
+          >
+            <h3>
+              {{
+                currentUserReview(course.courseId)
+                  ? locale.locale() === 'ar'
+                    ? 'عدّل تقييمك'
+                    : 'Update your review'
+                  : locale.locale() === 'ar'
+                    ? 'اكتب تقييمك'
+                    : 'Write your review'
+              }}
+            </h3>
+            <div class="rating-picker" role="radiogroup" aria-label="Rating">
+              @for (rating of [1, 2, 3, 4, 5]; track rating) {
+                <button
+                  type="button"
+                  [class.active]="rating <= reviewRating()"
+                  (click)="setReviewRating(rating)"
+                  [attr.aria-label]="rating"
+                >
+                  ★
+                </button>
+              }
+            </div>
+            <textarea
+              rows="4"
+              maxlength="4000"
+              [value]="reviewText()"
+              (input)="setReviewText($event)"
+              [placeholder]="locale.locale() === 'ar' ? 'شارك تجربتك…' : 'Share your experience…'"
+            ></textarea>
+            @if (reviewError()) {
+              <p class="enrollment-error" role="alert">
+                <code>{{ reviewError() }}</code>
+              </p>
+            }
+            <button type="submit" [disabled]="reviewBusy()">
+              {{
+                reviewBusy()
+                  ? locale.locale() === 'ar'
+                    ? 'جار الحفظ…'
+                    : 'Saving…'
+                  : currentUserReview(course.courseId)
+                    ? locale.locale() === 'ar'
+                      ? 'حفظ التعديل'
+                      : 'Save changes'
+                    : locale.locale() === 'ar'
+                      ? 'نشر التقييم'
+                      : 'Publish review'
+              }}
+            </button>
+          </form>
+        }
+      </section>
 
       @if (course.localizations.length > 1) {
         <nav class="course-languages" aria-label="Course languages">

@@ -200,6 +200,7 @@ const readyStatus: MediaStatus = {
   verifiedBytes: 8,
   rejectionCode: null,
   variants: [],
+  captions: [],
 };
 
 const persistedUpload = (): PersistedMediaUpload => ({

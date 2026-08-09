@@ -19,6 +19,9 @@ interface EditableLesson {
   title: string;
   lessonType: LessonType;
   content: string;
+  mediaAssetId: string | null;
+  quizVersionId: string | null;
+  assignmentVersionId: string | null;
 }
 
 interface EditableSection {
@@ -59,6 +62,9 @@ interface EditableSection {
           <a [routerLink]="['../']">{{ locale.locale() === 'ar' ? 'البيانات' : 'Metadata' }}</a>
           <a [routerLink]="['../curriculum']" aria-current="page">{{
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
+          }}</a>
+          <a [routerLink]="['../assessments']">{{
+            locale.locale() === 'ar' ? 'التقييمات' : 'Assessments'
           }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
           <a [routerLink]="['../publication']">{{
@@ -235,6 +241,51 @@ interface EditableSection {
                       maxlength="100000"
                       (input)="updateLesson(sectionIndex, lessonIndex, 'content', $event)"
                     ></textarea>
+                    @if (lesson.lessonType === 'Document') {
+                      <label [for]="'lesson-media-' + lesson.key">{{
+                        locale.locale() === 'ar' ? 'معرّف ملف PDF الجاهز' : 'Ready PDF media ID'
+                      }}</label>
+                      <input
+                        [id]="'lesson-media-' + lesson.key"
+                        [value]="lesson.mediaAssetId ?? ''"
+                        (input)="
+                          updateLessonReference(sectionIndex, lessonIndex, 'mediaAssetId', $event)
+                        "
+                      />
+                    }
+                    @if (lesson.lessonType === 'Quiz') {
+                      <label [for]="'lesson-quiz-' + lesson.key">{{
+                        locale.locale() === 'ar'
+                          ? 'معرّف نسخة الكويز الجاهزة'
+                          : 'Ready quiz version ID'
+                      }}</label>
+                      <input
+                        [id]="'lesson-quiz-' + lesson.key"
+                        [value]="lesson.quizVersionId ?? ''"
+                        (input)="
+                          updateLessonReference(sectionIndex, lessonIndex, 'quizVersionId', $event)
+                        "
+                      />
+                    }
+                    @if (lesson.lessonType === 'Assignment') {
+                      <label [for]="'lesson-assignment-' + lesson.key">{{
+                        locale.locale() === 'ar'
+                          ? 'معرّف نسخة الواجب الجاهزة'
+                          : 'Ready assignment version ID'
+                      }}</label>
+                      <input
+                        [id]="'lesson-assignment-' + lesson.key"
+                        [value]="lesson.assignmentVersionId ?? ''"
+                        (input)="
+                          updateLessonReference(
+                            sectionIndex,
+                            lessonIndex,
+                            'assignmentVersionId',
+                            $event
+                          )
+                        "
+                      />
+                    }
                   </div>
                   <div class="reorder-actions lesson-actions">
                     <button
@@ -317,6 +368,9 @@ export class CurriculumPageComponent {
             title: lesson.title,
             lessonType: lesson.lessonType,
             content: lesson.content,
+            mediaAssetId: lesson.mediaAssetId,
+            quizVersionId: lesson.quizVersionId,
+            assignmentVersionId: lesson.assignmentVersionId,
           })),
         })),
       );
@@ -414,6 +468,28 @@ export class CurriculumPageComponent {
     this.changes.next();
   }
 
+  protected updateLessonReference(
+    sectionIndex: number,
+    lessonIndex: number,
+    field: 'mediaAssetId' | 'quizVersionId' | 'assignmentVersionId',
+    event: Event,
+  ): void {
+    const value = inputValue(event).trim() || null;
+    this.sections.update((sections) =>
+      sections.map((section, currentSectionIndex) =>
+        currentSectionIndex === sectionIndex
+          ? {
+              ...section,
+              lessons: section.lessons.map((lesson, currentLessonIndex) =>
+                currentLessonIndex === lessonIndex ? { ...lesson, [field]: value } : lesson,
+              ),
+            }
+          : section,
+      ),
+    );
+    this.changes.next();
+  }
+
   protected reorderKey(
     event: KeyboardEvent,
     kind: 'section' | 'lesson',
@@ -465,6 +541,9 @@ export class CurriculumPageComponent {
         title: lesson.title.trim(),
         lessonType: lesson.lessonType,
         content: lesson.content,
+        mediaAssetId: lesson.lessonType === 'Document' ? lesson.mediaAssetId : null,
+        quizVersionId: lesson.lessonType === 'Quiz' ? lesson.quizVersionId : null,
+        assignmentVersionId: lesson.lessonType === 'Assignment' ? lesson.assignmentVersionId : null,
       })),
     }));
     if (
@@ -506,6 +585,9 @@ const newLesson = (): EditableLesson => ({
   title: '',
   lessonType: 'Article',
   content: '',
+  mediaAssetId: null,
+  quizVersionId: null,
+  assignmentVersionId: null,
 });
 
 const updateLessonField = (

@@ -78,6 +78,7 @@ export interface MediaStatus {
   verifiedBytes: number | null;
   rejectionCode: string | null;
   variants: readonly MediaVariant[];
+  captions: readonly unknown[];
 }
 
 export interface DownloadGrantRequest {

@@ -31,6 +31,8 @@ public static class DependencyInjection
         AddPublishingHandlers(services);
         AddMediaHandlers(services);
         AddLearningHandlers(services);
+        AddCommerceHandlers(services);
+        AddEngagementHandlers(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>,
@@ -165,7 +167,22 @@ public static class DependencyInjection
         AddLearningHandler<Features.Learning.MarkAssignmentVersionReadyCommand, Features.Learning.AssignmentVersionResponse>(services);
         AddLearningHandler<Features.Learning.SubmitAssignmentCommand, Features.Learning.AssignmentSubmissionResponse>(services);
         AddLearningHandler<Features.Learning.GetAssignmentSubmissionQuery, Features.Learning.AssignmentSubmissionResponse>(services);
+        AddLearningHandler<Features.Learning.GetCurrentAssignmentSubmissionQuery, Features.Learning.AssignmentSubmissionResponse>(services);
         AddLearningHandler<Features.Learning.GradeAssignmentCommand, Features.Learning.GradeResponse>(services);
+    }
+
+    private static void AddCommerceHandlers(IServiceCollection services)
+    {
+        AddCommerceHandler<Features.Commerce.CreateDemoCheckoutCommand, Features.Commerce.DemoCheckoutResponse>(services);
+    }
+
+    private static void AddEngagementHandlers(IServiceCollection services)
+    {
+        AddEngagementHandler<Features.Engagement.GetCourseReviewsQuery, Features.Engagement.CourseReviewPageResponse>(services);
+        AddEngagementHandler<Features.Engagement.GetMyCourseReviewQuery, Features.Engagement.CourseReviewResponse>(services);
+        AddEngagementHandler<Features.Engagement.CreateCourseReviewCommand, Features.Engagement.CourseReviewResponse>(services);
+        AddEngagementHandler<Features.Engagement.UpdateCourseReviewCommand, Features.Engagement.CourseReviewResponse>(services);
+        AddEngagementHandler<Features.Engagement.DeleteCourseReviewCommand, Features.Engagement.EngagementOperationResponse>(services);
     }
 
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
@@ -197,4 +214,16 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Learning.LearningHandler<TRequest, TResponse>>();
+
+    private static void AddCommerceHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Commerce.CommerceHandler<TRequest, TResponse>>();
+
+    private static void AddEngagementHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Engagement.EngagementHandler<TRequest, TResponse>>();
 }

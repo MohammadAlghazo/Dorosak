@@ -2,6 +2,8 @@ using Dorosak.Application.Common.Persistence;
 using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Commerce;
+using Dorosak.Domain.Engagement;
 using Dorosak.Domain.Identity;
 using Dorosak.Domain.Learning;
 using Dorosak.Domain.Media;
@@ -159,6 +161,12 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<GradeRevision> GradeRevisions => Set<GradeRevision>();
 
     internal DbSet<QuizGradeRevision> QuizGradeRevisions => Set<QuizGradeRevision>();
+
+    internal DbSet<DemoOrder> DemoOrders => Set<DemoOrder>();
+
+    internal DbSet<DemoPayment> DemoPayments => Set<DemoPayment>();
+
+    internal DbSet<CourseReview> CourseReviews => Set<CourseReview>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

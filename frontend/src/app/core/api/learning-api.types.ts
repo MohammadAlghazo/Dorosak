@@ -152,6 +152,109 @@ export interface AssignmentSubmission {
   score: number | null;
   feedback: string | null;
   gradeRevisionNumber: number;
+  files: readonly AssignmentSubmissionFile[];
+}
+
+export interface AssignmentSubmissionFile {
+  id: string;
+  assetId: string;
+  clientFileId: string;
+  fileName: string;
+  contentType: string;
+  declaredBytes: number;
+  state:
+    | 'Initiated'
+    | 'Uploaded'
+    | 'Scanning'
+    | 'Processing'
+    | 'Ready'
+    | 'Rejected'
+    | 'RecoveryPending'
+    | 'Deleted';
+  rejectionCode: string | null;
+  createdAt: string;
+  readyAt: string | null;
+}
+
+export interface CourseLearner {
+  userId: string;
+  displayName: string;
+  enrollments: readonly CourseLearnerEnrollment[];
+}
+
+export interface CourseLearnerEnrollment {
+  enrollmentId: string;
+  releaseId: string;
+  status: string;
+  enrolledAt: string;
+}
+
+export type AssessmentAudienceType = 'AllEnrolled' | 'SelectedLearners';
+
+export interface QuizOptionInput {
+  position: number;
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface QuizQuestionInput {
+  position: number;
+  type: 'SingleChoice' | 'MultipleChoice' | 'TrueFalse' | 'ShortAnswer';
+  prompt: string;
+  points: number;
+  acceptedAnswer: string | null;
+  options: readonly QuizOptionInput[];
+}
+
+export interface CreateQuizVersionRequest {
+  title: string;
+  attemptLimit: number;
+  durationMinutes: number | null;
+  deadline: string | null;
+  passScore: number;
+  questions: readonly QuizQuestionInput[];
+  audienceType: AssessmentAudienceType;
+  selectedLearnerUserIds: readonly string[];
+}
+
+export interface QuizVersion {
+  quizId: string;
+  versionId: string;
+  courseId: string;
+  lessonId: string;
+  versionNumber: number;
+  title: string;
+  status: 'Draft' | 'Ready';
+  attemptLimit: number;
+  durationMinutes: number | null;
+  deadline: string | null;
+  passScore: number;
+  audienceType: AssessmentAudienceType;
+  selectedLearnerUserIds: readonly string[];
+}
+
+export interface CreateAssignmentVersionRequest {
+  title: string;
+  instructions: string;
+  deadline: string | null;
+  allowMultipleSubmissions: boolean;
+  audienceType: AssessmentAudienceType;
+  selectedLearnerUserIds: readonly string[];
+}
+
+export interface AssignmentVersion {
+  assignmentId: string;
+  versionId: string;
+  courseId: string;
+  lessonId: string;
+  versionNumber: number;
+  title: string;
+  instructions: string;
+  status: 'Draft' | 'Ready';
+  deadline: string | null;
+  allowMultipleSubmissions: boolean;
+  audienceType: AssessmentAudienceType;
+  selectedLearnerUserIds: readonly string[];
 }
 
 export interface CourseRelease {

@@ -47,6 +47,13 @@ public sealed class Entitlement
     public static Entitlement GrantFree(Guid userId, Guid courseId, DateTimeOffset now) =>
         new(Guid.CreateVersion7(), userId, courseId, now);
 
+    public static Entitlement GrantDemo(Guid userId, Guid courseId, DateTimeOffset now)
+    {
+        Entitlement entitlement = new(Guid.CreateVersion7(), userId, courseId, now);
+        entitlement.Source = "Demo";
+        return entitlement;
+    }
+
     public void Revoke(DateTimeOffset now)
     {
         if (Status == EntitlementStatus.Revoked)

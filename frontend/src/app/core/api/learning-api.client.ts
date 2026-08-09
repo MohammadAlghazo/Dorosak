@@ -3,9 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import { map, type Observable, switchMap } from 'rxjs';
 import { IdentityApiClient } from './identity-api.client';
 import type { ApiEnvelope } from './api-envelope';
+import type { UploadSession } from './media-api.types';
 import { authenticatedMutationContext, authenticatedReadContext } from './phase6-api.helpers';
 import type {
+  AssignmentVersion,
   AssignmentSubmission,
+  CourseLearner,
+  CreateAssignmentVersionRequest,
+  CreateQuizVersionRequest,
   Enrollment,
   LearningLesson,
   LearningManifest,
@@ -13,6 +18,7 @@ import type {
   Progress,
   QuizAnswerInput,
   QuizAttempt,
+  QuizVersion,
   UpdateProgressRequest,
 } from './learning-api.types';
 
@@ -147,6 +153,91 @@ export class LearningApiClient {
     );
   }
 
+  getAssignmentSubmission(
+    enrollmentId: string,
+    assignmentVersionId: string,
+    submissionId: string,
+  ): Observable<AssignmentSubmission> {
+    return this.read<AssignmentSubmission>(
+      `${assignmentPath(enrollmentId, assignmentVersionId)}/submissions/${encodeURIComponent(submissionId)}`,
+    );
+  }
+
+  getCurrentAssignmentSubmission(
+    enrollmentId: string,
+    assignmentVersionId: string,
+  ): Observable<AssignmentSubmission> {
+    return this.read<AssignmentSubmission>(
+      `${assignmentPath(enrollmentId, assignmentVersionId)}/submissions/current`,
+    );
+  }
+
+  createAssignmentFile(
+    enrollmentId: string,
+    assignmentVersionId: string,
+    request: {
+      submissionId: string;
+      clientFileId: string;
+      expectedBytes: number;
+      fileName: string;
+      contentType: string;
+    },
+    idempotencyKey: string,
+  ): Observable<UploadSession> {
+    return this.mutation<UploadSession>(
+      'post',
+      `${assignmentPath(enrollmentId, assignmentVersionId)}/files`,
+      request,
+      idempotencyHeaders(idempotencyKey),
+    );
+  }
+
+  getCourseLearners(courseId: string): Observable<readonly CourseLearner[]> {
+    return this.read<readonly CourseLearner[]>(
+      `instructor/courses/${encodeURIComponent(courseId)}/learners`,
+    );
+  }
+
+  createQuizVersion(
+    courseId: string,
+    lessonId: string,
+    request: CreateQuizVersionRequest,
+  ): Observable<QuizVersion> {
+    return this.mutation<QuizVersion>(
+      'post',
+      `instructor/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/quizzes/versions`,
+      request,
+    );
+  }
+
+  markQuizReady(courseId: string, versionId: string): Observable<QuizVersion> {
+    return this.mutation<QuizVersion>(
+      'post',
+      `instructor/courses/${encodeURIComponent(courseId)}/quizzes/versions/${encodeURIComponent(versionId)}/ready`,
+      null,
+    );
+  }
+
+  createAssignmentVersion(
+    courseId: string,
+    lessonId: string,
+    request: CreateAssignmentVersionRequest,
+  ): Observable<AssignmentVersion> {
+    return this.mutation<AssignmentVersion>(
+      'post',
+      `instructor/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/assignments/versions`,
+      request,
+    );
+  }
+
+  markAssignmentReady(courseId: string, versionId: string): Observable<AssignmentVersion> {
+    return this.mutation<AssignmentVersion>(
+      'post',
+      `instructor/courses/${encodeURIComponent(courseId)}/assignments/versions/${encodeURIComponent(versionId)}/ready`,
+      null,
+    );
+  }
+
   private read<T>(path: string): Observable<T> {
     return this.http
       .get<ApiEnvelope<T>>(path, { context: authenticatedReadContext() })
@@ -177,6 +268,9 @@ const lessonPath = (enrollmentId: string, lessonId: string): string =>
 
 const quizPath = (enrollmentId: string, quizVersionId: string): string =>
   `learning/enrollments/${encodeURIComponent(enrollmentId)}/quizzes/${encodeURIComponent(quizVersionId)}`;
+
+const assignmentPath = (enrollmentId: string, assignmentVersionId: string): string =>
+  `learning/enrollments/${encodeURIComponent(enrollmentId)}/assignments/${encodeURIComponent(assignmentVersionId)}`;
 
 const idempotencyHeaders = (key: string): HttpHeaders =>
   new HttpHeaders({ 'Idempotency-Key': key });

@@ -32,6 +32,7 @@ internal sealed class LearningHandler<TRequest, TResponse>(ILearningService serv
         MarkAssignmentVersionReadyCommand command => Cast(service.MarkAssignmentVersionReadyAsync(command, cancellationToken)),
         SubmitAssignmentCommand command => Cast(service.SubmitAssignmentAsync(command, cancellationToken)),
         GetAssignmentSubmissionQuery query => Cast(service.GetAssignmentSubmissionAsync(query, cancellationToken)),
+        GetCurrentAssignmentSubmissionQuery query => Cast(service.GetCurrentAssignmentSubmissionAsync(query, cancellationToken)),
         GradeAssignmentCommand command => Cast(service.GradeAssignmentAsync(command, cancellationToken)),
         _ => throw new InvalidOperationException($"Unsupported learning request {typeof(TRequest).Name}."),
     };

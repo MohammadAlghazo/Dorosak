@@ -1402,7 +1402,7 @@ internal sealed class Phase6Service(
         CatalogFilterContract filters)
     {
         if (!string.IsNullOrWhiteSpace(filters.Price) &&
-            !string.Equals(filters.Price.Trim(), "free", StringComparison.OrdinalIgnoreCase))
+            !string.Equals(filters.Price.Trim(), "paid", StringComparison.OrdinalIgnoreCase))
         {
             return query.Where(_ => false);
         }
@@ -1505,7 +1505,7 @@ internal sealed class Phase6Service(
             terms.Where(term => !term.IsCategory)
                 .Select(term => new PublicTaxonomyTermResponse(term.Id, term.Code, term.Name))
                 .ToArray(),
-            new PublicCoursePriceResponse("free", null, null));
+            new PublicCoursePriceResponse("paid", "100", "DEMO"));
     }
 
     private async Task<PublicCourseDetailResponse> MapDetailAsync(

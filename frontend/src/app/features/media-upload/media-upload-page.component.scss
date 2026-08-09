@@ -9,6 +9,14 @@
   max-inline-size: 24rem;
 }
 
+.video-deferred-note {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--color-warning);
+  border-inline-start: 3px solid currentColor;
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
 .upload-type label {
   font-weight: 650;
 }

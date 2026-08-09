@@ -52,7 +52,6 @@ public sealed class MediaController(ISender sender) : ControllerBase
     [HttpPut("uploads/{uploadSessionId:guid}/content")]
     [PermissionPolicy(Permissions.MediaUploadOwn)]
     [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
-    [Consumes("application/octet-stream")]
     [RequestSizeLimit(33554432)]
     public async Task<IActionResult> PutContent(Guid uploadSessionId, CancellationToken cancellationToken)
     {

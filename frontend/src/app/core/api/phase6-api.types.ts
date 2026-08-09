@@ -109,6 +109,9 @@ export interface LessonInput {
   title: string;
   lessonType: LessonType;
   content: string;
+  mediaAssetId: string | null;
+  quizVersionId: string | null;
+  assignmentVersionId: string | null;
 }
 
 export interface SectionInput {

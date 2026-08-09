@@ -76,8 +76,8 @@ new course release is published.
 - Quiz attempts are tied to `(enrollmentId, quizVersionId)`, have an idempotent start/submit, enforce limits/deadlines under
   row locks, and never expose correct answers before submission policy allows.
 - Assignment definitions and immutable versions, text submissions, deadlines, multiple-submission policy, grading, feedback,
-  grade revisions, and audit are in Phase 8. Binary assignment submission files remain deferred to Phase 9 per ADR-019;
-  creating a file upload returns the existing deferred error.
+  grade revisions, and audit are in Phase 8. Binary assignment submission files are implemented in Phase 9 through the
+  concrete submission-file and MediaWorker pipeline.
 - Grade overrides require course teacher scope or Admin permission, recent authentication, audit event, and append-only grade
   revision. A learner cannot grade or read another learner's submission.
 

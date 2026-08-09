@@ -56,6 +56,9 @@ type EditableLevel = CourseLevel | '';
           <a [routerLink]="['../curriculum']">{{
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
           }}</a>
+          <a [routerLink]="['../assessments']">{{
+            locale.locale() === 'ar' ? 'التقييمات' : 'Assessments'
+          }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
           <a [routerLink]="['../publication']">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'

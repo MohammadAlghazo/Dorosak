@@ -137,6 +137,6 @@ Phase 8 consumes only Ready media when creating immutable course releases.
   UTF-8 WebVTT structure is validated before the private caption object is associated with its target source video.
 - PDF validation is strict and bounded by configured byte, page, and parser stack-depth limits. Encrypted/password-protected,
   malformed, over-limit, and lenient-only documents remain quarantined and are rejected.
-- Assignment-submission upload creation is explicitly unavailable until Phase 9 supplies a concrete assignment/submission
-  owner. Enrollment-based delivery entitlement is likewise deferred until the enrollment aggregate exists. Azure Blob/CDN
-  signing, CDN-aware HLS authorization, replication, and production provider disaster recovery remain Phase 12 work.
+- Assignment-submission upload creation is owned by the Phase 9 concrete assignment/submission contract and reuses the same
+  quarantine, checksum, ClamAV, and ready-only delivery pipeline. Azure Blob/CDN signing, CDN-aware HLS authorization,
+  replication, and production provider disaster recovery remain Phase 12 work.

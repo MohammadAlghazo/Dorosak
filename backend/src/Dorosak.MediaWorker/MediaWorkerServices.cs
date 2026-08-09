@@ -783,6 +783,13 @@ internal sealed partial class MediaCleanupWorker(
                 await storage.AbortMultipartUploadAsync(session.QuarantineObjectKey, session.MultipartUploadId, cancellationToken);
             }
             session.Expire(now);
+            if (session.Purpose == MediaPurpose.AssignmentSubmission)
+            {
+                MediaAsset asset = await db.Set<MediaAsset>().SingleAsync(
+                    candidate => candidate.Id == session.AssetId,
+                    cancellationToken);
+                asset.Reject("MEDIA.SESSION_EXPIRED", now);
+            }
             db.Set<AuditLog>().Add(AuditLog.Create(
                 session.OwnerUserId,
                 "media.upload-session-expired",
@@ -806,9 +813,17 @@ internal sealed partial class MediaCleanupWorker(
         foreach (UploadSession session in orphans)
         {
             MediaAsset asset = await db.Set<MediaAsset>().SingleAsync(candidate => candidate.Id == session.AssetId, cancellationToken);
-            if (await db.Set<LessonRevision>().AnyAsync(revision => revision.MediaAssetId == asset.Id, cancellationToken) ||
-                await db.Set<AssignmentSubmissionFile>().AnyAsync(file => file.AssetId == asset.Id, cancellationToken))
+            if (await db.Set<LessonRevision>().AnyAsync(revision => revision.MediaAssetId == asset.Id, cancellationToken))
             {
+                continue;
+            }
+            if (await db.Set<AssignmentSubmissionFile>().AnyAsync(file => file.AssetId == asset.Id, cancellationToken))
+            {
+                if (asset.State == MediaAssetState.Rejected)
+                {
+                    await storage.DeleteObjectAsync(session.QuarantineObjectKey, cancellationToken);
+                    asset.Delete(now);
+                }
                 continue;
             }
             await storage.DeleteObjectAsync(session.QuarantineObjectKey, cancellationToken);

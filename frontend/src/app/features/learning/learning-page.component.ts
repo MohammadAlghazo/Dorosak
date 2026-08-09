@@ -2,10 +2,24 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { catchError, distinctUntilChanged, forkJoin, map, of, switchMap } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  forkJoin,
+  map,
+  of,
+  switchMap,
+  type Observable,
+} from 'rxjs';
 import { ApiProblem } from '../../core/api/api-problem';
+import {
+  DirectStorageHttpClient,
+  type DirectStorageUploadEvent,
+} from '../../core/api/direct-storage-http.client';
 import { LearningApiClient } from '../../core/api/learning-api.client';
 import type {
+  AssignmentSubmission,
+  AssignmentSubmissionFile,
   LearningLesson,
   LearningManifest,
   LearningMediaVariant,
@@ -15,8 +29,17 @@ import type {
   WatchedInterval,
 } from '../../core/api/learning-api.types';
 import { MediaApiClient } from '../../core/api/media-api.client';
+import type {
+  CompletedUploadPart,
+  MediaUploadEvent,
+  UploadSession,
+} from '../../core/api/media-api.types';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { ConnectivityStore } from '../../core/pwa/connectivity.store';
+import {
+  MediaUploadHasher,
+  type MediaFileHashes,
+} from '../media-upload/media-upload-hasher.service';
 
 type WorkspaceState =
   | { status: 'loading' | 'offline'; manifest: null; lesson: null; errorCode: null }
@@ -327,13 +350,13 @@ type WorkspaceState =
                     <section class="assessment" aria-labelledby="assignment-title">
                       <p class="section-label">CHECKPOINT / ASSIGNMENT</p>
                       <h3 id="assignment-title">
-                        {{ locale.locale() === 'ar' ? 'تسليم نصي' : 'Text assignment' }}
+                        {{ locale.locale() === 'ar' ? 'تسليم الواجب' : 'Assignment submission' }}
                       </h3>
                       <p>
                         {{
                           locale.locale() === 'ar'
-                            ? 'رفع الملفات يبدأ في المرحلة التالية؛ هذا التسليم نصي وآمن.'
-                            : 'File uploads begin in the next phase; this submission is text-only.'
+                            ? 'أرسل الإجابة أولاً، ثم أرفق حتى خمسة ملفات PDF. لا يصبح الملف متاحاً قبل الفحص.'
+                            : 'Submit the response first, then attach up to five PDFs. Files remain private until scanned.'
                         }}
                       </p>
                       <textarea
@@ -353,6 +376,40 @@ type WorkspaceState =
                       </button>
                       @if (assignmentStatus()) {
                         <p class="success-note" role="status">{{ assignmentStatus() }}</p>
+                      }
+                      @if (assignmentSubmission(); as submission) {
+                        <div class="assignment-files">
+                          <label for="assignment-pdf">{{
+                            locale.locale() === 'ar' ? 'إرفاق ملف PDF' : 'Attach a PDF'
+                          }}</label>
+                          <input
+                            id="assignment-pdf"
+                            type="file"
+                            accept="application/pdf,.pdf"
+                            (change)="chooseAssignmentFile($event, submission)"
+                            [disabled]="assignmentUploadBusy() || submission.files.length >= 5"
+                          />
+                          @if (assignmentUploadStatus()) {
+                            <p role="status">{{ assignmentUploadStatus() }}</p>
+                          }
+                          @if (submission.files.length) {
+                            <ul>
+                              @for (file of submission.files; track file.id) {
+                                <li>
+                                  <span
+                                    ><strong>{{ file.fileName }}</strong
+                                    ><small>{{ file.state }}</small></span
+                                  >
+                                  @if (file.state === 'Ready') {
+                                    <button type="button" (click)="downloadAssignmentFile(file)">
+                                      {{ locale.locale() === 'ar' ? 'تنزيل' : 'Download' }}
+                                    </button>
+                                  }
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
                       }
                     </section>
                   }
@@ -793,6 +850,44 @@ type WorkspaceState =
     .success-note {
       color: #99f6e4;
     }
+    .assignment-files {
+      display: grid;
+      gap: var(--space-3);
+      margin-block-start: var(--space-5);
+      padding-block-start: var(--space-5);
+      border-block-start: 1px solid #334155;
+    }
+    .assignment-files ul {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .assignment-files li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      background: #111f32;
+    }
+    .assignment-files li span {
+      display: grid;
+      min-inline-size: 0;
+    }
+    .assignment-files li strong {
+      overflow-wrap: anywhere;
+    }
+    .assignment-files li small {
+      color: #94a3b8;
+    }
+    .assignment-files li button {
+      min-block-size: 44px;
+      color: #99f6e4;
+      background: transparent;
+      border: 1px solid #2dd4bf;
+    }
     @media (max-width: 900px) {
       .learning-grid {
         grid-template-columns: 1fr;
@@ -849,6 +944,9 @@ export class LearningPageComponent {
   protected readonly grantingMedia = signal(false);
   protected readonly assessmentBusy = signal(false);
   protected readonly assignmentStatus = signal<string | null>(null);
+  protected readonly assignmentSubmission = signal<AssignmentSubmission | null>(null);
+  protected readonly assignmentUploadBusy = signal(false);
+  protected readonly assignmentUploadStatus = signal<string | null>(null);
   protected readonly state = signal<WorkspaceState>({
     status: 'loading',
     manifest: null,
@@ -859,6 +957,8 @@ export class LearningPageComponent {
   protected assignmentText = '';
   private readonly api = inject(LearningApiClient);
   private readonly mediaApi = inject(MediaApiClient);
+  private readonly directStorage = inject(DirectStorageHttpClient);
+  private readonly mediaHasher = inject(MediaUploadHasher);
   private readonly connectivity = inject(ConnectivityStore);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -1094,6 +1194,7 @@ export class LearningPageComponent {
         next: (submission) => {
           this.assessmentBusy.set(false);
           this.assignmentText = '';
+          this.assignmentSubmission.set(submission);
           this.assignmentStatus.set(
             this.locale.locale() === 'ar'
               ? `تم حفظ التسليم رقم ${String(submission.submissionNumber)}.`
@@ -1103,6 +1204,215 @@ export class LearningPageComponent {
         error: (error: unknown) => {
           this.assessmentBusy.set(false);
           this.setActionError(error);
+        },
+      });
+  }
+
+  protected chooseAssignmentFile(event: Event, submission: AssignmentSubmission): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.item(0);
+    input.value = '';
+    if (!file || this.assignmentUploadBusy()) return;
+    if (
+      file.size <= 0 ||
+      file.size > 250 * 1024 * 1024 ||
+      (file.type && file.type !== 'application/pdf')
+    ) {
+      this.actionError.set('MEDIA.FILE_TYPE_HINT');
+      return;
+    }
+    this.assignmentUploadBusy.set(true);
+    this.assignmentUploadStatus.set(
+      this.locale.locale() === 'ar' ? 'جارٍ إعداد الرفع…' : 'Preparing upload…',
+    );
+    const abort = new AbortController();
+    let uploadSession: UploadSession | null = null;
+    this.requestValue(
+      this.api.createAssignmentFile(
+        submission.enrollmentId,
+        submission.assignmentVersionId,
+        {
+          submissionId: submission.id,
+          clientFileId: globalThis.crypto.randomUUID(),
+          expectedBytes: file.size,
+          fileName: file.name,
+          contentType: file.type || 'application/pdf',
+        },
+        globalThis.crypto.randomUUID(),
+      ),
+    )
+      .then((session) => {
+        uploadSession = session;
+        this.assignmentUploadStatus.set(
+          this.locale.locale() === 'ar' ? 'جارٍ حساب بصمة الملف…' : 'Hashing file…',
+        );
+        return this.mediaHasher.hash(file, session.partSize, abort.signal, () => undefined);
+      })
+      .then((hashes) => {
+        if (!uploadSession) throw new AssignmentUploadError('MEDIA.SESSION_MISSING');
+        this.assignmentUploadStatus.set(
+          this.locale.locale() === 'ar' ? 'جارٍ رفع الملف…' : 'Uploading file…',
+        );
+        return this.uploadAssignmentFile(file, uploadSession, hashes);
+      })
+      .then(() => {
+        this.assignmentUploadStatus.set(
+          this.locale.locale() === 'ar' ? 'جارٍ فحص الملف…' : 'Scanning file…',
+        );
+        this.pollAssignmentSubmission(submission);
+      })
+      .catch((error: unknown) => {
+        this.assignmentUploadBusy.set(false);
+        this.assignmentUploadStatus.set(null);
+        this.setActionError(error);
+      });
+  }
+
+  protected downloadAssignmentFile(file: AssignmentSubmissionFile): void {
+    if (file.state !== 'Ready') return;
+    this.mediaApi
+      .createDownloadGrant(file.assetId, { variantId: null, fileName: file.fileName })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (grant) => {
+          globalThis.location.assign(grant.url);
+        },
+        error: (error: unknown) => {
+          this.setActionError(error);
+        },
+      });
+  }
+
+  private pollAssignmentSubmission(submission: AssignmentSubmission): void {
+    this.api
+      .getAssignmentSubmission(
+        submission.enrollmentId,
+        submission.assignmentVersionId,
+        submission.id,
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.assignmentSubmission.set(updated);
+          const pending = updated.files.some(
+            (file) => !['Ready', 'Rejected', 'Deleted'].includes(file.state),
+          );
+          if (pending) {
+            setTimeout(() => {
+              this.pollAssignmentSubmission(updated);
+            }, 3000);
+            return;
+          }
+          this.assignmentUploadBusy.set(false);
+          this.assignmentUploadStatus.set(
+            updated.files.some((file) => file.state === 'Rejected')
+              ? this.locale.locale() === 'ar'
+                ? 'رُفض ملف أثناء الفحص.'
+                : 'A file was rejected during scanning.'
+              : this.locale.locale() === 'ar'
+                ? 'الملف جاهز.'
+                : 'File ready.',
+          );
+        },
+        error: (error: unknown) => {
+          this.assignmentUploadBusy.set(false);
+          this.setActionError(error);
+        },
+      });
+  }
+
+  private async uploadAssignmentFile(
+    file: File,
+    session: UploadSession,
+    hashes: MediaFileHashes,
+  ): Promise<void> {
+    if (session.mode === 'Stream') {
+      await this.requestUpload(
+        this.mediaApi.uploadAssignmentStream(session.uploadSessionId, file, hashes.sha256),
+      );
+      return;
+    }
+    const parts: CompletedUploadPart[] = [];
+    for (const part of hashes.parts) {
+      const grant = await this.requestValue(
+        this.mediaApi.issuePart(session.uploadSessionId, {
+          partNumber: part.partNumber,
+          expectedBytes: part.size,
+          sha256: part.sha256,
+        }),
+      );
+      const offset = (part.partNumber - 1) * session.partSize;
+      const etag = await this.requestStorageUpload(
+        this.directStorage.putPart(
+          grant.uploadUrl,
+          file.slice(offset, offset + part.size),
+          grant.requiredChecksumSha256,
+        ),
+      );
+      parts.push({ ...part, etag });
+    }
+    const completed = await this.requestValue(
+      this.mediaApi.complete(
+        session.uploadSessionId,
+        { totalBytes: file.size, sha256: hashes.sha256, parts },
+        globalThis.crypto.randomUUID(),
+      ),
+    );
+    if (completed.state !== 'Completed') throw new AssignmentUploadError('MEDIA.SESSION_TERMINAL');
+  }
+
+  private requestStorageUpload(source: Observable<DirectStorageUploadEvent>): Promise<string> {
+    return new Promise((resolve, reject) => {
+      source.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (event) => {
+          if (event.kind === 'complete') resolve(event.etag);
+        },
+        error: reject,
+      });
+    });
+  }
+
+  private requestValue<T>(source: Observable<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      source.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: resolve,
+        error: reject,
+      });
+    });
+  }
+
+  private requestUpload(source: Observable<MediaUploadEvent>): Promise<void> {
+    return new Promise((resolve, reject) => {
+      source.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (event) => {
+          if (event.kind === 'complete') resolve();
+        },
+        error: reject,
+      });
+    });
+  }
+
+  private loadCurrentAssignmentSubmission(enrollmentId: string, assignmentVersionId: string): void {
+    this.api
+      .getCurrentAssignmentSubmission(enrollmentId, assignmentVersionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (submission) => {
+          this.assignmentSubmission.set(submission);
+          if (
+            submission.files.some((file) => !['Ready', 'Rejected', 'Deleted'].includes(file.state))
+          ) {
+            this.assignmentUploadBusy.set(true);
+            this.assignmentUploadStatus.set(
+              this.locale.locale() === 'ar' ? 'جارٍ فحص الملفات…' : 'Scanning files…',
+            );
+            this.pollAssignmentSubmission(submission);
+          }
+        },
+        error: (error: unknown) => {
+          if (!(error instanceof ApiProblem) || error.code !== 'ASSIGNMENT.SUBMISSION_NOT_FOUND') {
+            this.setActionError(error);
+          }
         },
       });
   }
@@ -1156,6 +1466,9 @@ export class LearningPageComponent {
                 map(({ lesson, notes }): WorkspaceState => {
                   this.notes.set(notes);
                   this.selectedVariant.set(lesson.mediaVariants[0] ?? null);
+                  if (lesson.assignmentVersionId) {
+                    this.loadCurrentAssignmentSubmission(enrollmentId, lesson.assignmentVersionId);
+                  }
                   this.api
                     .markRecentlyViewed(enrollmentId, selectedLessonId)
                     .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1218,12 +1531,25 @@ export class LearningPageComponent {
     this.quizAttempt.set(null);
     this.mediaUrl.set(null);
     this.assignmentStatus.set(null);
+    this.assignmentSubmission.set(null);
+    this.assignmentUploadBusy.set(false);
+    this.assignmentUploadStatus.set(null);
     this.answers.clear();
     this.watchedIntervals = [];
   }
 
   private setActionError(error: unknown): void {
-    this.actionError.set(error instanceof ApiProblem ? error.code : 'LEARNING.ACTION_FAILED');
+    this.actionError.set(
+      error instanceof ApiProblem || error instanceof AssignmentUploadError
+        ? error.code
+        : 'LEARNING.ACTION_FAILED',
+    );
+  }
+}
+
+class AssignmentUploadError extends Error {
+  constructor(readonly code: string) {
+    super(code);
   }
 }
 

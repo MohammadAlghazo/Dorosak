@@ -27,5 +27,6 @@ public interface ILearningService
     Task<Result<AssignmentSubmissionResponse>> SubmitAssignmentAsync(SubmitAssignmentCommand request, CancellationToken cancellationToken);
 
     Task<Result<AssignmentSubmissionResponse>> GetAssignmentSubmissionAsync(GetAssignmentSubmissionQuery request, CancellationToken cancellationToken);
+    Task<Result<AssignmentSubmissionResponse>> GetCurrentAssignmentSubmissionAsync(GetCurrentAssignmentSubmissionQuery request, CancellationToken cancellationToken);
     Task<Result<GradeResponse>> GradeAssignmentAsync(GradeAssignmentCommand request, CancellationToken cancellationToken);
 }

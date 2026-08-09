@@ -25,9 +25,9 @@ marks it `Ready`.
   server-side checks. The row remains `Pending` by the referenced asset state until processing reaches `Ready`.
 - The existing media upload session is reused with purpose `AssignmentSubmission`. Its asset receives the submission
   owner and course association, but no public or course-wide media authorization is inferred from those fields.
-- Upload completion creates a `submission_files` row in `Pending` state and queues the normal ClamAV/magic-byte/
-  processing job. The file becomes attachable only after the referenced asset is `Ready`; `Rejected`, `Deleted`, and
-  non-ready assets are never exposed through learner or grader responses.
+- Upload completion queues the normal ClamAV/magic-byte/processing job. Private asset status metadata remains visible to
+  the submission owner for polling, but file content and download grants are unavailable until the referenced asset is
+  `Ready`; `Rejected`, `Deleted`, and non-ready assets never expose file content.
 - Assignment submission and file attachment mutations are idempotent. Reusing a key with a different payload returns
   the existing idempotency conflict; concurrent attach requests are serialized by the submission row lock and unique
   `(submission_id, client_file_id)` constraint.

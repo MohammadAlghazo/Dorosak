@@ -218,6 +218,11 @@
 
 ### 5.9 Commerce
 
+> Temporary local decision (`2026-08-09`): real provider checkout is postponed. The current product uses a clearly labeled
+> `DemoProvider` with `100 DEMO` credits, no monetary value, and explicit success/failure simulation. It stores durable demo
+> orders/payments and grants learning entitlement only on simulated success. PAN, CVV, bank details, and real payment tokens
+> are never requested or stored. This adapter must be replaced before accepting real money.
+
 - فصل `Product`, `SalesOffer`, `Order`, `Payment`, `Subscription`, و`Entitlement`.
 - السعر والعملة والخصم والضريبة تحفظ snapshot داخل الطلب.
 - كوبونات بوقت ونطاق وحد استخدام وقواعد أهلية واضحة.
@@ -2343,7 +2348,8 @@ Phase 6 مكتملة. تم تنفيذ Phase 7 والتحقق منها في `2026
 
 - Azure Blob/CDN signing, replication/disaster recovery: Phase 12.
 - Enrollment entitlement: implemented in Phase 8.
-- Text assignment submissions and grading: implemented in Phase 8؛ binary assignment uploads remain deferred to Phase 9.
+- Text assignment submissions and grading: implemented in Phase 8؛ binary assignment uploads are implemented in the local
+  Phase 9 work described below.
 
 #### القرار
 
@@ -2394,8 +2400,9 @@ Phase 7 مكتملة من ناحية التنفيذ والاختبارات ال�
 
 #### القرارات المؤجلة
 
-- Binary assignment uploads وmalware-scanned submission attachments: Phase 9.
-- Paid enrollment، orders، refunds، subscriptions، وcommerce-owned entitlements: Phase 10.
+- Binary assignment uploads وmalware-scanned submission attachments: implemented locally in Phase 9; integration gate remains.
+- Real-money enrollment, refunds, subscriptions, and provider commerce remain deferred. Durable demo orders/payments and
+  demo-owned entitlements are implemented locally with `DemoProvider` and `100 DEMO` credits.
 - Azure Blob/CDN، production promotion، signing، وstaging deployment: Phase 12 وما بعدها.
 
 #### القرار
@@ -2403,3 +2410,40 @@ Phase 7 مكتملة من ناحية التنفيذ والاختبارات ال�
 Phase 8 مكتملة من ناحية التنفيذ والاختبارات المحلية في `2026-08-09`. يبقى GitHub checkpoint بطلب صريح من المستخدم،
 Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخدم، وفق عقد `ADR-021`. لا يبدأ أي جزء لاحق خارج هذا النطاق قبل
 بوابة الجزء الحالي والتحقق المطلوب.
+
+### 11. Phase 9 Progress Report (Local, In Progress)
+
+#### Implemented
+
+- Assessment audience targeting for `AllEnrolled` and `SelectedLearners`, including enrolled-learner listing, immutable
+  audience membership, release audience snapshots, safe `404` IDOR behavior, and Angular authoring controls.
+- Assignment PDF attachments tied to concrete submissions, idempotent upload-session creation, advisory-lock protected
+  file limits, stream and multipart uploads, checksum validation, ClamAV/magic-byte/PDF processing, ready-only grants,
+  private status polling, learner download, and grader authorization.
+- Expired or rejected attachment sessions no longer consume the active five-file limit. Grading is blocked while attachment
+  processing is pending, and the learner restores the latest submission after refresh.
+- Instructor assessment authoring creates and marks versions ready, then links the version to the selected curriculum lesson
+  with optimistic concurrency protection. New source-video uploads are hidden until the server/CDN choice.
+- Temporary demo commerce stores idempotent `DemoOrder`/`DemoPayment` attempts, simulates success/failure, grants a `Demo`
+  entitlement and pinned enrollment only on success, and never requests or stores real payment credentials.
+
+#### Verification
+
+- Backend solution Debug build: `0 warnings`, `0 errors`.
+- Domain unit tests: `37 passed`.
+- Application unit tests: `20 passed`; architecture tests: `6 passed`.
+- MediaWorker unit tests: `8 passed`, `2 skipped` because Docker/Compose services were unavailable.
+- Angular tests: `57 passed` across `23` files; ESLint and development build passed; `git diff --check` passed.
+- API and PostgreSQL integration gates were attempted but could not start because Docker Desktop was unavailable at
+  `npipe://./pipe/docker_engine`. They must be rerun with Docker/PostgreSQL/Redis/ClamAV available.
+- After Docker became available, PostgreSQL schema/workflow tests passed `3/3`, including DemoOrder/DemoPayment tables,
+  runtime grants, no-card-column assertion, and release-pinned learning. Commerce/Learning API integration tests passed
+  `3/3`, including demo checkout authorization and enrollment IDOR coverage.
+
+#### Still Open
+
+- Durable Phase 9 engagement modules: reviews, discussions/comments, reports, moderation, messages, notifications,
+  announcements, and SignalR reconnect/resync have not been implemented.
+- Dedicated integration coverage remains for selected/all-enrolled IDOR, attachment lifecycle, rejected malware,
+  non-ready grading, collaborator downloads, multipart assignment uploads, and demo checkout persistence once Docker is available.
+- The full backend/frontend/Playwright release gates remain to run before Phase 9 can be closed.
