@@ -91,11 +91,13 @@ public static class DependencyInjection
                 options.CaptionMaxBytes > 0 && options.CourseDocumentMaxBytes > 0 &&
                 options.AssignmentSubmissionMaxBytes > 0 && options.SourceVideoMaxBytes > 0,
                 "Media purpose limits must be positive and bounded.")
-            .Validate(options => options.ProfileImageMaxBytes <= 10L * 1024 * 1024 &&
+             .Validate(options => options.ProfileImageMaxBytes <= 10L * 1024 * 1024 &&
                 options.CourseImageMaxBytes <= 20L * 1024 * 1024 && options.CaptionMaxBytes <= 10L * 1024 * 1024 &&
                 options.CourseDocumentMaxBytes <= 100L * 1024 * 1024 &&
                 options.AssignmentSubmissionMaxBytes <= 250L * 1024 * 1024 && options.SourceVideoMaxBytes <= 10L * 1024 * 1024 * 1024,
-                "Media purpose limits exceed the phase contract.")
+                 "Media purpose limits exceed the phase contract.")
+            .Validate(options => options.AssignmentSubmissionMaxFiles is >= 1 and <= 20,
+                "Assignment submission file count limit is invalid.")
             .Validate(options => options.SessionTtl > TimeSpan.Zero && options.SessionTtl <= TimeSpan.FromDays(7),
                 "Media session TTL must be positive and no longer than seven days.")
             .Validate(options => options.TeacherQuotaBytes > 0 && options.CourseQuotaBytes > 0 && options.StudentQuotaBytes > 0,

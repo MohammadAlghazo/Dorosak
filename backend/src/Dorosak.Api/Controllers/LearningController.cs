@@ -5,6 +5,7 @@ using Dorosak.Api.Extensions;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Learning;
+using Dorosak.Application.Features.Media;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -279,12 +280,57 @@ public sealed class LearningController(ISender sender) : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpGet("learning/enrollments/{enrollmentId:guid}/assignments/{assignmentVersionId:guid}/submissions/{submissionId:guid}")]
+    [PermissionPolicy(Permissions.AssignmentSubmitOwn)]
+    public async Task<IActionResult> GetAssignmentSubmission(
+        Guid enrollmentId,
+        Guid assignmentVersionId,
+        Guid submissionId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<AssignmentSubmissionResponse> result = await sender.Send(
+            new GetAssignmentSubmissionQuery(userId, enrollmentId, assignmentVersionId, submissionId),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
     [HttpPost("learning/enrollments/{enrollmentId:guid}/assignments/{assignmentVersionId:guid}/files")]
     [PermissionPolicy(Permissions.AssignmentSubmitOwn)]
-    public IActionResult CreateAssignmentFile(Guid enrollmentId, Guid assignmentVersionId) => this.ToActionResult(
-        Result.Failure<LearningOperationResponse>(ResultError.BusinessRule(
-            "ASSIGNMENT.FILE_UPLOAD_DEFERRED",
-            "Binary assignment submissions are available in Phase 9.")));
+    [EnableRateLimiting(ApiConstants.UploadRateLimitPolicy)]
+    public async Task<IActionResult> CreateAssignmentFile(
+        Guid enrollmentId,
+        Guid assignmentVersionId,
+        CreateAssignmentFileRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        if (!TryGetIdempotencyKey(out string idempotencyKey))
+        {
+            return MissingIdempotencyKey<UploadSessionResponse>();
+        }
+        Result<UploadSessionResponse> result = await sender.Send(
+            new CreateUploadSessionCommand(
+                userId,
+                Dorosak.Domain.Media.MediaPurpose.AssignmentSubmission.ToString(),
+                request.ExpectedBytes,
+                request.FileName,
+                request.ContentType,
+                null,
+                idempotencyKey,
+                EnrollmentId: enrollmentId,
+                AssignmentVersionId: assignmentVersionId,
+                AssignmentSubmissionId: request.SubmissionId,
+                ClientFileId: request.ClientFileId),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
 
     [HttpPost("instructor/courses/{courseId:guid}/lessons/{lessonId:guid}/quizzes/versions")]
     [PermissionPolicy(Permissions.AssessmentManageCourse)]
@@ -452,6 +498,13 @@ public sealed record LearningNoteRequest(string Text);
 public sealed record SubmitQuizAttemptRequest(IReadOnlyList<QuizAnswerInput> Answers);
 
 public sealed record SubmitAssignmentRequest(string Text);
+
+public sealed record CreateAssignmentFileRequest(
+    Guid SubmissionId,
+    Guid ClientFileId,
+    long ExpectedBytes,
+    string FileName,
+    string ContentType);
 
 public sealed record CreateQuizVersionRequest(
     string Title,

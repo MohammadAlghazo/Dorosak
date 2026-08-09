@@ -450,17 +450,29 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
                 admin,
                 Dorosak.Infrastructure.Identity.IdentityConstants.AdminRole)).Succeeded);
         }
-        Result<GradeResponse> adminOverride = await sender.Send(
-            new GradeQuizAttemptCommand(
-                adminId,
-                created.Value.CourseId,
-                attempt.Value.Id,
-                90,
-                "Administrative moderation review.",
-                "Adjusted quiz result after moderation review"),
-            cancellationToken);
-        Assert.True(adminOverride.IsSuccess);
-        Assert.Equal(3, adminOverride.Value.RevisionNumber);
+        try
+        {
+            Result<GradeResponse> adminOverride = await sender.Send(
+                new GradeQuizAttemptCommand(
+                    adminId,
+                    created.Value.CourseId,
+                    attempt.Value.Id,
+                    90,
+                    "Administrative moderation review.",
+                    "Adjusted quiz result after moderation review"),
+                cancellationToken);
+            Assert.True(adminOverride.IsSuccess);
+            Assert.Equal(3, adminOverride.Value.RevisionNumber);
+        }
+        finally
+        {
+            await using AsyncServiceScope cleanupScope = fixture.Services.CreateAsyncScope();
+            UserManager<ApplicationUser> userManager = cleanupScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser admin = Assert.IsType<ApplicationUser>(await userManager.FindByIdAsync(adminId.ToString("D")));
+            Assert.True((await userManager.RemoveFromRoleAsync(
+                admin,
+                Dorosak.Infrastructure.Identity.IdentityConstants.AdminRole)).Succeeded);
+        }
 
         Result<AssignmentSubmissionResponse> submission = await sender.Send(
             new SubmitAssignmentCommand(

@@ -150,6 +150,8 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
 
     internal DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
 
+    internal DbSet<AssignmentSubmissionFile> AssignmentSubmissionFiles => Set<AssignmentSubmissionFile>();
+
     internal DbSet<GradeRevision> GradeRevisions => Set<GradeRevision>();
 
     internal DbSet<QuizGradeRevision> QuizGradeRevisions => Set<QuizGradeRevision>();

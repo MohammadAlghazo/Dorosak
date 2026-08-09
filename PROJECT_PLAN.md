@@ -8,7 +8,7 @@
 | Date | `2026-08-08` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `8. Learning, Assessments, and Publishing` (local checkpoint complete) |
+| Current delivery phase | `9. Engagement, Realtime, and Assignment Attachments` (in progress) |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Production database | Neon PostgreSQL |
 
@@ -1956,6 +1956,7 @@ app/
 | `ADR-018` | Phase 6 catalog, authoring drafts, review, and release boundary contracts | Accepted |
 | `ADR-019` | Phase 7 media uploads, quarantine, processing, delivery, and MediaWorker contracts | Accepted |
 | `ADR-020` | Phase 8 immutable releases, learning, assessments, and publishing contracts | Accepted |
+| `ADR-021` | Phase 9 engagement, realtime, and assignment attachment contracts | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -2372,18 +2373,24 @@ Phase 7 مكتملة من ناحية التنفيذ والاختبارات ال�
   runtime grants، وimmutable release protections.
 - `20260808152531_Phase8LearningCommandDedupe`: server-side progress command deduplication عبر
   `last_client_command_id`.
+- `20260808185713_Phase8AssessmentLifecycle`: quiz attempt expiry lifecycle، append-only quiz grade revisions، hardened
+  runtime grants، وschema compatibility marker.
 - `docs/adr/ADR-020-phase-8-release-learning-contracts.md`: العقود المعتمدة للنشر والتسجيل والتعلم والتقييم.
 
 #### بوابات التحقق
 
 - Backend build: `12 projects`, `0 warnings`, `0 errors`; `dotnet format --verify-no-changes` passed.
-- Backend suite: `121 passed`, `0 failed`, `0 skipped` عبر domain/application/PostgreSQL/API/architecture/MediaWorker.
-- Phase 8 PostgreSQL workflows: `2/2` passed وتشمل release pinning بعد unpublish، idempotent progress، quiz scoring، text
-  submission، grade revision، وإكمال المقرر.
+- Backend suite: `127 passed`, `0 failed`, `0 skipped` عبر domain/application/PostgreSQL/API/architecture/MediaWorker.
+- Phase 8 PostgreSQL workflows: `2/2` passed وتشمل release pinning عبر release ثانية وبعد unpublish، draft visibility،
+  historical slug redirects، idempotent progress، expired-attempt replacement، quiz scoring، append-only quiz/assignment
+  grade revisions، Admin moderation، text submission، وإكمال المقرر.
+- Direct API security coverage passed للـlearning IDOR، suspended enrollment denial، non-Admin publish denial، required
+  idempotency headers، وexplicit binary-assignment Phase 9 boundary.
 - Frontend tests: `56 passed` عبر `22` files؛ ESLint، Prettier، production SSR build، PWA، وbundle budgets passed.
 - Playwright public SSR/hydration/security baseline: `8/8` desktop/mobile passed على fresh server؛ unknown routes ترجع
   `404` والworkspaces المحمية لا تسرب private SSR data.
-- `git diff --check` passed؛ لا يوجد commit أو push ضمن هذا checkpoint المحلي.
+- `git diff --check` passed؛ implementation checkpoint `26bf060` موجود على `main` و`origin/main`، بينما تحديثات عزل
+  الاختبارات والتقرير النهائي ما زالت محلية بلا commit أو push جديد.
 
 #### القرارات المؤجلة
 
@@ -2393,5 +2400,6 @@ Phase 7 مكتملة من ناحية التنفيذ والاختبارات ال�
 
 #### القرار
 
-Phase 8 مكتملة من ناحية التنفيذ والاختبارات المحلية في `2026-08-08`. يبقى GitHub checkpoint بطلب صريح من المستخدم،
-ولا تبدأ Phase 9 قبل تأكيد المستخدم وفق بروتوكول التسليم.
+Phase 8 مكتملة من ناحية التنفيذ والاختبارات المحلية في `2026-08-09`. يبقى GitHub checkpoint بطلب صريح من المستخدم،
+Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخدم، وفق عقد `ADR-021`. لا يبدأ أي جزء لاحق خارج هذا النطاق قبل
+بوابة الجزء الحالي والتحقق المطلوب.

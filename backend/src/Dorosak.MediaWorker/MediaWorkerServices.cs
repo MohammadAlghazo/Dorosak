@@ -219,18 +219,18 @@ internal sealed class MagicByteMediaValidator(IOptions<MediaOptions> options) : 
         bool valid = purpose switch
         {
             MediaPurpose.ProfileImage or MediaPurpose.CourseImage => IsJpeg(header, read) || IsPng(header, read) || IsWebp(header, read),
-            MediaPurpose.CourseDocument => IsPdf(header, read),
+            MediaPurpose.CourseDocument or MediaPurpose.AssignmentSubmission => IsPdf(header, read),
             MediaPurpose.SourceVideo => IsIsoBaseMedia(header, read),
             MediaPurpose.Caption => await IsWebVttAsync(filePath, cancellationToken),
             _ => false,
         };
-        if (valid && purpose == MediaPurpose.CourseDocument)
+        if (valid && purpose is MediaPurpose.CourseDocument or MediaPurpose.AssignmentSubmission)
         {
             valid = await IsStrictPdfAsync(filePath, stream, cancellationToken);
         }
         string invalidCode = purpose switch
         {
-            MediaPurpose.CourseDocument => "MEDIA.PDF_INVALID_OR_ENCRYPTED",
+            MediaPurpose.CourseDocument or MediaPurpose.AssignmentSubmission => "MEDIA.PDF_INVALID_OR_ENCRYPTED",
             MediaPurpose.Caption => "MEDIA.WEBVTT_INVALID",
             _ => "MEDIA.MAGIC_BYTES_INVALID",
         };
@@ -434,7 +434,7 @@ internal sealed class FfmpegMediaProcessor(IOptions<MediaOptions> options, Media
         return input.Purpose switch
         {
             MediaPurpose.ProfileImage or MediaPurpose.CourseImage => await ProcessImageAsync(input, sourceFilePath, outputDirectory, cancellationToken),
-            MediaPurpose.CourseDocument => await ProcessDocumentAsync(input, sourceFilePath, outputDirectory, cancellationToken),
+            MediaPurpose.CourseDocument or MediaPurpose.AssignmentSubmission => await ProcessDocumentAsync(input, sourceFilePath, outputDirectory, cancellationToken),
             MediaPurpose.SourceVideo => await ProcessVideoAsync(input, sourceFilePath, outputDirectory, cancellationToken),
             MediaPurpose.Caption => await ProcessCaptionAsync(input, sourceFilePath, outputDirectory, cancellationToken),
             _ => throw new InvalidOperationException("Unsupported media purpose."),

@@ -76,6 +76,10 @@ internal sealed class CreateUploadSessionValidator : AbstractValidator<CreateUpl
         RuleFor(command => command.FileName).NotEmpty().MaximumLength(255);
         RuleFor(command => command.ContentType).NotEmpty().MaximumLength(120);
         RuleFor(command => command.IdempotencyKey).NotEmpty().MaximumLength(200);
+        RuleFor(command => command.ClientFileId)
+            .NotNull()
+            .NotEqual(Guid.Empty)
+            .When(command => command.Purpose.Equals(nameof(Dorosak.Domain.Media.MediaPurpose.AssignmentSubmission), StringComparison.OrdinalIgnoreCase));
     }
 }
 

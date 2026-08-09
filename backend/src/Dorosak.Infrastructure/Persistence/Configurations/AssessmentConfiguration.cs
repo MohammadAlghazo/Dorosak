@@ -2,6 +2,7 @@ using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Learning;
+using Dorosak.Domain.Media;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -180,6 +181,25 @@ internal sealed class GradeRevisionConfiguration : IEntityTypeConfiguration<Grad
         builder.HasIndex(revision => new { revision.SubmissionId, revision.RevisionNumber }).IsUnique().HasDatabaseName("uq_grade_revisions_submission_number");
         builder.HasOne<AssignmentSubmission>().WithMany().HasForeignKey(revision => revision.SubmissionId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(revision => revision.GradedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class AssignmentSubmissionFileConfiguration : IEntityTypeConfiguration<AssignmentSubmissionFile>
+{
+    public void Configure(EntityTypeBuilder<AssignmentSubmissionFile> builder)
+    {
+        builder.ToTable("submission_files", "assessment");
+        builder.HasKey(file => file.Id).HasName("pk_submission_files");
+        builder.Property(file => file.Id).ValueGeneratedNever();
+        builder.HasIndex(file => file.AssetId).IsUnique().HasDatabaseName("uq_submission_files_asset_id");
+        builder.HasIndex(file => new { file.SubmissionId, file.ClientFileId })
+            .IsUnique().HasDatabaseName("uq_submission_files_submission_client_file");
+        builder.HasIndex(file => new { file.SubmissionId, file.CreatedAt, file.Id })
+            .HasDatabaseName("ix_submission_files_submission_created_id");
+        builder.HasOne<AssignmentSubmission>().WithMany().HasForeignKey(file => file.SubmissionId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_submission_files_assignment_submissions_submission_id");
+        builder.HasOne<MediaAsset>().WithMany().HasForeignKey(file => file.AssetId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_submission_files_media_assets_asset_id");
     }
 }
 

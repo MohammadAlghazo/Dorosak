@@ -381,6 +381,47 @@ public sealed class AssignmentSubmission
     }
 }
 
+public sealed class AssignmentSubmissionFile
+{
+    private AssignmentSubmissionFile()
+    {
+    }
+
+    private AssignmentSubmissionFile(
+        Guid id,
+        Guid submissionId,
+        Guid assetId,
+        Guid clientFileId,
+        DateTimeOffset createdAt)
+    {
+        Id = id;
+        SubmissionId = submissionId;
+        AssetId = assetId;
+        ClientFileId = clientFileId;
+        CreatedAt = createdAt;
+    }
+
+    public Guid Id { get; private set; }
+    public Guid SubmissionId { get; private set; }
+    public Guid AssetId { get; private set; }
+    public Guid ClientFileId { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public static AssignmentSubmissionFile Create(
+        Guid submissionId,
+        Guid assetId,
+        Guid clientFileId,
+        DateTimeOffset now)
+    {
+        if (submissionId == Guid.Empty || assetId == Guid.Empty || clientFileId == Guid.Empty)
+        {
+            throw new DomainRuleException("ASSIGNMENT.FILE_INVALID", "Assignment file identifiers are required.");
+        }
+
+        return new AssignmentSubmissionFile(Guid.CreateVersion7(), submissionId, assetId, clientFileId, now);
+    }
+}
+
 public sealed class GradeRevision
 {
     private GradeRevision()

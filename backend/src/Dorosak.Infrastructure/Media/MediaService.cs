@@ -2,8 +2,10 @@ using System.Security.Cryptography;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Media;
+using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Identity;
+using Dorosak.Domain.Learning;
 using Dorosak.Domain.Media;
 using Dorosak.Domain.Operations;
 using Dorosak.Infrastructure.Identity;
@@ -32,12 +34,6 @@ internal sealed class MediaService(
             return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
                 "MEDIA.PURPOSE_UNSUPPORTED", "The media purpose is not supported."));
         }
-        if (purpose == MediaPurpose.AssignmentSubmission)
-        {
-            return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
-                "MEDIA.ASSIGNMENT_SUBMISSIONS_DEFERRED", "Assignment-submission media is not available until Phase 9 ownership is implemented."));
-        }
-
         long limit = GetLimit(purpose);
         if (request.ExpectedBytes <= 0)
         {
@@ -57,6 +53,62 @@ internal sealed class MediaService(
         }
 
         Guid? courseId = request.CourseId;
+        AssignmentSubmission? assignmentSubmission = null;
+        if (purpose == MediaPurpose.AssignmentSubmission)
+        {
+            if (request.AssignmentSubmissionId is not { } submissionId ||
+                request.EnrollmentId is not { } enrollmentId ||
+                request.AssignmentVersionId is not { } assignmentVersionId ||
+                request.ClientFileId is not { } clientFileId)
+            {
+                return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
+                    "MEDIA.ASSIGNMENT_SUBMISSION_REQUIRED", "Assignment uploads require a concrete submission and client file identifier."));
+            }
+            DateTimeOffset assignmentNow = timeProvider.GetUtcNow();
+            var context = await (
+                from submission in dbContext.AssignmentSubmissions
+                join version in dbContext.AssignmentVersions on submission.AssignmentVersionId equals version.Id
+                join assignment in dbContext.Assignments on version.AssignmentId equals assignment.Id
+                join enrollment in dbContext.Enrollments on submission.EnrollmentId equals enrollment.Id
+                where submission.Id == submissionId && submission.EnrollmentId == enrollmentId &&
+                    submission.AssignmentVersionId == assignmentVersionId && enrollment.UserId == request.UserId &&
+                    (enrollment.Status == EnrollmentStatus.Active || enrollment.Status == EnrollmentStatus.Completed) &&
+                    dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
+                        entitlement.UserId == request.UserId && entitlement.CourseId == enrollment.CourseId &&
+                        entitlement.Status == EntitlementStatus.Active &&
+                        (entitlement.ExpiresAt == null || entitlement.ExpiresAt > assignmentNow)) &&
+                    dbContext.CourseReleaseAssessments.Any(reference => reference.ReleaseId == enrollment.ReleaseId &&
+                        reference.AssignmentVersionId == assignmentVersionId)
+                select new { Submission = submission, Version = version, CourseId = assignment.CourseId })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (context is null)
+            {
+                return Result.Failure<UploadSessionResponse>(ResultError.NotFound(
+                    "MEDIA.ASSIGNMENT_SUBMISSION_NOT_FOUND", "The assignment submission was not found."));
+            }
+            assignmentSubmission = context.Submission;
+            courseId = context.CourseId;
+            if (context.Version.Deadline is { } deadline && deadline <= assignmentNow ||
+                await dbContext.GradeRevisions.AnyAsync(grade => grade.SubmissionId == assignmentSubmission.Id, cancellationToken))
+            {
+                return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
+                    "MEDIA.ASSIGNMENT_SUBMISSION_LOCKED", "Files cannot be added to this assignment submission."));
+            }
+            if (await dbContext.AssignmentSubmissionFiles.CountAsync(
+                    file => file.SubmissionId == assignmentSubmission.Id,
+                    cancellationToken) >= _options.AssignmentSubmissionMaxFiles)
+            {
+                return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
+                    "MEDIA.ASSIGNMENT_FILE_LIMIT", "The assignment submission file limit has been reached."));
+            }
+            if (await dbContext.AssignmentSubmissionFiles.AnyAsync(
+                    file => file.SubmissionId == assignmentSubmission.Id && file.ClientFileId == clientFileId,
+                    cancellationToken))
+            {
+                return Result.Failure<UploadSessionResponse>(ResultError.Conflict(
+                    "MEDIA.ASSIGNMENT_FILE_EXISTS", "This assignment file has already been attached."));
+            }
+        }
         MediaAsset? captionTarget = null;
         if (purpose == MediaPurpose.Caption)
         {
@@ -146,7 +198,8 @@ internal sealed class MediaService(
                 "MEDIA.DAILY_QUOTA_EXCEEDED", "The daily upload quota would be exceeded."));
         }
 
-        if (courseId is { } editableCourseId && !await CanEditCourseAsync(editableCourseId, request.UserId, cancellationToken))
+        if (purpose != MediaPurpose.AssignmentSubmission &&
+            courseId is { } editableCourseId && !await CanEditCourseAsync(editableCourseId, request.UserId, cancellationToken))
         {
             return Result.Failure<UploadSessionResponse>(ResultError.NotFound(
                 "MEDIA.COURSE_NOT_FOUND", "The course was not found or is not editable."));
@@ -202,6 +255,14 @@ internal sealed class MediaService(
             now.Add(_options.SessionTtl));
         dbContext.MediaAssets.Add(asset);
         dbContext.UploadSessions.Add(session);
+        if (assignmentSubmission is not null)
+        {
+            dbContext.AssignmentSubmissionFiles.Add(AssignmentSubmissionFile.Create(
+                assignmentSubmission.Id,
+                asset.Id,
+                request.ClientFileId!.Value,
+                now));
+        }
         if (captionTarget is not null)
         {
             Guid trackId = Guid.CreateVersion7();
@@ -812,6 +873,14 @@ internal sealed class MediaAccessReader(DorosakDbContext dbContext, TimeProvider
 
         return await dbContext.MediaAssets.AsNoTracking().AnyAsync(asset => asset.Id == assetId && asset.CourseId != null &&
             (dbContext.CourseInstructors.Any(instructor => instructor.CourseId == asset.CourseId && instructor.UserId == userId) ||
+             dbContext.AssignmentSubmissionFiles.Any(file => file.AssetId == assetId &&
+                 dbContext.AssignmentSubmissions.Any(submission => submission.Id == file.SubmissionId &&
+                     dbContext.Enrollments.Any(enrollment => enrollment.Id == submission.EnrollmentId && enrollment.UserId == userId &&
+                         (enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Active ||
+                          enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Completed) &&
+                         dbContext.Entitlements.Any(entitlement => entitlement.Id == enrollment.EntitlementId &&
+                             entitlement.Status == Dorosak.Domain.Learning.EntitlementStatus.Active &&
+                             (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now))))) ||
              dbContext.Enrollments.Any(enrollment => enrollment.UserId == userId &&
                  enrollment.CourseId == asset.CourseId &&
                  (enrollment.Status == Dorosak.Domain.Learning.EnrollmentStatus.Active ||

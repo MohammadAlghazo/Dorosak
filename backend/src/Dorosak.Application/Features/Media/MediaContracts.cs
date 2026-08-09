@@ -16,13 +16,31 @@ public sealed record CreateUploadSessionCommand(
     string IdempotencyKey,
     Guid? CaptionTargetAssetId = null,
     string? CaptionLocale = null,
-    string? CaptionLabel = null) : IIdempotentCommand<UploadSessionResponse>
+    string? CaptionLabel = null,
+    Guid? EnrollmentId = null,
+    Guid? AssignmentVersionId = null,
+    Guid? AssignmentSubmissionId = null,
+    Guid? ClientFileId = null) : IIdempotentCommand<UploadSessionResponse>
 {
     public string IdempotencyOperation => "media.upload-session.create";
 
     public string IdempotencyScope => $"user:{UserId:D}";
 
-    public object IdempotencyPayload => new { Purpose, ExpectedBytes, FileName, ContentType, CourseId, CaptionTargetAssetId, CaptionLocale, CaptionLabel };
+    public object IdempotencyPayload => new
+    {
+        Purpose,
+        ExpectedBytes,
+        FileName,
+        ContentType,
+        CourseId,
+        CaptionTargetAssetId,
+        CaptionLocale,
+        CaptionLabel,
+        EnrollmentId,
+        AssignmentVersionId,
+        AssignmentSubmissionId,
+        ClientFileId,
+    };
 
     public int ResponseSchemaVersion => 1;
 
@@ -506,6 +524,8 @@ public sealed class MediaOptions
     public long CourseDocumentMaxBytes { get; set; } = 100L * 1024 * 1024;
 
     public long AssignmentSubmissionMaxBytes { get; set; } = 250L * 1024 * 1024;
+
+    public int AssignmentSubmissionMaxFiles { get; set; } = 5;
 
     public long SourceVideoMaxBytes { get; set; } = 10L * 1024 * 1024 * 1024;
 

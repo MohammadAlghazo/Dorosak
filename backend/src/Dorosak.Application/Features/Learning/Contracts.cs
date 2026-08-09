@@ -166,7 +166,20 @@ public sealed record AssignmentSubmissionResponse(
     DateTimeOffset SubmittedAt,
     decimal? Score,
     string? Feedback,
-    int GradeRevisionNumber);
+    int GradeRevisionNumber,
+    IReadOnlyList<AssignmentSubmissionFileResponse> Files);
+
+public sealed record AssignmentSubmissionFileResponse(
+    Guid Id,
+    Guid AssetId,
+    Guid ClientFileId,
+    string FileName,
+    string ContentType,
+    long DeclaredBytes,
+    string State,
+    string? RejectionCode,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadyAt);
 
 public sealed record GradeResponse(
     Guid ResourceId,

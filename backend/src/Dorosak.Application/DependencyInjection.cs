@@ -163,6 +163,7 @@ public static class DependencyInjection
         AddLearningHandler<Features.Learning.CreateAssignmentVersionCommand, Features.Learning.AssignmentVersionResponse>(services);
         AddLearningHandler<Features.Learning.MarkAssignmentVersionReadyCommand, Features.Learning.AssignmentVersionResponse>(services);
         AddLearningHandler<Features.Learning.SubmitAssignmentCommand, Features.Learning.AssignmentSubmissionResponse>(services);
+        AddLearningHandler<Features.Learning.GetAssignmentSubmissionQuery, Features.Learning.AssignmentSubmissionResponse>(services);
         AddLearningHandler<Features.Learning.GradeAssignmentCommand, Features.Learning.GradeResponse>(services);
     }
 

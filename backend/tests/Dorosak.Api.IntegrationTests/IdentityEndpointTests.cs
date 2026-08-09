@@ -14,6 +14,9 @@ namespace Dorosak.Api.IntegrationTests;
 [Collection(ApiTestGroup.Name)]
 public sealed class IdentityEndpointTests(ApiFixture fixture)
 {
+    private static int _clientIpSequence;
+    private readonly string _clientIp = $"198.51.100.{20 + Interlocked.Increment(ref _clientIpSequence) % 200}";
+
     [Fact]
     public async Task RegistrationCommand_CommitsIdentityAggregateAtomically()
     {
@@ -536,6 +539,7 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
         string? accessToken = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/csrf");
+        request.Headers.TryAddWithoutValidation("X-Forwarded-For", _clientIp);
         if (accessToken is not null)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -563,6 +567,7 @@ public sealed class IdentityEndpointTests(ApiFixture fixture)
     {
         var request = new HttpRequestMessage(method, path);
         request.Headers.Add("Origin", origin);
+        request.Headers.TryAddWithoutValidation("X-Forwarded-For", _clientIp);
         if (accessToken is not null)
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

@@ -868,6 +868,27 @@ internal sealed class LearningService(
         return Result.Success(await MapAssignmentSubmissionAsync(submission, cancellationToken));
     }
 
+    public async Task<Result<AssignmentSubmissionResponse>> GetAssignmentSubmissionAsync(
+        GetAssignmentSubmissionQuery request,
+        CancellationToken cancellationToken)
+    {
+        (Enrollment? enrollment, CourseRelease? release) = await FindLearningContextAsync(
+            request.UserId,
+            request.EnrollmentId,
+            cancellationToken);
+        AssignmentSubmission? submission = enrollment is null || release is null
+            ? null
+            : await dbContext.AssignmentSubmissions.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == request.SubmissionId && item.EnrollmentId == enrollment.Id &&
+                    item.AssignmentVersionId == request.AssignmentVersionId &&
+                    dbContext.CourseReleaseAssessments.Any(reference => reference.ReleaseId == release.Id &&
+                        reference.AssignmentVersionId == item.AssignmentVersionId),
+                cancellationToken);
+        return submission is null
+            ? Failure<AssignmentSubmissionResponse>("ASSIGNMENT.SUBMISSION_NOT_FOUND", "The assignment submission was not found.", notFound: true)
+            : Result.Success(await MapAssignmentSubmissionAsync(submission, cancellationToken));
+    }
+
     public async Task<Result<GradeResponse>> GradeAssignmentAsync(
         GradeAssignmentCommand request,
         CancellationToken cancellationToken)
@@ -1061,6 +1082,22 @@ internal sealed class LearningService(
             .Where(item => item.SubmissionId == submission.Id)
             .OrderByDescending(item => item.RevisionNumber)
             .FirstOrDefaultAsync(cancellationToken);
+        AssignmentSubmissionFileResponse[] files = await (
+            from file in dbContext.AssignmentSubmissionFiles.AsNoTracking()
+            join asset in dbContext.MediaAssets.AsNoTracking() on file.AssetId equals asset.Id
+            where file.SubmissionId == submission.Id
+            orderby file.CreatedAt, file.Id
+            select new AssignmentSubmissionFileResponse(
+                file.Id,
+                asset.Id,
+                file.ClientFileId,
+                asset.FileName,
+                asset.ContentType,
+                asset.DeclaredBytes,
+                asset.State.ToString(),
+                asset.RejectionCode,
+                file.CreatedAt,
+                asset.ReadyAt)).ToArrayAsync(cancellationToken);
         return new AssignmentSubmissionResponse(
             submission.Id,
             submission.EnrollmentId,
@@ -1070,7 +1107,8 @@ internal sealed class LearningService(
             submission.SubmittedAt,
             grade?.Score,
             grade?.Feedback,
-            grade?.RevisionNumber ?? 0);
+            grade?.RevisionNumber ?? 0,
+            files);
     }
 
     private static QuizVersionResponse MapQuizVersion(QuizVersion version, Quiz quiz) => new(

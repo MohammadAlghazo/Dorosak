@@ -159,6 +159,12 @@ public sealed record SubmitAssignmentCommand(
     public TimeSpan Retention => TimeSpan.FromDays(7);
 }
 
+public sealed record GetAssignmentSubmissionQuery(
+    Guid UserId,
+    Guid EnrollmentId,
+    Guid AssignmentVersionId,
+    Guid SubmissionId) : IQuery<AssignmentSubmissionResponse>;
+
 public sealed record GradeAssignmentCommand(
     Guid ActorUserId,
     Guid CourseId,
