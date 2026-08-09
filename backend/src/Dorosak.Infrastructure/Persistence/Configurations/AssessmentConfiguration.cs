@@ -34,11 +34,13 @@ internal sealed class QuizVersionConfiguration : IEntityTypeConfiguration<QuizVe
             table.HasCheckConstraint("ck_quiz_versions_duration", "duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 1440");
             table.HasCheckConstraint("ck_quiz_versions_pass_score", "pass_score BETWEEN 0 AND 100");
             table.HasCheckConstraint("ck_quiz_versions_status", "status IN ('Draft', 'Ready')");
+            table.HasCheckConstraint("ck_quiz_versions_audience_type", "audience_type IN ('AllEnrolled', 'SelectedLearners')");
         });
         builder.HasKey(version => version.Id).HasName("pk_quiz_versions");
         builder.Property(version => version.Id).ValueGeneratedNever();
         builder.Property(version => version.Title).HasMaxLength(200).IsRequired();
         builder.Property(version => version.PassScore).HasPrecision(5, 2);
+        builder.Property(version => version.AudienceType).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(version => version.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.HasIndex(version => new { version.QuizId, version.VersionNumber }).IsUnique().HasDatabaseName("uq_quiz_versions_quiz_number");
         builder.HasOne<Quiz>().WithMany().HasForeignKey(version => version.QuizId).OnDelete(DeleteBehavior.Restrict);
@@ -138,14 +140,46 @@ internal sealed class AssignmentVersionConfiguration : IEntityTypeConfiguration<
         {
             table.HasCheckConstraint("ck_assignment_versions_number", "version_number > 0");
             table.HasCheckConstraint("ck_assignment_versions_status", "status IN ('Draft', 'Ready')");
+            table.HasCheckConstraint("ck_assignment_versions_audience_type", "audience_type IN ('AllEnrolled', 'SelectedLearners')");
         });
         builder.HasKey(version => version.Id).HasName("pk_assignment_versions");
         builder.Property(version => version.Id).ValueGeneratedNever();
         builder.Property(version => version.Title).HasMaxLength(200).IsRequired();
         builder.Property(version => version.Instructions).HasMaxLength(100000).IsRequired();
+        builder.Property(version => version.AudienceType).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(version => version.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.HasIndex(version => new { version.AssignmentId, version.VersionNumber }).IsUnique().HasDatabaseName("uq_assignment_versions_assignment_number");
         builder.HasOne<Assignment>().WithMany().HasForeignKey(version => version.AssignmentId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class QuizAudienceMemberConfiguration : IEntityTypeConfiguration<QuizAudienceMember>
+{
+    public void Configure(EntityTypeBuilder<QuizAudienceMember> builder)
+    {
+        builder.ToTable("quiz_audience_members", "assessment");
+        builder.HasKey(member => new { member.QuizVersionId, member.UserId }).HasName("pk_quiz_audience_members");
+        builder.HasIndex(member => new { member.UserId, member.QuizVersionId })
+            .HasDatabaseName("ix_quiz_audience_members_user_version");
+        builder.HasOne<QuizVersion>().WithMany().HasForeignKey(member => member.QuizVersionId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_quiz_audience_members_quiz_versions_version_id");
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(member => member.UserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_quiz_audience_members_users_user_id");
+    }
+}
+
+internal sealed class AssignmentAudienceMemberConfiguration : IEntityTypeConfiguration<AssignmentAudienceMember>
+{
+    public void Configure(EntityTypeBuilder<AssignmentAudienceMember> builder)
+    {
+        builder.ToTable("assignment_audience_members", "assessment");
+        builder.HasKey(member => new { member.AssignmentVersionId, member.UserId }).HasName("pk_assignment_audience_members");
+        builder.HasIndex(member => new { member.UserId, member.AssignmentVersionId })
+            .HasDatabaseName("ix_assignment_audience_members_user_version");
+        builder.HasOne<AssignmentVersion>().WithMany().HasForeignKey(member => member.AssignmentVersionId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_assignment_audience_members_assignment_versions_version_id");
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(member => member.UserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_assignment_audience_members_users_user_id");
     }
 }
 

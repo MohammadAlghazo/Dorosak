@@ -64,6 +64,9 @@ internal sealed class MediaService(
                 return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
                     "MEDIA.ASSIGNMENT_SUBMISSION_REQUIRED", "Assignment uploads require a concrete submission and client file identifier."));
             }
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({$"assignment-files:{submissionId:D}"}, 0))",
+                cancellationToken);
             DateTimeOffset assignmentNow = timeProvider.GetUtcNow();
             var context = await (
                 from submission in dbContext.AssignmentSubmissions
@@ -88,7 +91,8 @@ internal sealed class MediaService(
             }
             assignmentSubmission = context.Submission;
             courseId = context.CourseId;
-            if (context.Version.Deadline is { } deadline && deadline <= assignmentNow ||
+            if (!await CanAccessAssignmentAsync(context.Version, request.UserId, cancellationToken) ||
+                context.Version.Deadline is { } deadline && deadline <= assignmentNow ||
                 await dbContext.GradeRevisions.AnyAsync(grade => grade.SubmissionId == assignmentSubmission.Id, cancellationToken))
             {
                 return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
@@ -138,7 +142,7 @@ internal sealed class MediaService(
             }
             courseId = captionTarget.CourseId;
         }
-        if (purpose is MediaPurpose.CourseImage or MediaPurpose.CourseDocument or MediaPurpose.SourceVideo && courseId is null)
+        if (purpose is (MediaPurpose.CourseImage or MediaPurpose.CourseDocument or MediaPurpose.SourceVideo) && courseId is null)
         {
             return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
                 "MEDIA.COURSE_REQUIRED", "Course media must be associated with an editable course."));
@@ -169,7 +173,7 @@ internal sealed class MediaService(
         }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
-        bool isTeacher = await dbContext.UserRoles
+        bool isTeacher = purpose != MediaPurpose.AssignmentSubmission && await dbContext.UserRoles
             .Join(dbContext.Roles, link => link.RoleId, role => role.Id, (link, role) => new { link, role })
             .AnyAsync(item => item.link.UserId == request.UserId && item.role.NormalizedName == "TEACHER", cancellationToken);
         long accountQuota = isTeacher ? _options.TeacherQuotaBytes : _options.StudentQuotaBytes;
@@ -205,7 +209,7 @@ internal sealed class MediaService(
                 "MEDIA.COURSE_NOT_FOUND", "The course was not found or is not editable."));
         }
 
-        if (courseId is { } quotaCourseId)
+        if (purpose != MediaPurpose.AssignmentSubmission && courseId is { } quotaCourseId)
         {
             long courseBytes = await dbContext.MediaAssets
                 .Where(asset => asset.CourseId == quotaCourseId && asset.State != MediaAssetState.Rejected && asset.State != MediaAssetState.Deleted)
@@ -317,6 +321,11 @@ internal sealed class MediaService(
         {
             return Result.Failure<UploadSessionResponse>(NotFound());
         }
+        if (!await IsAssignmentSessionEditableAsync(session, request.UserId, cancellationToken))
+        {
+            return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
+                "MEDIA.ASSIGNMENT_SUBMISSION_LOCKED", "Files cannot be added to this assignment submission."));
+        }
         if (session.ExpectedBytes > _options.MaxStreamBytes)
         {
             return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
@@ -406,6 +415,11 @@ internal sealed class MediaService(
         if (session is null)
         {
             return Result.Failure<UploadPartResponse>(NotFound());
+        }
+        if (!await IsAssignmentSessionEditableAsync(session, request.UserId, cancellationToken))
+        {
+            return Result.Failure<UploadPartResponse>(ResultError.BusinessRule(
+                "MEDIA.ASSIGNMENT_SUBMISSION_LOCKED", "Files cannot be added to this assignment submission."));
         }
         if (session.ExpectedBytes <= _options.MaxStreamBytes)
         {
@@ -521,6 +535,11 @@ internal sealed class MediaService(
         if (session.State is UploadSessionState.Cancelled or UploadSessionState.Expired)
         {
             return Result.Success(ToResponse(session));
+        }
+        if (!await IsAssignmentSessionEditableAsync(session, request.UserId, cancellationToken))
+        {
+            return Result.Failure<UploadSessionResponse>(ResultError.BusinessRule(
+                "MEDIA.ASSIGNMENT_SUBMISSION_LOCKED", "Files cannot be added to this assignment submission."));
         }
         if (session.MultipartUploadId is null)
         {
@@ -805,6 +824,43 @@ internal sealed class MediaService(
                 (instructor.Role == CourseCollaboratorRole.Editor || instructor.Role == CourseCollaboratorRole.CoInstructor),
             cancellationToken);
     }
+
+    private async Task<bool> IsAssignmentSessionEditableAsync(
+        UploadSession session,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (session.Purpose != MediaPurpose.AssignmentSubmission)
+        {
+            return true;
+        }
+        if (session.State == UploadSessionState.Completed)
+        {
+            return true;
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        return await (
+            from file in dbContext.AssignmentSubmissionFiles
+            join submission in dbContext.AssignmentSubmissions on file.SubmissionId equals submission.Id
+            join version in dbContext.AssignmentVersions on submission.AssignmentVersionId equals version.Id
+            join enrollment in dbContext.Enrollments on submission.EnrollmentId equals enrollment.Id
+            where file.AssetId == session.AssetId && enrollment.UserId == userId &&
+                (enrollment.Status == EnrollmentStatus.Active || enrollment.Status == EnrollmentStatus.Completed) &&
+                (!version.Deadline.HasValue || version.Deadline > now) &&
+                !dbContext.GradeRevisions.Any(grade => grade.SubmissionId == submission.Id)
+            select file.Id).AnyAsync(cancellationToken);
+    }
+
+    private Task<bool> CanAccessAssignmentAsync(
+        AssignmentVersion version,
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        version.AudienceType == AssessmentAudienceType.AllEnrolled
+            ? Task.FromResult(true)
+            : dbContext.AssignmentAudienceMembers.AsNoTracking().AnyAsync(
+                member => member.AssignmentVersionId == version.Id && member.UserId == userId,
+                cancellationToken);
 
     private long GetLimit(MediaPurpose purpose) => purpose switch
     {

@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Dorosak.Application.Features.Media;
+using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Media;
 using Dorosak.Domain.Operations;
@@ -805,7 +806,8 @@ internal sealed partial class MediaCleanupWorker(
         foreach (UploadSession session in orphans)
         {
             MediaAsset asset = await db.Set<MediaAsset>().SingleAsync(candidate => candidate.Id == session.AssetId, cancellationToken);
-            if (await db.Set<LessonRevision>().AnyAsync(revision => revision.MediaAssetId == asset.Id, cancellationToken))
+            if (await db.Set<LessonRevision>().AnyAsync(revision => revision.MediaAssetId == asset.Id, cancellationToken) ||
+                await db.Set<AssignmentSubmissionFile>().AnyAsync(file => file.AssetId == asset.Id, cancellationToken))
             {
                 continue;
             }

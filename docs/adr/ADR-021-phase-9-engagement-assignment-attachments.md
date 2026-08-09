@@ -36,6 +36,23 @@ marks it `Ready`.
 - Phase 9 supports PDF and the configured safe document/image types only. Archives, executable formats, HTML/SVG, and
   password-protected documents remain rejected. Azure Blob/CDN provider work remains Phase 12.
 
+### Assessment audience
+
+- Every quiz and assignment version declares `AllEnrolled` or `SelectedLearners`. The selected form stores concrete user
+  IDs that must already have a current enrollment in the course; an empty or foreign selection is rejected.
+- Audience membership is immutable with the assessment version and is rechecked when rendering learner manifests, reading
+  lessons/attempts, starting or submitting attempts, creating submissions, and attaching files. Knowing a hidden version ID
+  never grants access and returns the same safe `404` shape.
+- The published release snapshots the audience mode while concrete selected membership remains attached to the immutable
+  assessment version. New learners automatically receive only `AllEnrolled` assessments; selected audiences do not expand
+  when another learner later enrolls.
+
+### Deferred video provider
+
+- Source-video processing remains a tested local/provider-neutral capability from Phase 7. The instructor UI does not offer
+  new source-video uploads in this phase. Production video storage, encoding capacity, CDN delivery, quotas, and provider
+  credentials remain disabled until the hosting/server decision in Phase 12.
+
 ### Engagement and communications
 
 - Reviews, discussion threads/comments, reports, moderation cases/actions, conversations/messages, notifications, and

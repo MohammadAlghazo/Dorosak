@@ -66,9 +66,9 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'learning' AND table_name IN ('entitlements', 'enrollments', 'lesson_progress', 'course_completions', 'bookmarks', 'notes', 'recently_viewed')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(11L, await ExecuteScalarAsync<long>(
+        Assert.Equal(14L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'grade_revisions', 'quiz_grade_revisions')",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'assignment_audience_members', 'quiz_audience_members', 'submission_files', 'grade_revisions', 'quiz_grade_revisions')",
             TestContext.Current.CancellationToken));
         Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,
@@ -128,6 +128,14 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'operations.audit_logs', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'assessment.submission_files', 'SELECT,INSERT')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'assessment.submission_files', 'UPDATE,DELETE,TRUNCATE')",
             TestContext.Current.CancellationToken));
         Assert.True(await ExecuteScalarAsync<bool>(
             connection,

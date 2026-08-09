@@ -16,6 +16,7 @@ public sealed class AssessmentWorkflowTests
             30,
             null,
             70,
+            AssessmentAudienceType.AllEnrolled,
             DateTimeOffset.UtcNow);
 
         DomainRuleException exception = Assert.Throws<DomainRuleException>(() => version.MarkReady(0, DateTimeOffset.UtcNow));

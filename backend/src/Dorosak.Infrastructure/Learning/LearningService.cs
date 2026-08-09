@@ -133,9 +133,10 @@ internal sealed class LearningService(
         Dictionary<Guid, LessonProgress> progress = await dbContext.LessonProgress.AsNoTracking()
             .Where(item => item.EnrollmentId == enrollment.Id)
             .ToDictionaryAsync(item => item.LessonId, cancellationToken);
-        Dictionary<Guid, CourseReleaseAssessment> assessments = await dbContext.CourseReleaseAssessments.AsNoTracking()
-            .Where(item => item.ReleaseId == release.Id)
-            .ToDictionaryAsync(item => item.LessonId, cancellationToken);
+        List<CourseReleaseAssessment> accessibleAssessments = await AccessibleAssessments(enrollment)
+            .ToListAsync(cancellationToken);
+        Dictionary<Guid, CourseReleaseAssessment> assessments = accessibleAssessments
+            .ToDictionary(item => item.LessonId);
 
         LearningSectionResponse[] mappedSections = sections.Select(section =>
         {
@@ -186,8 +187,8 @@ internal sealed class LearningService(
         LessonProgress? progress = await dbContext.LessonProgress.AsNoTracking().SingleOrDefaultAsync(
             item => item.EnrollmentId == enrollment.Id && item.LessonId == lesson.Id,
             cancellationToken);
-        CourseReleaseAssessment? assessment = await dbContext.CourseReleaseAssessments.AsNoTracking().SingleOrDefaultAsync(
-            item => item.ReleaseId == release.Id && item.LessonId == lesson.Id,
+        CourseReleaseAssessment? assessment = await AccessibleAssessments(enrollment).SingleOrDefaultAsync(
+            item => item.LessonId == lesson.Id,
             cancellationToken);
         List<CourseReleaseMediaVariant> variants = await dbContext.CourseReleaseMediaVariants.AsNoTracking()
             .Where(item => item.ReleaseId == release.Id && item.LessonId == lesson.Id)
@@ -225,6 +226,49 @@ internal sealed class LearningService(
                 item.Label)).ToArray(),
             assessment?.QuizVersionId,
             assessment?.AssignmentVersionId));
+    }
+
+    public async Task<Result<IReadOnlyList<CourseLearnerResponse>>> GetCourseLearnersAsync(
+        GetCourseLearnersQuery request,
+        CancellationToken cancellationToken)
+    {
+        if (!await CanManageCourseAsync(request.ActorUserId, request.CourseId, cancellationToken))
+        {
+            return Failure<IReadOnlyList<CourseLearnerResponse>>(
+                "LEARNING.COURSE_NOT_FOUND",
+                "The course was not found.",
+                notFound: true);
+        }
+
+        var rows = await (
+            from enrollment in dbContext.Enrollments.AsNoTracking()
+            join user in dbContext.Users.AsNoTracking() on enrollment.UserId equals user.Id
+            where enrollment.CourseId == request.CourseId &&
+                enrollment.Status != EnrollmentStatus.Revoked &&
+                enrollment.Status != EnrollmentStatus.Expired
+            orderby user.DisplayName, user.Id, enrollment.EnrolledAt descending
+            select new
+            {
+                enrollment.UserId,
+                user.DisplayName,
+                EnrollmentId = enrollment.Id,
+                enrollment.ReleaseId,
+                Status = enrollment.Status.ToString(),
+                enrollment.EnrolledAt,
+            }).ToListAsync(cancellationToken);
+
+        CourseLearnerResponse[] learners = rows
+            .GroupBy(row => new { row.UserId, row.DisplayName })
+            .Select(group => new CourseLearnerResponse(
+                group.Key.UserId,
+                group.Key.DisplayName,
+                group.Select(row => new CourseLearnerEnrollmentResponse(
+                    row.EnrollmentId,
+                    row.ReleaseId,
+                    row.Status,
+                    row.EnrolledAt)).ToArray()))
+            .ToArray();
+        return Result.Success<IReadOnlyList<CourseLearnerResponse>>(learners);
     }
 
     public async Task<Result<ProgressResponse>> UpdateProgressAsync(
@@ -427,6 +471,11 @@ internal sealed class LearningService(
         {
             return Failure<QuizVersionResponse>("ASSESSMENT.NOT_FOUND", "The assessment resource was not found.", notFound: true);
         }
+        if (!Enum.TryParse(request.AudienceType, true, out AssessmentAudienceType audienceType) ||
+            !await ValidateAudienceAsync(request.CourseId, audienceType, request.SelectedLearnerUserIds, cancellationToken))
+        {
+            return Failure<QuizVersionResponse>("ASSESSMENT.AUDIENCE_INVALID", "The selected assessment audience is invalid.");
+        }
         var parsedQuestions = new List<(QuizQuestionInput Input, QuizQuestionType Type)>(request.Questions.Count);
         foreach (QuizQuestionInput input in request.Questions.OrderBy(item => item.Position))
         {
@@ -463,7 +512,7 @@ internal sealed class LearningService(
         QuizVersion version;
         try
         {
-            version = QuizVersion.Create(quiz.Id, versionNumber, request.Title, request.AttemptLimit, request.DurationMinutes, request.Deadline, request.PassScore, now);
+            version = QuizVersion.Create(quiz.Id, versionNumber, request.Title, request.AttemptLimit, request.DurationMinutes, request.Deadline, request.PassScore, audienceType, now);
         }
         catch (DomainRuleException exception)
         {
@@ -495,7 +544,11 @@ internal sealed class LearningService(
         dbContext.QuizVersions.Add(version);
         dbContext.QuizQuestions.AddRange(questions);
         dbContext.QuizQuestionOptions.AddRange(questionOptions);
-        return Result.Success(MapQuizVersion(version, quiz));
+        Guid[] selectedUserIds = audienceType == AssessmentAudienceType.SelectedLearners
+            ? request.SelectedLearnerUserIds!.Distinct().ToArray()
+            : [];
+        dbContext.QuizAudienceMembers.AddRange(selectedUserIds.Select(userId => QuizAudienceMember.Create(version.Id, userId, now)));
+        return Result.Success(MapQuizVersion(version, quiz, selectedUserIds));
     }
 
     public async Task<Result<QuizVersionResponse>> MarkQuizVersionReadyAsync(
@@ -521,7 +574,7 @@ internal sealed class LearningService(
             return Failure<QuizVersionResponse>(exception.Code, exception.Message);
         }
         Quiz quiz = await dbContext.Quizzes.SingleAsync(item => item.Id == version.QuizId, cancellationToken);
-        return Result.Success(MapQuizVersion(version, quiz));
+        return Result.Success(MapQuizVersion(version, quiz, await QuizAudienceUserIdsAsync(version.Id, cancellationToken)));
     }
 
     public async Task<Result<QuizAttemptResponse>> StartQuizAttemptAsync(
@@ -544,7 +597,7 @@ internal sealed class LearningService(
             item => item.Id == request.QuizVersionId && item.Status == AssessmentVersionStatus.Ready,
             cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
-        if (reference is null || version is null)
+        if (reference is null || version is null || !await CanAccessQuizAsync(version, request.UserId, cancellationToken))
         {
             return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
         }
@@ -581,7 +634,20 @@ internal sealed class LearningService(
         GetQuizAttemptQuery request,
         CancellationToken cancellationToken)
     {
-        if (!await HasEnrollmentAccessAsync(request.UserId, request.EnrollmentId, cancellationToken))
+        (Enrollment? enrollment, CourseRelease? release) = await FindLearningContextAsync(
+            request.UserId,
+            request.EnrollmentId,
+            cancellationToken);
+        QuizVersion? version = enrollment is null || release is null
+            ? null
+            : await dbContext.QuizVersions.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == request.QuizVersionId && item.Status == AssessmentVersionStatus.Ready,
+                cancellationToken);
+        if (enrollment is null || release is null || version is null ||
+            !await CanAccessQuizAsync(version, request.UserId, cancellationToken) ||
+            !await dbContext.CourseReleaseAssessments.AsNoTracking().AnyAsync(
+                item => item.ReleaseId == release.Id && item.QuizVersionId == version.Id,
+                cancellationToken))
         {
             return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
         }
@@ -612,7 +678,8 @@ internal sealed class LearningService(
             ? null
             : await dbContext.QuizVersions.SingleOrDefaultAsync(item => item.Id == attempt.QuizVersionId && item.Status == AssessmentVersionStatus.Ready, cancellationToken);
         if (enrollment is null || release is null || attempt is null || version is null ||
-            !await dbContext.CourseReleaseAssessments.AnyAsync(item => item.ReleaseId == release.Id && item.QuizVersionId == version.Id, cancellationToken))
+            !await dbContext.CourseReleaseAssessments.AnyAsync(item => item.ReleaseId == release.Id && item.QuizVersionId == version.Id, cancellationToken) ||
+            !await CanAccessQuizAsync(version, request.UserId, cancellationToken))
         {
             return Failure<QuizAttemptResponse>("QUIZ.NOT_FOUND", "The quiz was not found.", notFound: true);
         }
@@ -781,6 +848,11 @@ internal sealed class LearningService(
         {
             return Failure<AssignmentVersionResponse>("ASSESSMENT.NOT_FOUND", "The assessment resource was not found.", notFound: true);
         }
+        if (!Enum.TryParse(request.AudienceType, true, out AssessmentAudienceType audienceType) ||
+            !await ValidateAudienceAsync(request.CourseId, audienceType, request.SelectedLearnerUserIds, cancellationToken))
+        {
+            return Failure<AssignmentVersionResponse>("ASSESSMENT.AUDIENCE_INVALID", "The selected assessment audience is invalid.");
+        }
         DateTimeOffset now = timeProvider.GetUtcNow();
         Assignment? assignment = await dbContext.Assignments.SingleOrDefaultAsync(
             item => item.CourseId == request.CourseId && item.LessonId == request.LessonId,
@@ -791,7 +863,7 @@ internal sealed class LearningService(
         AssignmentVersion version;
         try
         {
-            version = AssignmentVersion.Create(assignment.Id, versionNumber, request.Title, request.Instructions, request.Deadline, request.AllowMultipleSubmissions, now);
+            version = AssignmentVersion.Create(assignment.Id, versionNumber, request.Title, request.Instructions, request.Deadline, request.AllowMultipleSubmissions, audienceType, now);
         }
         catch (DomainRuleException exception)
         {
@@ -802,7 +874,11 @@ internal sealed class LearningService(
             dbContext.Assignments.Add(assignment);
         }
         dbContext.AssignmentVersions.Add(version);
-        return Result.Success(MapAssignmentVersion(version, assignment));
+        Guid[] selectedUserIds = audienceType == AssessmentAudienceType.SelectedLearners
+            ? request.SelectedLearnerUserIds!.Distinct().ToArray()
+            : [];
+        dbContext.AssignmentAudienceMembers.AddRange(selectedUserIds.Select(userId => AssignmentAudienceMember.Create(version.Id, userId, now)));
+        return Result.Success(MapAssignmentVersion(version, assignment, selectedUserIds));
     }
 
     public async Task<Result<AssignmentVersionResponse>> MarkAssignmentVersionReadyAsync(
@@ -820,7 +896,7 @@ internal sealed class LearningService(
         }
         version.MarkReady(timeProvider.GetUtcNow());
         Assignment assignment = await dbContext.Assignments.SingleAsync(item => item.Id == version.AssignmentId, cancellationToken);
-        return Result.Success(MapAssignmentVersion(version, assignment));
+        return Result.Success(MapAssignmentVersion(version, assignment, await AssignmentAudienceUserIdsAsync(version.Id, cancellationToken)));
     }
 
     public async Task<Result<AssignmentSubmissionResponse>> SubmitAssignmentAsync(
@@ -838,7 +914,8 @@ internal sealed class LearningService(
         CourseReleaseAssessment? reference = release is null ? null : await dbContext.CourseReleaseAssessments.AsNoTracking().SingleOrDefaultAsync(
             item => item.ReleaseId == release.Id && item.AssignmentVersionId == request.AssignmentVersionId,
             cancellationToken);
-        if (enrollment is null || release is null || version is null || reference is null)
+        if (enrollment is null || release is null || version is null || reference is null ||
+            !await CanAccessAssignmentAsync(version, request.UserId, cancellationToken))
         {
             return Failure<AssignmentSubmissionResponse>("ASSIGNMENT.NOT_FOUND", "The assignment was not found.", notFound: true);
         }
@@ -962,9 +1039,6 @@ internal sealed class LearningService(
         return entitled ? (enrollment, release) : (null, null);
     }
 
-    private async Task<bool> HasEnrollmentAccessAsync(Guid userId, Guid enrollmentId, CancellationToken cancellationToken) =>
-        (await FindLearningContextAsync(userId, enrollmentId, cancellationToken)).Enrollment is not null;
-
     private async Task<bool> HasLessonAccessAsync(Guid userId, Guid enrollmentId, Guid lessonId, CancellationToken cancellationToken)
     {
         (Enrollment? enrollment, CourseRelease? release) = await FindLearningContextAsync(userId, enrollmentId, cancellationToken);
@@ -972,6 +1046,74 @@ internal sealed class LearningService(
             lesson => lesson.Id == lessonId && lesson.ReleaseId == release.Id,
             cancellationToken);
     }
+
+    private IQueryable<CourseReleaseAssessment> AccessibleAssessments(Enrollment enrollment) =>
+        dbContext.CourseReleaseAssessments.AsNoTracking().Where(reference =>
+            reference.ReleaseId == enrollment.ReleaseId &&
+            (reference.QuizVersionId != null && dbContext.QuizVersions.Any(version =>
+                version.Id == reference.QuizVersionId &&
+                (version.AudienceType == AssessmentAudienceType.AllEnrolled ||
+                    dbContext.QuizAudienceMembers.Any(member => member.QuizVersionId == version.Id && member.UserId == enrollment.UserId))) ||
+             reference.AssignmentVersionId != null && dbContext.AssignmentVersions.Any(version =>
+                version.Id == reference.AssignmentVersionId &&
+                (version.AudienceType == AssessmentAudienceType.AllEnrolled ||
+                    dbContext.AssignmentAudienceMembers.Any(member => member.AssignmentVersionId == version.Id && member.UserId == enrollment.UserId)))));
+
+    private Task<bool> CanAccessQuizAsync(QuizVersion version, Guid userId, CancellationToken cancellationToken) =>
+        version.AudienceType == AssessmentAudienceType.AllEnrolled
+            ? Task.FromResult(true)
+            : dbContext.QuizAudienceMembers.AsNoTracking().AnyAsync(
+                member => member.QuizVersionId == version.Id && member.UserId == userId,
+                cancellationToken);
+
+    private Task<bool> CanAccessAssignmentAsync(AssignmentVersion version, Guid userId, CancellationToken cancellationToken) =>
+        version.AudienceType == AssessmentAudienceType.AllEnrolled
+            ? Task.FromResult(true)
+            : dbContext.AssignmentAudienceMembers.AsNoTracking().AnyAsync(
+                member => member.AssignmentVersionId == version.Id && member.UserId == userId,
+                cancellationToken);
+
+    private async Task<bool> ValidateAudienceAsync(
+        Guid courseId,
+        AssessmentAudienceType audienceType,
+        IReadOnlyList<Guid>? selectedLearnerUserIds,
+        CancellationToken cancellationToken)
+    {
+        if (audienceType == AssessmentAudienceType.AllEnrolled)
+        {
+            return selectedLearnerUserIds is null || selectedLearnerUserIds.Count == 0;
+        }
+
+        Guid[] selected = selectedLearnerUserIds?.Distinct().ToArray() ?? [];
+        if (selected.Length == 0)
+        {
+            return false;
+        }
+
+        int enrolled = await dbContext.Enrollments.AsNoTracking()
+            .Where(enrollment => enrollment.CourseId == courseId && selected.Contains(enrollment.UserId) &&
+                (enrollment.Status == EnrollmentStatus.Active ||
+                    enrollment.Status == EnrollmentStatus.Completed ||
+                    enrollment.Status == EnrollmentStatus.Suspended))
+            .Select(enrollment => enrollment.UserId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+        return enrolled == selected.Length;
+    }
+
+    private Task<Guid[]> QuizAudienceUserIdsAsync(Guid versionId, CancellationToken cancellationToken) =>
+        dbContext.QuizAudienceMembers.AsNoTracking()
+            .Where(member => member.QuizVersionId == versionId)
+            .OrderBy(member => member.UserId)
+            .Select(member => member.UserId)
+            .ToArrayAsync(cancellationToken);
+
+    private Task<Guid[]> AssignmentAudienceUserIdsAsync(Guid versionId, CancellationToken cancellationToken) =>
+        dbContext.AssignmentAudienceMembers.AsNoTracking()
+            .Where(member => member.AssignmentVersionId == versionId)
+            .OrderBy(member => member.UserId)
+            .Select(member => member.UserId)
+            .ToArrayAsync(cancellationToken);
 
     private async Task<bool> CanManageCourseAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) =>
         await dbContext.Courses.AsNoTracking().AnyAsync(
@@ -1111,7 +1253,7 @@ internal sealed class LearningService(
             files);
     }
 
-    private static QuizVersionResponse MapQuizVersion(QuizVersion version, Quiz quiz) => new(
+    private static QuizVersionResponse MapQuizVersion(QuizVersion version, Quiz quiz, IReadOnlyList<Guid> selectedLearnerUserIds) => new(
         quiz.Id,
         version.Id,
         quiz.CourseId,
@@ -1122,9 +1264,11 @@ internal sealed class LearningService(
         version.AttemptLimit,
         version.DurationMinutes,
         version.Deadline,
-        version.PassScore);
+        version.PassScore,
+        version.AudienceType.ToString(),
+        selectedLearnerUserIds);
 
-    private static AssignmentVersionResponse MapAssignmentVersion(AssignmentVersion version, Assignment assignment) => new(
+    private static AssignmentVersionResponse MapAssignmentVersion(AssignmentVersion version, Assignment assignment, IReadOnlyList<Guid> selectedLearnerUserIds) => new(
         assignment.Id,
         version.Id,
         assignment.CourseId,
@@ -1134,7 +1278,9 @@ internal sealed class LearningService(
         version.Instructions,
         version.Status.ToString(),
         version.Deadline,
-        version.AllowMultipleSubmissions);
+        version.AllowMultipleSubmissions,
+        version.AudienceType.ToString(),
+        selectedLearnerUserIds);
 
     private async Task CompleteAssessmentLessonAsync(
         Enrollment enrollment,

@@ -79,7 +79,7 @@ public sealed record PutUploadContentCommand(
     Stream Content,
     long ContentLength,
     string? ContentType,
-    string Sha256) : ICommand<UploadSessionResponse>, IMediaAuthorizedRequest
+    string Sha256) : ITransactionalCommand<UploadSessionResponse>, IMediaAuthorizedRequest
 {
     Guid IMediaAuthorizedRequest.UserId => UserId;
 

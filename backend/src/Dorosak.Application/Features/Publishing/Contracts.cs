@@ -37,7 +37,8 @@ public sealed record ReleaseAssessmentSnapshot(
     Guid SourceLessonId,
     ReleaseAssessmentKind Type,
     Guid VersionId,
-    int Position);
+    int Position,
+    string AudienceType);
 
 public enum ReleaseAssessmentKind
 {
@@ -112,7 +113,12 @@ public sealed record MediaPublicationSnapshot(
     public bool Ready => Failure is null;
 }
 
+public sealed record AssessmentVersionAudience(
+    Guid VersionId,
+    string AudienceType);
+
 public sealed record AssessmentPublicationSnapshot(
+    IReadOnlyList<AssessmentVersionAudience> Audiences,
     PublishingFailure? Failure)
 {
     public bool Ready => Failure is null;

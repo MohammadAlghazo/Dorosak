@@ -115,6 +115,7 @@ internal sealed class CourseReleaseAssessmentConfiguration : IEntityTypeConfigur
         {
             table.HasCheckConstraint("ck_course_release_assessments_position", "position >= 0");
             table.HasCheckConstraint("ck_course_release_assessments_type", "type IN ('Quiz', 'Assignment')");
+            table.HasCheckConstraint("ck_course_release_assessments_audience_type", "audience_type IN ('AllEnrolled', 'SelectedLearners')");
             table.HasCheckConstraint(
                 "ck_course_release_assessments_version",
                 "(type = 'Quiz' AND quiz_version_id IS NOT NULL AND assignment_version_id IS NULL) OR (type = 'Assignment' AND quiz_version_id IS NULL AND assignment_version_id IS NOT NULL)");
@@ -122,6 +123,7 @@ internal sealed class CourseReleaseAssessmentConfiguration : IEntityTypeConfigur
         builder.HasKey(assessment => assessment.Id).HasName("pk_course_release_assessments");
         builder.Property(assessment => assessment.Id).ValueGeneratedNever();
         builder.Property(assessment => assessment.Type).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(assessment => assessment.AudienceType).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Ignore(assessment => assessment.VersionId);
         builder.HasAlternateKey(assessment => new { assessment.Id, assessment.ReleaseId })
             .HasName("ak_course_release_assessments_id_release");

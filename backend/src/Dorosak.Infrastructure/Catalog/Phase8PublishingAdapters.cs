@@ -337,7 +337,7 @@ internal sealed class AssessmentPublishingPort(DorosakDbContext dbContext)
         Guid[] assignmentIds = assignmentVersionIds.Distinct().ToArray();
         if (quizIds.Length == 0 && assignmentIds.Length == 0)
         {
-            return new AssessmentPublicationSnapshot(null);
+            return new AssessmentPublicationSnapshot([], null);
         }
         int readyQuizzes = await dbContext.QuizVersions.AsNoTracking()
             .Where(version => version.Status == AssessmentVersionStatus.Ready && quizIds.Contains(version.Id))
@@ -356,12 +356,22 @@ internal sealed class AssessmentPublishingPort(DorosakDbContext dbContext)
         if (readyQuizzes != quizIds.Length || readyAssignments != assignmentIds.Length ||
             courseQuizzes != quizIds.Length || courseAssignments != assignmentIds.Length)
         {
-            return new AssessmentPublicationSnapshot(new PublishingFailure(
+            return new AssessmentPublicationSnapshot([], new PublishingFailure(
                 "ASSESSMENT.NOT_READY",
                 "Every referenced quiz and assignment version must be Ready for this course."));
         }
 
-        return new AssessmentPublicationSnapshot(null);
+        AssessmentVersionAudience[] audiences = [
+            .. await dbContext.QuizVersions.AsNoTracking()
+                .Where(version => quizIds.Contains(version.Id))
+                .Select(version => new AssessmentVersionAudience(version.Id, version.AudienceType.ToString()))
+                .ToArrayAsync(cancellationToken),
+            .. await dbContext.AssignmentVersions.AsNoTracking()
+                .Where(version => assignmentIds.Contains(version.Id))
+                .Select(version => new AssessmentVersionAudience(version.Id, version.AudienceType.ToString()))
+                .ToArrayAsync(cancellationToken),
+        ];
+        return new AssessmentPublicationSnapshot(audiences, null);
     }
 }
 
@@ -558,12 +568,18 @@ internal sealed class CatalogActivationPort(
         }
         foreach (ReleaseAssessmentSnapshot assessment in request.Manifest.Assessments)
         {
-            dbContext.CourseReleaseAssessments.Add(CourseReleaseAssessment.Create(
+            CourseReleaseAssessment releaseAssessment = CourseReleaseAssessment.Create(
                 release.Id,
                 releaseLessons[assessment.SourceLessonId].Id,
                 assessment.Type == ReleaseAssessmentKind.Quiz ? ReleaseAssessmentType.Quiz : ReleaseAssessmentType.Assignment,
                 assessment.VersionId,
-                assessment.Position));
+                assessment.Position);
+            if (!Enum.TryParse(assessment.AudienceType, out AssessmentAudienceType audienceType))
+            {
+                throw new InvalidOperationException("The assessment audience snapshot is invalid.");
+            }
+            releaseAssessment.SetAudience(audienceType);
+            dbContext.CourseReleaseAssessments.Add(releaseAssessment);
         }
         foreach (ReleaseMediaVariantSnapshot variant in request.Manifest.MediaVariants)
         {

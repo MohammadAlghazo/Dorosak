@@ -87,6 +87,12 @@ internal sealed class CreateQuizVersionCommandValidator : AbstractValidator<Crea
         RuleFor(request => request.AttemptLimit).InclusiveBetween(1, 100);
         RuleFor(request => request.DurationMinutes).InclusiveBetween(1, 1440).When(request => request.DurationMinutes.HasValue);
         RuleFor(request => request.PassScore).InclusiveBetween(0, 100);
+        RuleFor(request => request.AudienceType)
+            .Must(type => Enum.TryParse<Domain.Assessment.AssessmentAudienceType>(type, true, out _));
+        RuleFor(request => request.SelectedLearnerUserIds)
+            .NotNull()
+            .Must(ids => ids is not null && ids.Count is > 0 and <= 10000 && ids.All(id => id != Guid.Empty) && ids.Distinct().Count() == ids.Count)
+            .When(request => request.AudienceType.Equals(nameof(Domain.Assessment.AssessmentAudienceType.SelectedLearners), StringComparison.OrdinalIgnoreCase));
         RuleFor(request => request.Questions)
             .NotNull()
             .NotEmpty()
@@ -151,6 +157,12 @@ internal sealed class CreateAssignmentVersionCommandValidator : AbstractValidato
         RuleFor(request => request.LessonId).NotEmpty();
         RuleFor(request => request.Title).NotEmpty().MaximumLength(200);
         RuleFor(request => request.Instructions).NotEmpty().MaximumLength(100000);
+        RuleFor(request => request.AudienceType)
+            .Must(type => Enum.TryParse<Domain.Assessment.AssessmentAudienceType>(type, true, out _));
+        RuleFor(request => request.SelectedLearnerUserIds)
+            .NotNull()
+            .Must(ids => ids is not null && ids.Count is > 0 and <= 10000 && ids.All(id => id != Guid.Empty) && ids.Distinct().Count() == ids.Count)
+            .When(request => request.AudienceType.Equals(nameof(Domain.Assessment.AssessmentAudienceType.SelectedLearners), StringComparison.OrdinalIgnoreCase));
     }
 }
 

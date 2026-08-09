@@ -245,7 +245,8 @@ public sealed class CourseReleaseAssessment
         Guid lessonId,
         ReleaseAssessmentType type,
         Guid versionId,
-        int position)
+        int position,
+        Dorosak.Domain.Assessment.AssessmentAudienceType audienceType)
     {
         Id = id;
         ReleaseId = releaseId;
@@ -254,6 +255,7 @@ public sealed class CourseReleaseAssessment
         QuizVersionId = type == ReleaseAssessmentType.Quiz ? versionId : null;
         AssignmentVersionId = type == ReleaseAssessmentType.Assignment ? versionId : null;
         Position = position;
+        AudienceType = audienceType;
     }
 
     public Guid Id { get; private set; }
@@ -263,11 +265,14 @@ public sealed class CourseReleaseAssessment
     public Guid? QuizVersionId { get; private set; }
     public Guid? AssignmentVersionId { get; private set; }
     public int Position { get; private set; }
+    public Dorosak.Domain.Assessment.AssessmentAudienceType AudienceType { get; private set; }
 
     public Guid VersionId => QuizVersionId ?? AssignmentVersionId ?? Guid.Empty;
 
     public static CourseReleaseAssessment Create(Guid releaseId, Guid lessonId, ReleaseAssessmentType type, Guid versionId, int position) =>
-        new(Guid.CreateVersion7(), releaseId, lessonId, type, versionId, position);
+        new(Guid.CreateVersion7(), releaseId, lessonId, type, versionId, position, Dorosak.Domain.Assessment.AssessmentAudienceType.AllEnrolled);
+
+    public void SetAudience(Dorosak.Domain.Assessment.AssessmentAudienceType audienceType) => AudienceType = audienceType;
 }
 
 public sealed class CourseReleaseMediaVariant

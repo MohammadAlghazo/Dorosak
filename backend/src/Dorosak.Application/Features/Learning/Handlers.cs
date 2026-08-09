@@ -14,6 +14,7 @@ internal sealed class LearningHandler<TRequest, TResponse>(ILearningService serv
         GetEnrollmentsQuery query => Cast(service.GetEnrollmentsAsync(query, cancellationToken)),
         GetLearningManifestQuery query => Cast(service.GetManifestAsync(query, cancellationToken)),
         GetLearningLessonQuery query => Cast(service.GetLessonAsync(query, cancellationToken)),
+        GetCourseLearnersQuery query => Cast(service.GetCourseLearnersAsync(query, cancellationToken)),
         UpdateLessonProgressCommand command => Cast(service.UpdateProgressAsync(command, cancellationToken)),
         GetLearningNotesQuery query => Cast(service.GetNotesAsync(query, cancellationToken)),
         UpsertLearningNoteCommand command => Cast(service.UpsertNoteAsync(command, cancellationToken)),

@@ -147,6 +147,7 @@ public static class DependencyInjection
         AddLearningHandler<Features.Learning.GetEnrollmentsQuery, IReadOnlyList<Features.Learning.EnrollmentResponse>>(services);
         AddLearningHandler<Features.Learning.GetLearningManifestQuery, Features.Learning.LearningManifestResponse>(services);
         AddLearningHandler<Features.Learning.GetLearningLessonQuery, Features.Learning.LearningLessonResponse>(services);
+        AddLearningHandler<Features.Learning.GetCourseLearnersQuery, IReadOnlyList<Features.Learning.CourseLearnerResponse>>(services);
         AddLearningHandler<Features.Learning.UpdateLessonProgressCommand, Features.Learning.ProgressResponse>(services);
         AddLearningHandler<Features.Learning.GetLearningNotesQuery, IReadOnlyList<Features.Learning.LearningNoteResponse>>(services);
         AddLearningHandler<Features.Learning.UpsertLearningNoteCommand, Features.Learning.LearningNoteResponse>(services);

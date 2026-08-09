@@ -23,6 +23,9 @@ public sealed record GetLearningManifestQuery(Guid UserId, Guid EnrollmentId, st
 public sealed record GetLearningLessonQuery(Guid UserId, Guid EnrollmentId, Guid LessonId)
     : IQuery<LearningLessonResponse>;
 
+public sealed record GetCourseLearnersQuery(Guid ActorUserId, Guid CourseId)
+    : IQuery<IReadOnlyList<CourseLearnerResponse>>;
+
 public sealed record UpdateLessonProgressCommand(
     Guid UserId,
     Guid EnrollmentId,
@@ -82,7 +85,9 @@ public sealed record CreateQuizVersionCommand(
     int? DurationMinutes,
     DateTimeOffset? Deadline,
     decimal PassScore,
-    IReadOnlyList<QuizQuestionInput> Questions) : ITransactionalCommand<QuizVersionResponse>;
+    IReadOnlyList<QuizQuestionInput> Questions,
+    string AudienceType = "AllEnrolled",
+    IReadOnlyList<Guid>? SelectedLearnerUserIds = null) : ITransactionalCommand<QuizVersionResponse>;
 
 public sealed record MarkQuizVersionReadyCommand(
     Guid ActorUserId,
@@ -138,7 +143,9 @@ public sealed record CreateAssignmentVersionCommand(
     string Title,
     string Instructions,
     DateTimeOffset? Deadline,
-    bool AllowMultipleSubmissions) : ITransactionalCommand<AssignmentVersionResponse>;
+    bool AllowMultipleSubmissions,
+    string AudienceType = "AllEnrolled",
+    IReadOnlyList<Guid>? SelectedLearnerUserIds = null) : ITransactionalCommand<AssignmentVersionResponse>;
 
 public sealed record MarkAssignmentVersionReadyCommand(
     Guid ActorUserId,

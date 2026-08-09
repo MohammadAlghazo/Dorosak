@@ -8,6 +8,7 @@ public interface ILearningService
     Task<Result<IReadOnlyList<EnrollmentResponse>>> GetEnrollmentsAsync(GetEnrollmentsQuery request, CancellationToken cancellationToken);
     Task<Result<LearningManifestResponse>> GetManifestAsync(GetLearningManifestQuery request, CancellationToken cancellationToken);
     Task<Result<LearningLessonResponse>> GetLessonAsync(GetLearningLessonQuery request, CancellationToken cancellationToken);
+    Task<Result<IReadOnlyList<CourseLearnerResponse>>> GetCourseLearnersAsync(GetCourseLearnersQuery request, CancellationToken cancellationToken);
     Task<Result<ProgressResponse>> UpdateProgressAsync(UpdateLessonProgressCommand request, CancellationToken cancellationToken);
     Task<Result<IReadOnlyList<LearningNoteResponse>>> GetNotesAsync(GetLearningNotesQuery request, CancellationToken cancellationToken);
     Task<Result<LearningNoteResponse>> UpsertNoteAsync(UpsertLearningNoteCommand request, CancellationToken cancellationToken);

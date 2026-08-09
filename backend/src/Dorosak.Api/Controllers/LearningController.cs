@@ -354,7 +354,23 @@ public sealed class LearningController(ISender sender) : ControllerBase
                 request.DurationMinutes,
                 request.Deadline,
                 request.PassScore,
-                request.Questions),
+                request.Questions,
+                request.AudienceType,
+                request.SelectedLearnerUserIds),
+            cancellationToken);
+        return this.ToActionResult(result);
+    }
+
+    [HttpGet("instructor/courses/{courseId:guid}/learners")]
+    [PermissionPolicy(Permissions.LearningViewCourseLearners)]
+    public async Task<IActionResult> GetCourseLearners(Guid courseId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out Guid userId))
+        {
+            return Unauthorized();
+        }
+        Result<IReadOnlyList<CourseLearnerResponse>> result = await sender.Send(
+            new GetCourseLearnersQuery(userId, courseId),
             cancellationToken);
         return this.ToActionResult(result);
     }
@@ -411,7 +427,9 @@ public sealed class LearningController(ISender sender) : ControllerBase
                 request.Title,
                 request.Instructions,
                 request.Deadline,
-                request.AllowMultipleSubmissions),
+                request.AllowMultipleSubmissions,
+                request.AudienceType,
+                request.SelectedLearnerUserIds),
             cancellationToken);
         return this.ToActionResult(result);
     }
@@ -512,12 +530,16 @@ public sealed record CreateQuizVersionRequest(
     int? DurationMinutes,
     DateTimeOffset? Deadline,
     decimal PassScore,
-    IReadOnlyList<QuizQuestionInput> Questions);
+    IReadOnlyList<QuizQuestionInput> Questions,
+    string AudienceType = "AllEnrolled",
+    IReadOnlyList<Guid>? SelectedLearnerUserIds = null);
 
 public sealed record CreateAssignmentVersionRequest(
     string Title,
     string Instructions,
     DateTimeOffset? Deadline,
-    bool AllowMultipleSubmissions);
+    bool AllowMultipleSubmissions,
+    string AudienceType = "AllEnrolled",
+    IReadOnlyList<Guid>? SelectedLearnerUserIds = null);
 
 public sealed record GradeRequest(decimal Score, string? Feedback);

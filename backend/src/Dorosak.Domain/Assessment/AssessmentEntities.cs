@@ -8,6 +8,12 @@ public enum AssessmentVersionStatus
     Ready,
 }
 
+public enum AssessmentAudienceType
+{
+    AllEnrolled,
+    SelectedLearners,
+}
+
 public enum QuizQuestionType
 {
     SingleChoice,
@@ -56,7 +62,17 @@ public sealed class QuizVersion
     {
     }
 
-    private QuizVersion(Guid id, Guid quizId, int versionNumber, string title, int attemptLimit, int? durationMinutes, DateTimeOffset? deadline, decimal passScore, DateTimeOffset now)
+    private QuizVersion(
+        Guid id,
+        Guid quizId,
+        int versionNumber,
+        string title,
+        int attemptLimit,
+        int? durationMinutes,
+        DateTimeOffset? deadline,
+        decimal passScore,
+        AssessmentAudienceType audienceType,
+        DateTimeOffset now)
     {
         Id = id;
         QuizId = quizId;
@@ -66,6 +82,7 @@ public sealed class QuizVersion
         DurationMinutes = durationMinutes;
         Deadline = deadline;
         PassScore = passScore;
+        AudienceType = audienceType;
         Status = AssessmentVersionStatus.Draft;
         CreatedAt = now;
     }
@@ -78,18 +95,28 @@ public sealed class QuizVersion
     public int? DurationMinutes { get; private set; }
     public DateTimeOffset? Deadline { get; private set; }
     public decimal PassScore { get; private set; }
+    public AssessmentAudienceType AudienceType { get; private set; }
     public AssessmentVersionStatus Status { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? ReadyAt { get; private set; }
 
-    public static QuizVersion Create(Guid quizId, int versionNumber, string title, int attemptLimit, int? durationMinutes, DateTimeOffset? deadline, decimal passScore, DateTimeOffset now)
+    public static QuizVersion Create(
+        Guid quizId,
+        int versionNumber,
+        string title,
+        int attemptLimit,
+        int? durationMinutes,
+        DateTimeOffset? deadline,
+        decimal passScore,
+        AssessmentAudienceType audienceType,
+        DateTimeOffset now)
     {
         if (versionNumber <= 0 || attemptLimit is < 1 or > 100 || durationMinutes is <= 0 or > 1440 || passScore is < 0 or > 100)
         {
             throw new DomainRuleException("QUIZ.VERSION_POLICY_INVALID", "The quiz version policy is invalid.");
         }
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        return new QuizVersion(Guid.CreateVersion7(), quizId, versionNumber, title.Trim(), attemptLimit, durationMinutes, deadline, passScore, now);
+        return new QuizVersion(Guid.CreateVersion7(), quizId, versionNumber, title.Trim(), attemptLimit, durationMinutes, deadline, passScore, audienceType, now);
     }
 
     public void MarkReady(int questionCount, DateTimeOffset now)
@@ -105,6 +132,8 @@ public sealed class QuizVersion
         Status = AssessmentVersionStatus.Ready;
         ReadyAt = now;
     }
+
+    public void SetAudience(AssessmentAudienceType audienceType) => AudienceType = audienceType;
 }
 
 public sealed class QuizQuestion
@@ -306,7 +335,16 @@ public sealed class AssignmentVersion
     {
     }
 
-    private AssignmentVersion(Guid id, Guid assignmentId, int versionNumber, string title, string instructions, DateTimeOffset? deadline, bool allowMultipleSubmissions, DateTimeOffset now)
+    private AssignmentVersion(
+        Guid id,
+        Guid assignmentId,
+        int versionNumber,
+        string title,
+        string instructions,
+        DateTimeOffset? deadline,
+        bool allowMultipleSubmissions,
+        AssessmentAudienceType audienceType,
+        DateTimeOffset now)
     {
         Id = id;
         AssignmentId = assignmentId;
@@ -315,6 +353,7 @@ public sealed class AssignmentVersion
         Instructions = instructions;
         Deadline = deadline;
         AllowMultipleSubmissions = allowMultipleSubmissions;
+        AudienceType = audienceType;
         Status = AssessmentVersionStatus.Draft;
         CreatedAt = now;
     }
@@ -326,23 +365,90 @@ public sealed class AssignmentVersion
     public string Instructions { get; private set; } = string.Empty;
     public DateTimeOffset? Deadline { get; private set; }
     public bool AllowMultipleSubmissions { get; private set; }
+    public AssessmentAudienceType AudienceType { get; private set; }
     public AssessmentVersionStatus Status { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? ReadyAt { get; private set; }
 
-    public static AssignmentVersion Create(Guid assignmentId, int versionNumber, string title, string instructions, DateTimeOffset? deadline, bool allowMultipleSubmissions, DateTimeOffset now)
+    public static AssignmentVersion Create(
+        Guid assignmentId,
+        int versionNumber,
+        string title,
+        string instructions,
+        DateTimeOffset? deadline,
+        bool allowMultipleSubmissions,
+        AssessmentAudienceType audienceType,
+        DateTimeOffset now)
     {
         if (versionNumber <= 0)
         {
             throw new DomainRuleException("ASSIGNMENT.VERSION_INVALID", "The assignment version number is invalid.");
         }
-        return new AssignmentVersion(Guid.CreateVersion7(), assignmentId, versionNumber, title.Trim(), instructions.Trim(), deadline, allowMultipleSubmissions, now);
+        return new AssignmentVersion(Guid.CreateVersion7(), assignmentId, versionNumber, title.Trim(), instructions.Trim(), deadline, allowMultipleSubmissions, audienceType, now);
     }
 
     public void MarkReady(DateTimeOffset now)
     {
         Status = AssessmentVersionStatus.Ready;
         ReadyAt ??= now;
+    }
+
+    public void SetAudience(AssessmentAudienceType audienceType) => AudienceType = audienceType;
+}
+
+public sealed class QuizAudienceMember
+{
+    private QuizAudienceMember()
+    {
+    }
+
+    private QuizAudienceMember(Guid quizVersionId, Guid userId, DateTimeOffset createdAt)
+    {
+        QuizVersionId = quizVersionId;
+        UserId = userId;
+        CreatedAt = createdAt;
+    }
+
+    public Guid QuizVersionId { get; private set; }
+    public Guid UserId { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public static QuizAudienceMember Create(Guid quizVersionId, Guid userId, DateTimeOffset now)
+    {
+        if (quizVersionId == Guid.Empty || userId == Guid.Empty)
+        {
+            throw new DomainRuleException("ASSESSMENT.AUDIENCE_MEMBER_INVALID", "Assessment audience identifiers are required.");
+        }
+
+        return new QuizAudienceMember(quizVersionId, userId, now);
+    }
+}
+
+public sealed class AssignmentAudienceMember
+{
+    private AssignmentAudienceMember()
+    {
+    }
+
+    private AssignmentAudienceMember(Guid assignmentVersionId, Guid userId, DateTimeOffset createdAt)
+    {
+        AssignmentVersionId = assignmentVersionId;
+        UserId = userId;
+        CreatedAt = createdAt;
+    }
+
+    public Guid AssignmentVersionId { get; private set; }
+    public Guid UserId { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public static AssignmentAudienceMember Create(Guid assignmentVersionId, Guid userId, DateTimeOffset now)
+    {
+        if (assignmentVersionId == Guid.Empty || userId == Guid.Empty)
+        {
+            throw new DomainRuleException("ASSESSMENT.AUDIENCE_MEMBER_INVALID", "Assessment audience identifiers are required.");
+        }
+
+        return new AssignmentAudienceMember(assignmentVersionId, userId, now);
     }
 }
 

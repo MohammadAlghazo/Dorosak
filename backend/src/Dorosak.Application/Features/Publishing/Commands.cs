@@ -129,7 +129,8 @@ public sealed class PublishingCoordinator(
                         lesson.SourceLessonId,
                         ReleaseAssessmentKind.Quiz,
                         quizVersionId,
-                        lesson.Position));
+                        lesson.Position,
+                        assessmentSnapshot.Audiences.Single(audience => audience.VersionId == quizVersionId).AudienceType));
                 }
                 if (lesson.AssignmentVersionId is { } assignmentVersionId)
                 {
@@ -137,7 +138,8 @@ public sealed class PublishingCoordinator(
                         lesson.SourceLessonId,
                         ReleaseAssessmentKind.Assignment,
                         assignmentVersionId,
-                        lesson.Position));
+                        lesson.Position,
+                        assessmentSnapshot.Audiences.Single(audience => audience.VersionId == assignmentVersionId).AudienceType));
                 }
 
                 return values;

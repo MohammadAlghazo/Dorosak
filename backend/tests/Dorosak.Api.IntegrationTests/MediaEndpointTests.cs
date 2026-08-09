@@ -83,7 +83,7 @@ public sealed class MediaEndpointTests(ApiFixture fixture)
     }
 
     [Fact]
-    public async Task BinaryAssignmentUpload_ReturnsExplicitPhaseBoundaryError()
+    public async Task BinaryAssignmentUpload_RequiresIdempotencyBeforeResolvingSubmission()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         SignedInUser learner = await CreateUserAsync("assignment-boundary", cancellationToken);
@@ -92,10 +92,18 @@ public sealed class MediaEndpointTests(ApiFixture fixture)
             HttpMethod.Post,
             $"/api/v1/learning/enrollments/{Guid.CreateVersion7():D}/assignments/{Guid.CreateVersion7():D}/files",
             learner.AccessToken);
+        request.Content = JsonContent.Create(new
+        {
+            submissionId = Guid.CreateVersion7(),
+            clientFileId = Guid.CreateVersion7(),
+            expectedBytes = 100,
+            fileName = "answer.pdf",
+            contentType = "application/pdf",
+        });
         using HttpResponseMessage response = await fixture.Client.SendAsync(request, cancellationToken);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        Assert.Equal("ASSIGNMENT.FILE_UPLOAD_DEFERRED", await ReadProblemCodeAsync(response, cancellationToken));
+        Assert.Equal("Idempotency-Key", await ReadProblemFieldAsync(response, "Idempotency-Key", cancellationToken));
     }
 
     [Fact]

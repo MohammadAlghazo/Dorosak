@@ -9,6 +9,17 @@ public sealed record EnrollmentResponse(
     string Title,
     string Slug);
 
+public sealed record CourseLearnerResponse(
+    Guid UserId,
+    string DisplayName,
+    IReadOnlyList<CourseLearnerEnrollmentResponse> Enrollments);
+
+public sealed record CourseLearnerEnrollmentResponse(
+    Guid EnrollmentId,
+    Guid ReleaseId,
+    string Status,
+    DateTimeOffset EnrolledAt);
+
 public sealed record LearningManifestResponse(
     Guid EnrollmentId,
     Guid CourseId,
@@ -115,7 +126,9 @@ public sealed record QuizVersionResponse(
     int AttemptLimit,
     int? DurationMinutes,
     DateTimeOffset? Deadline,
-    decimal PassScore);
+    decimal PassScore,
+    string AudienceType,
+    IReadOnlyList<Guid> SelectedLearnerUserIds);
 
 public sealed record QuizAnswerInput(
     Guid QuestionId,
@@ -155,7 +168,9 @@ public sealed record AssignmentVersionResponse(
     string Instructions,
     string Status,
     DateTimeOffset? Deadline,
-    bool AllowMultipleSubmissions);
+    bool AllowMultipleSubmissions,
+    string AudienceType,
+    IReadOnlyList<Guid> SelectedLearnerUserIds);
 
 public sealed record AssignmentSubmissionResponse(
     Guid Id,
