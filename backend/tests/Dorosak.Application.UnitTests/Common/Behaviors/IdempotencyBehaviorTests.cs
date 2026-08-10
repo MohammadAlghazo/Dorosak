@@ -81,6 +81,30 @@ public sealed class IdempotencyBehaviorTests
         Assert.Equal(1, store.StoreCalls);
     }
 
+    [Fact]
+    public async Task Handle_RefreshesCompletedResponseWhenReplayHandlerIsRegistered()
+    {
+        Result<string> completed = Result.Success("stored");
+        var store = new StubIdempotencyStore
+        {
+            LookupStatus = IdempotencyLookupStatus.Completed,
+            LookupResponse = completed,
+        };
+        var replayHandler = new StubReplayHandler();
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(
+            store,
+            [replayHandler]);
+
+        Result<string> result = await behavior.Handle(
+            new IdempotentRequest("key", "payload"),
+            _ => Task.FromResult(Result.Success("new")),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("current", result.Value);
+        Assert.Equal(1, replayHandler.Calls);
+        Assert.Equal(0, store.StoreCalls);
+    }
+
     private sealed record IdempotentRequest(string IdempotencyKey, string Payload) : IIdempotentRequest
     {
         public string IdempotencyOperation => "test.operation.v1";
@@ -123,6 +147,21 @@ public sealed class IdempotencyBehaviorTests
         {
             StoreCalls++;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubReplayHandler
+        : IIdempotencyReplayHandler<IdempotentRequest, Result<string>>
+    {
+        public int Calls { get; private set; }
+
+        public Task<Result<string>> ResolveAsync(
+            IdempotentRequest request,
+            Result<string> storedResponse,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(Result.Success("current"));
         }
     }
 }

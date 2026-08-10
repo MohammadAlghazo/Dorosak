@@ -3,8 +3,15 @@ import { inject, Injectable } from '@angular/core';
 import { map, switchMap, type Observable } from 'rxjs';
 import type { ApiEnvelope } from './api-envelope';
 import { API_REQUEST, DEADLINE_MS, PUBLIC_API_REQUEST } from './api-context';
-import { authenticatedMutationContext } from './phase6-api.helpers';
-import type { CourseReview, CourseReviewPage } from './engagement-api.types';
+import { authenticatedMutationContext, authenticatedReadContext } from './phase6-api.helpers';
+import type {
+  CommentLikeResult,
+  CourseReview,
+  CourseReviewPage,
+  DiscussionComment,
+  DiscussionThread,
+  DiscussionThreadPage,
+} from './engagement-api.types';
 import { IdentityApiClient } from './identity-api.client';
 
 @Injectable({ providedIn: 'root' })
@@ -80,4 +87,171 @@ export class EngagementApiClient {
       map((response) => response.data.completed),
     );
   }
+
+  getDiscussionThreads(
+    enrollmentId: string,
+    lessonId: string | null,
+    cursor: string | null = null,
+    limit = 20,
+  ): Observable<DiscussionThreadPage> {
+    let params = new HttpParams().set('limit', limit);
+    if (cursor) params = params.set('cursor', cursor);
+    return this.http
+      .get<ApiEnvelope<DiscussionThreadPage>>(discussionPath(enrollmentId, lessonId), {
+        context: authenticatedReadContext(),
+        params,
+      })
+      .pipe(map((response) => response.data));
+  }
+
+  getDiscussionThread(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    commentCursor: string | null = null,
+    commentLimit = 50,
+  ): Observable<DiscussionThread> {
+    let params = new HttpParams().set('commentLimit', commentLimit);
+    if (commentCursor) params = params.set('commentCursor', commentCursor);
+    return this.http
+      .get<ApiEnvelope<DiscussionThread>>(
+        `${discussionPath(enrollmentId, lessonId)}/${encodeURIComponent(threadId)}`,
+        { context: authenticatedReadContext(), params },
+      )
+      .pipe(map((response) => response.data));
+  }
+
+  createDiscussionThread(
+    enrollmentId: string,
+    lessonId: string | null,
+    title: string,
+    body: string,
+    idempotencyKey: string,
+  ): Observable<DiscussionThread> {
+    return this.privateMutation<DiscussionThread>(
+      'post',
+      discussionPath(enrollmentId, lessonId),
+      { title: title.trim(), body: body.trim() },
+      idempotencyKey,
+    );
+  }
+
+  updateDiscussionThread(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    title: string,
+    body: string,
+  ): Observable<DiscussionThread> {
+    return this.privateMutation<DiscussionThread>(
+      'put',
+      `${discussionPath(enrollmentId, lessonId)}/${encodeURIComponent(threadId)}`,
+      { title: title.trim(), body: body.trim() },
+    );
+  }
+
+  deleteDiscussionThread(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+  ): Observable<boolean> {
+    return this.privateMutation<{ completed: boolean }>(
+      'delete',
+      `${discussionPath(enrollmentId, lessonId)}/${encodeURIComponent(threadId)}`,
+      null,
+    ).pipe(map((response) => response.completed));
+  }
+
+  createDiscussionComment(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    body: string,
+    parentCommentId: string | null,
+    idempotencyKey: string,
+  ): Observable<DiscussionComment> {
+    return this.privateMutation<DiscussionComment>(
+      'post',
+      `${discussionPath(enrollmentId, lessonId)}/${encodeURIComponent(threadId)}/comments`,
+      { body: body.trim(), parentCommentId },
+      idempotencyKey,
+    );
+  }
+
+  updateDiscussionComment(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    commentId: string,
+    body: string,
+  ): Observable<DiscussionComment> {
+    return this.privateMutation<DiscussionComment>(
+      'put',
+      commentPath(enrollmentId, lessonId, threadId, commentId),
+      { body: body.trim() },
+    );
+  }
+
+  deleteDiscussionComment(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    commentId: string,
+  ): Observable<boolean> {
+    return this.privateMutation<{ completed: boolean }>(
+      'delete',
+      commentPath(enrollmentId, lessonId, threadId, commentId),
+      null,
+    ).pipe(map((response) => response.completed));
+  }
+
+  setDiscussionCommentLike(
+    enrollmentId: string,
+    lessonId: string | null,
+    threadId: string,
+    commentId: string,
+    liked: boolean,
+  ): Observable<CommentLikeResult> {
+    return this.privateMutation<CommentLikeResult>(
+      liked ? 'put' : 'delete',
+      `${commentPath(enrollmentId, lessonId, threadId, commentId)}/like`,
+      null,
+    );
+  }
+
+  private privateMutation<T>(
+    method: 'post' | 'put' | 'delete',
+    path: string,
+    body: unknown,
+    idempotencyKey?: string,
+  ): Observable<T> {
+    const headers = idempotencyKey
+      ? new HttpHeaders({ 'Idempotency-Key': idempotencyKey })
+      : new HttpHeaders();
+    return this.identity.bootstrapCsrf().pipe(
+      switchMap(() =>
+        this.http.request<ApiEnvelope<T>>(method, path, {
+          body,
+          context: authenticatedMutationContext(),
+          headers,
+        }),
+      ),
+      map((response) => response.data),
+    );
+  }
 }
+
+const discussionPath = (enrollmentId: string, lessonId: string | null): string => {
+  const enrollmentPath = `learning/enrollments/${encodeURIComponent(enrollmentId)}`;
+  return lessonId === null
+    ? `${enrollmentPath}/discussions`
+    : `${enrollmentPath}/lessons/${encodeURIComponent(lessonId)}/discussions`;
+};
+
+const commentPath = (
+  enrollmentId: string,
+  lessonId: string | null,
+  threadId: string,
+  commentId: string,
+): string =>
+  `${discussionPath(enrollmentId, lessonId)}/${encodeURIComponent(threadId)}/comments/${encodeURIComponent(commentId)}`;

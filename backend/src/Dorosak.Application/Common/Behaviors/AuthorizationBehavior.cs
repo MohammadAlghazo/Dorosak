@@ -31,7 +31,8 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>(IEnumerable<IRequ
             {
                 if (decision.Code.EndsWith(".ACCESS_DENIED", StringComparison.Ordinal))
                 {
-                    throw new ResourceNotFoundException("COURSE.NOT_FOUND", decision.Description);
+                    string resource = decision.Code[..^".ACCESS_DENIED".Length];
+                    throw new ResourceNotFoundException($"{resource}.NOT_FOUND", decision.Description);
                 }
                 throw new ForbiddenAccessException(decision.Code, decision.Description);
             }

@@ -67,6 +67,22 @@ marks it `Ready`.
 - Course announcements are teacher/admin mutations and learner-owned notification projections; they never authorize a
   learner to access a course or release that the learner does not already own.
 
+### Discussion implementation profile
+
+- A discussion thread is owned by a concrete course release and may optionally target one release lesson. Learner routes
+  resolve the scope through the learner's active or completed enrollment and active entitlement; instructor routes resolve
+  it through the course owner, a non-reviewer collaborator, or an explicit course-management permission. Invalid or foreign
+  scopes use the same safe `404` shape.
+- A numeric comment depth of `0` is a root comment and the maximum numeric depth is `2`; a reply at depth `2` is rejected.
+  The parent foreign key stores the parent depth so PostgreSQL enforces the same invariant as the domain model.
+- Authors may edit their own published thread/comment during a 15-minute edit window. They may remove their own published
+  content after that window; removal is a tombstone and never a hard delete. Moderation states retain the safe public shape.
+- Thread/comment mutations use one transaction for the business row, audit row, and idempotency record. Resource advisory
+  locks serialize thread/comment removal against replies and likes. Idempotent create replays reauthorize the current scope
+  and rebuild the current safe response instead of returning stale private content.
+- REST discussion reads use signed, query-bound cursors. Course and lesson scopes have separate opaque paths, and private
+  responses remain `no-store`; realtime delivery and resynchronization remain a subsequent slice over these durable rows.
+
 ### Realtime
 
 - REST is the source of truth and provides cursor/sequence-based resynchronization. SignalR is best effort for notification

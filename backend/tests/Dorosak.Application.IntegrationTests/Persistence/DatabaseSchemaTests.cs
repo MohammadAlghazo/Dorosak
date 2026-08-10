@@ -30,9 +30,9 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name IN ('outbox_messages', 'idempotency_records')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+        Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'engagement' AND table_name = 'course_reviews'",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'engagement' AND table_name IN ('course_reviews', 'discussion_threads', 'comments', 'comment_likes')",
             TestContext.Current.CancellationToken));
         Assert.Equal(6L, await ExecuteScalarAsync<long>(
             connection,
@@ -106,6 +106,40 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'engagement.course_reviews', 'DELETE,TRUNCATE')",
             TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.discussion_threads', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.discussion_threads', 'INSERT') AND has_table_privilege('dorosak_runtime', 'engagement.discussion_threads', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.discussion_threads', 'DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.comments', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.comments', 'INSERT') AND has_table_privilege('dorosak_runtime', 'engagement.comments', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.comments', 'DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.comment_likes', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.comment_likes', 'INSERT') AND has_table_privilege('dorosak_runtime', 'engagement.comment_likes', 'DELETE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.comment_likes', 'UPDATE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'engagement' AND table_name = 'discussion_threads' AND column_name = 'edited_at'",
+            TestContext.Current.CancellationToken));
+        string commentDepthConstraint = await ExecuteScalarAsync<string>(
+            connection,
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_comments_depth'",
+            TestContext.Current.CancellationToken);
+        Assert.Contains("depth >= 0", commentDepthConstraint, StringComparison.Ordinal);
+        Assert.Contains("depth <= 2", commentDepthConstraint, StringComparison.Ordinal);
         Assert.Equal(3L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM identity.roles",

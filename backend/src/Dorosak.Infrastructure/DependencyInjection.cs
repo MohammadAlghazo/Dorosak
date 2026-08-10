@@ -40,7 +40,11 @@ public static class DependencyInjection
         services.AddScoped<IMediaProcessingStore, MediaProcessingStore>();
         services.AddScoped<Application.Features.Learning.ILearningService, LearningService>();
         services.AddScoped<Application.Features.Commerce.ICommerceService, CommerceService>();
-        services.AddScoped<Application.Features.Engagement.IEngagementService, EngagementService>();
+        services.AddScoped<EngagementService>();
+        services.AddScoped<Application.Features.Engagement.IEngagementService>(provider =>
+            provider.GetRequiredService<EngagementService>());
+        services.AddScoped<Application.Features.Engagement.IDiscussionAccessReader>(provider =>
+            provider.GetRequiredService<EngagementService>());
         services.AddScoped<Phase6Service>();
         services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());

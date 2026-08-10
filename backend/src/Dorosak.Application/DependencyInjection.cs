@@ -33,6 +33,7 @@ public static class DependencyInjection
         AddLearningHandlers(services);
         AddCommerceHandlers(services);
         AddEngagementHandlers(services);
+        AddEngagementAuthorization(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>,
@@ -183,6 +184,38 @@ public static class DependencyInjection
         AddEngagementHandler<Features.Engagement.CreateCourseReviewCommand, Features.Engagement.CourseReviewResponse>(services);
         AddEngagementHandler<Features.Engagement.UpdateCourseReviewCommand, Features.Engagement.CourseReviewResponse>(services);
         AddEngagementHandler<Features.Engagement.DeleteCourseReviewCommand, Features.Engagement.EngagementOperationResponse>(services);
+        AddEngagementHandler<Features.Engagement.GetDiscussionThreadsQuery, Features.Engagement.DiscussionThreadPageResponse>(services);
+        AddEngagementHandler<Features.Engagement.GetDiscussionThreadQuery, Features.Engagement.DiscussionThreadResponse>(services);
+        AddEngagementHandler<Features.Engagement.CreateDiscussionThreadCommand, Features.Engagement.DiscussionThreadResponse>(services);
+        AddEngagementHandler<Features.Engagement.UpdateDiscussionThreadCommand, Features.Engagement.DiscussionThreadResponse>(services);
+        AddEngagementHandler<Features.Engagement.DeleteDiscussionThreadCommand, Features.Engagement.EngagementOperationResponse>(services);
+        AddEngagementHandler<Features.Engagement.CreateDiscussionCommentCommand, Features.Engagement.DiscussionCommentResponse>(services);
+        AddEngagementHandler<Features.Engagement.UpdateDiscussionCommentCommand, Features.Engagement.DiscussionCommentResponse>(services);
+        AddEngagementHandler<Features.Engagement.DeleteDiscussionCommentCommand, Features.Engagement.EngagementOperationResponse>(services);
+        AddEngagementHandler<Features.Engagement.LikeDiscussionCommentCommand, Features.Engagement.CommentLikeResponse>(services);
+        AddEngagementHandler<Features.Engagement.UnlikeDiscussionCommentCommand, Features.Engagement.CommentLikeResponse>(services);
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Engagement.CreateDiscussionThreadCommand,
+            Common.Results.Result<Features.Engagement.DiscussionThreadResponse>>,
+            Features.Engagement.CreateDiscussionThreadReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Engagement.CreateDiscussionCommentCommand,
+            Common.Results.Result<Features.Engagement.DiscussionCommentResponse>>,
+            Features.Engagement.CreateDiscussionCommentReplayHandler>();
+    }
+
+    private static void AddEngagementAuthorization(IServiceCollection services)
+    {
+        AddDiscussionAuthorizer<Features.Engagement.GetDiscussionThreadsQuery>(services);
+        AddDiscussionAuthorizer<Features.Engagement.GetDiscussionThreadQuery>(services);
+        AddDiscussionAuthorizer<Features.Engagement.CreateDiscussionThreadCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.UpdateDiscussionThreadCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.DeleteDiscussionThreadCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.CreateDiscussionCommentCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.UpdateDiscussionCommentCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.DeleteDiscussionCommentCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.LikeDiscussionCommentCommand>(services);
+        AddDiscussionAuthorizer<Features.Engagement.UnlikeDiscussionCommentCommand>(services);
     }
 
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
@@ -226,4 +259,9 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Engagement.EngagementHandler<TRequest, TResponse>>();
+
+    private static void AddDiscussionAuthorizer<TRequest>(IServiceCollection services)
+        where TRequest : Features.Engagement.IDiscussionAuthorizedRequest =>
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<TRequest>,
+            Features.Engagement.DiscussionResourceAuthorizer<TRequest>>();
 }

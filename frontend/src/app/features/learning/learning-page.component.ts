@@ -40,6 +40,7 @@ import {
   MediaUploadHasher,
   type MediaFileHashes,
 } from '../media-upload/media-upload-hasher.service';
+import { LessonDiscussionPanelComponent } from './lesson-discussion-panel.component';
 
 type WorkspaceState =
   | { status: 'loading' | 'offline'; manifest: null; lesson: null; errorCode: null }
@@ -53,7 +54,7 @@ type WorkspaceState =
 
 @Component({
   selector: 'drs-learning-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, LessonDiscussionPanelComponent],
   template: `
     <section class="workspace" aria-live="polite" [attr.aria-busy]="state().status === 'loading'">
       @switch (state().status) {
@@ -452,6 +453,11 @@ type WorkspaceState =
                       </article>
                     }
                   </section>
+
+                  <drs-lesson-discussion-panel
+                    [enrollmentId]="manifest.enrollmentId"
+                    [lessonId]="lesson.id"
+                  />
 
                   <nav
                     class="lesson-navigation"

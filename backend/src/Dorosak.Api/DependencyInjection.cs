@@ -8,6 +8,7 @@ using Dorosak.Api.Authorization;
 using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
+using Dorosak.Api.OpenApi;
 using Dorosak.Api.Startup;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
@@ -154,6 +155,7 @@ public static class DependencyInjection
                 Description = "Dorosak educational platform API",
             });
             options.CustomSchemaIds(type => type.FullName?.Replace('+', '.') ?? type.Name);
+            options.OperationFilter<EngagementOperationFilter>();
         });
 
         services.AddResponseCompression(options =>
@@ -228,7 +230,9 @@ public static class DependencyInjection
                     }));
             options.AddPolicy(ApiConstants.SensitiveRateLimitPolicy, context =>
                 RateLimitPartition.GetSlidingWindowLimiter(
-                    GetRateLimitPartition(context.Connection.RemoteIpAddress),
+                    context.User.FindFirst("sub")?.Value is { Length: > 0 } userId
+                        ? $"user:{userId}"
+                        : $"anonymous:{GetRateLimitPartition(context.Connection.RemoteIpAddress)}",
                     _ => new SlidingWindowRateLimiterOptions
                     {
                         PermitLimit = 60,

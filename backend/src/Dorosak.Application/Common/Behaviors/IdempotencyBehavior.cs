@@ -5,7 +5,9 @@ using MediatR;
 
 namespace Dorosak.Application.Common.Behaviors;
 
-public sealed class IdempotencyBehavior<TRequest, TResponse>(IIdempotencyStore store)
+public sealed class IdempotencyBehavior<TRequest, TResponse>(
+    IIdempotencyStore store,
+    IEnumerable<IIdempotencyReplayHandler<TRequest, TResponse>>? replayHandlers = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -39,7 +41,16 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>(IIdempotencyStore s
         }
         if (lookup.Status == IdempotencyLookupStatus.Completed)
         {
-            return lookup.Response!;
+            IIdempotencyReplayHandler<TRequest, TResponse>[] handlers = [.. replayHandlers ?? []];
+            if (handlers.Length > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Idempotent request {typeof(TRequest).Name} has more than one replay handler.");
+            }
+
+            return handlers.Length == 0
+                ? lookup.Response!
+                : await handlers[0].ResolveAsync(request, lookup.Response!, cancellationToken);
         }
         if (lookup.Status == IdempotencyLookupStatus.ResponseSchemaMismatch)
         {

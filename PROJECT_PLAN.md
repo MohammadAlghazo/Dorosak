@@ -2426,14 +2426,20 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
   with optimistic concurrency protection. New source-video uploads are hidden until the server/CDN choice.
 - Temporary demo commerce stores idempotent `DemoOrder`/`DemoPayment` attempts, simulates success/failure, grants a `Demo`
   entitlement and pinned enrollment only on success, and never requests or stores real payment credentials.
+- Course reviews now enforce enrollment eligibility and one review per learner/course, with safe public projections and
+  private own-review mutations.
+- Discussion threads, comments, and unique comment likes now have durable release-scoped PostgreSQL state, learner and
+  instructor course/lesson scopes, signed cursor pagination, two-level reply nesting (`depth` 0 through 2), tombstone
+  removal, author edit windows, audit records, idempotent create replay reauthorization, and Angular Arabic/English
+  learner interactions.
 
 #### Verification
 
 - Backend solution Debug build: `0 warnings`, `0 errors`.
-- Domain unit tests: `37 passed`.
-- Application unit tests: `20 passed`; architecture tests: `6 passed`.
+- Domain unit tests: `43 passed`.
+- Application unit tests: `21 passed`; architecture tests: `6 passed`.
 - MediaWorker unit tests: `8 passed`, `2 skipped` because Docker/Compose services were unavailable.
-- Angular tests: `57 passed` across `23` files; ESLint and development build passed; `git diff --check` passed.
+- Angular tests: `71 passed` across `25` files; ESLint, Prettier, production build, PWA checks, and bundle budgets passed.
 - API and PostgreSQL integration gates were attempted but could not start because Docker Desktop was unavailable at
   `npipe://./pipe/docker_engine`. They must be rerun with Docker/PostgreSQL/Redis/ClamAV available.
 - After Docker became available, PostgreSQL schema/workflow tests passed `3/3`, including DemoOrder/DemoPayment tables,
@@ -2442,8 +2448,8 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
 
 #### Still Open
 
-- Durable Phase 9 engagement modules: reviews, discussions/comments, reports, moderation, messages, notifications,
-  announcements, and SignalR reconnect/resync have not been implemented.
+- Durable Phase 9 engagement modules still open: reports, moderation, messages, notifications, announcements, and SignalR
+  reconnect/resync. Reviews and discussions/comments/likes are implemented locally but remain subject to the integration gate.
 - Dedicated integration coverage remains for selected/all-enrolled IDOR, attachment lifecycle, rejected malware,
   non-ready grading, collaborator downloads, multipart assignment uploads, and demo checkout persistence once Docker is available.
 - The full backend/frontend/Playwright release gates remain to run before Phase 9 can be closed.

@@ -168,6 +168,12 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
 
     internal DbSet<CourseReview> CourseReviews => Set<CourseReview>();
 
+    internal DbSet<DiscussionThread> DiscussionThreads => Set<DiscussionThread>();
+
+    internal DbSet<DiscussionComment> DiscussionComments => Set<DiscussionComment>();
+
+    internal DbSet<CommentLike> CommentLikes => Set<CommentLike>();
+
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
