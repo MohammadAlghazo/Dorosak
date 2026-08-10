@@ -23,6 +23,7 @@ import type {
 } from '../../core/api/engagement-api.types';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { ConnectivityStore } from '../../core/pwa/connectivity.store';
+import { ContentReportDialogComponent } from '../reports/content-report-dialog.component';
 
 type DiscussionState =
   | { status: 'idle' | 'loading' | 'offline'; page: null; errorCode: null }
@@ -42,7 +43,7 @@ interface ThreadSelectionScope extends DiscussionScope {
 
 @Component({
   selector: 'drs-lesson-discussion-panel',
-  imports: [FormsModule],
+  imports: [FormsModule, ContentReportDialogComponent],
   template: `
     <div
       class="discussion-panel"
@@ -50,6 +51,7 @@ interface ThreadSelectionScope extends DiscussionScope {
       aria-labelledby="discussion-heading"
       [attr.aria-busy]="state().status === 'loading' || loadingThread()"
     >
+      <drs-content-report-dialog #reportDialog />
       <header class="discussion-heading">
         <div>
           <p class="discussion-kicker">{{ scopeKicker() }}</p>
@@ -433,6 +435,15 @@ interface ThreadSelectionScope extends DiscussionScope {
                                   {{ comment.likedByViewer ? '♥' : '♡' }}
                                 </span>
                                 {{ comment.likeCount }}
+                              </button>
+                              <button
+                                type="button"
+                                class="comment-action"
+                                (click)="reportDialog.openForComment(comment.id)"
+                              >
+                                {{
+                                  locale.locale() === 'ar' ? 'الإبلاغ عن التعليق' : 'Report comment'
+                                }}
                               </button>
                               @if (comment.depth < 2) {
                                 <button

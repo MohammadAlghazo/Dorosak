@@ -72,9 +72,7 @@ internal sealed class EngagementService(
         CreateCourseReviewCommand request,
         CancellationToken cancellationToken)
     {
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtextextended({$"course-review:{request.UserId:D}:{request.CourseId:D}"}, 0))",
-            cancellationToken);
+        await LockCourseReviewAsync(request.UserId, request.CourseId, cancellationToken);
         if (!await HasEligibleEnrollmentAsync(request.UserId, request.CourseId, cancellationToken))
         {
             return Result.Failure<CourseReviewResponse>(ResultError.Forbidden(
@@ -108,6 +106,7 @@ internal sealed class EngagementService(
         UpdateCourseReviewCommand request,
         CancellationToken cancellationToken)
     {
+        await LockCourseReviewAsync(request.UserId, request.CourseId, cancellationToken);
         CourseReview? review = await dbContext.CourseReviews.SingleOrDefaultAsync(
             candidate => candidate.Id == request.ReviewId && candidate.UserId == request.UserId &&
                 candidate.CourseId == request.CourseId,
@@ -123,7 +122,14 @@ internal sealed class EngagementService(
                 "REVIEW.ENROLLMENT_REQUIRED", "Only enrolled learners can edit a course review."));
         }
         DateTimeOffset now = timeProvider.GetUtcNow();
-        review.Update(request.Rating, request.Text, now);
+        try
+        {
+            review.Update(request.Rating, request.Text, now);
+        }
+        catch (DomainRuleException exception)
+        {
+            return Result.Failure<CourseReviewResponse>(ResultError.BusinessRule(exception.Code, exception.Message));
+        }
         AddAudit(request.UserId, "engagement.review-updated", "CourseReview", review.Id, null, now);
         return Result.Success(await MapAsync(review, cancellationToken));
     }
@@ -132,6 +138,7 @@ internal sealed class EngagementService(
         DeleteCourseReviewCommand request,
         CancellationToken cancellationToken)
     {
+        await LockCourseReviewAsync(request.UserId, request.CourseId, cancellationToken);
         CourseReview? review = await dbContext.CourseReviews.SingleOrDefaultAsync(
             candidate => candidate.Id == request.ReviewId && candidate.UserId == request.UserId &&
                 candidate.CourseId == request.CourseId,
@@ -147,8 +154,17 @@ internal sealed class EngagementService(
                 "REVIEW.ENROLLMENT_REQUIRED", "Only enrolled learners can remove a course review."));
         }
         DateTimeOffset now = timeProvider.GetUtcNow();
-        review.Remove(now);
-        AddAudit(request.UserId, "engagement.review-removed", "CourseReview", review.Id, null, now);
+        try
+        {
+            if (review.Remove(now))
+            {
+                AddAudit(request.UserId, "engagement.review-removed", "CourseReview", review.Id, null, now);
+            }
+        }
+        catch (DomainRuleException exception)
+        {
+            return Result.Failure<EngagementOperationResponse>(ResultError.BusinessRule(exception.Code, exception.Message));
+        }
         return Result.Success(new EngagementOperationResponse(true));
     }
 
@@ -937,6 +953,9 @@ internal sealed class EngagementService(
 
     private Task<int> LockCommentAsync(Guid commentId, CancellationToken cancellationToken) =>
         LockDiscussionResourceAsync($"discussion-comment:{commentId:D}", cancellationToken);
+
+    private Task<int> LockCourseReviewAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) =>
+        LockDiscussionResourceAsync($"course-review:{userId:D}:{courseId:D}", cancellationToken);
 
     private Task<int> LockDiscussionResourceAsync(string identity, CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlInterpolatedAsync(

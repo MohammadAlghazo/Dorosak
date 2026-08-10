@@ -197,7 +197,15 @@ public sealed class MediaIntegrationTests(InfrastructureFixture fixture)
         Guid userId = await CreateUserAsync("media-assignment-deferred", TestContext.Current.CancellationToken);
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         Result<UploadSessionResponse> result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(
-            new CreateUploadSessionCommand(userId, "AssignmentSubmission", 100, "answer.pdf", "application/pdf", null, Guid.NewGuid().ToString("N")),
+            new CreateUploadSessionCommand(
+                userId,
+                "AssignmentSubmission",
+                100,
+                "answer.pdf",
+                "application/pdf",
+                null,
+                Guid.NewGuid().ToString("N"),
+                ClientFileId: Guid.CreateVersion7()),
             TestContext.Current.CancellationToken);
 
         Assert.False(result.IsSuccess);

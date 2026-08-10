@@ -155,7 +155,7 @@ public static class DependencyInjection
                 Description = "Dorosak educational platform API",
             });
             options.CustomSchemaIds(type => type.FullName?.Replace('+', '.') ?? type.Name);
-            options.OperationFilter<EngagementOperationFilter>();
+            options.OperationFilter<RequiredIdempotencyHeaderOperationFilter>();
         });
 
         services.AddResponseCompression(options =>

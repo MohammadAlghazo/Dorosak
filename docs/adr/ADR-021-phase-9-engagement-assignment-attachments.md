@@ -83,6 +83,24 @@ marks it `Ready`.
 - REST discussion reads use signed, query-bound cursors. Course and lesson scopes have separate opaque paths, and private
   responses remain `no-store`; realtime delivery and resynchronization remain a subsequent slice over these durable rows.
 
+### Reports and moderation implementation profile
+
+- The first reports migration supports concrete `course_id`, `review_id`, `comment_id`, and `reported_user_id` foreign
+  keys with `num_nonnulls(...) = 1`. `message_id` is added only after Communications introduces its durable message table;
+  a generic or unconstrained message target is not permitted as an interim compatibility shortcut.
+- Report reasons are `Spam`, `Harassment`, `HateSpeech`, `Misinformation`, `Copyright`, `PersonalData`, and `Other`.
+  Reports and cases use `Open`, `InReview`, `Resolved`, and `Dismissed`. One unresolved report per reporter and concrete
+  target is enforced independently of transport idempotency.
+- A moderation case is created in the same transaction as its report. Administrative actions are append-only and limited
+  initially to `StartReview`, `HideContent`, `RestoreContent`, `Resolve`, and `Dismiss`. Hide/restore applies only to review
+  and comment targets owned by Engagement; course and account actions require a later coordinated command in their owning
+  module rather than a cross-module write.
+- Creating a report requires current visibility of its target and cannot disclose a foreign private discussion. Report
+  creation and moderation actions require idempotency keys. Moderation reads require `Moderation.ReviewAny`; actions use
+  the existing Admin high-risk policy, MFA/recent authentication, an audit header, and a separate decision reason.
+- Reports, cases, and actions are retained for 730 days after case closure unless legal hold or an approved policy requires
+  longer retention. No target body snapshot is copied into the report, moderation action, diagnostic log, or audit payload.
+
 ### Realtime
 
 - REST is the source of truth and provides cursor/sequence-based resynchronization. SignalR is best effort for notification

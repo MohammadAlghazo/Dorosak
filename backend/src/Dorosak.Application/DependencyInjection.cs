@@ -33,6 +33,7 @@ public static class DependencyInjection
         AddLearningHandlers(services);
         AddCommerceHandlers(services);
         AddEngagementHandlers(services);
+        AddModerationHandlers(services);
         AddEngagementAuthorization(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
@@ -218,6 +219,24 @@ public static class DependencyInjection
         AddDiscussionAuthorizer<Features.Engagement.UnlikeDiscussionCommentCommand>(services);
     }
 
+    private static void AddModerationHandlers(IServiceCollection services)
+    {
+        AddModerationHandler<Features.Moderation.CreateContentReportCommand, Features.Moderation.ContentReportResponse>(services);
+        AddModerationHandler<Features.Moderation.GetMyContentReportQuery, Features.Moderation.ContentReportResponse>(services);
+        AddModerationHandler<Features.Moderation.GetAdminContentReportsQuery, Features.Moderation.ContentReportPageResponse>(services);
+        AddModerationHandler<Features.Moderation.GetModerationCasesQuery, Features.Moderation.ModerationCasePageResponse>(services);
+        AddModerationHandler<Features.Moderation.GetModerationCaseQuery, Features.Moderation.ModerationCaseResponse>(services);
+        AddModerationHandler<Features.Moderation.ApplyModerationActionCommand, Features.Moderation.ModerationCaseResponse>(services);
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Moderation.CreateContentReportCommand,
+            Common.Results.Result<Features.Moderation.ContentReportResponse>>,
+            Features.Moderation.CreateContentReportReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Moderation.ApplyModerationActionCommand,
+            Common.Results.Result<Features.Moderation.ModerationCaseResponse>>,
+            Features.Moderation.ApplyModerationActionReplayHandler>();
+    }
+
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
         where TResponse : notnull =>
@@ -259,6 +278,12 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Engagement.EngagementHandler<TRequest, TResponse>>();
+
+    private static void AddModerationHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Moderation.ModerationHandler<TRequest, TResponse>>();
 
     private static void AddDiscussionAuthorizer<TRequest>(IServiceCollection services)
         where TRequest : Features.Engagement.IDiscussionAuthorizedRequest =>

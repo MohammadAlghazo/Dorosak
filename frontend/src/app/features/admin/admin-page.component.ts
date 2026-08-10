@@ -63,6 +63,19 @@ import { LocaleService } from '../../core/i18n/locale.service';
             </p>
           </a>
         }
+        @if (session.hasPermission('Moderation.ReviewAny')) {
+          <a class="admin-action-card" [routerLink]="['moderation']">
+            <span>04</span>
+            <h2>{{ locale.locale() === 'ar' ? 'الإشراف على المحتوى' : 'Content moderation' }}</h2>
+            <p>
+              {{
+                locale.locale() === 'ar'
+                  ? 'فرز البلاغات ومراجعة القضايا وتسجيل الإجراءات.'
+                  : 'Triage reports, review cases, and record actions.'
+              }}
+            </p>
+          </a>
+        }
       </div>
     </section>
   `,

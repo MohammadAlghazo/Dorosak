@@ -3,6 +3,7 @@ using System;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Dorosak.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(DorosakDbContext))]
-    partial class DorosakDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810131301_Phase9ReportsModeration")]
+    partial class Phase9ReportsModeration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2395,10 +2398,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReviewId")
                         .HasDatabaseName("ix_content_reports_review_id");
 
-                    b.HasIndex("CreatedAt", "Id")
-                        .IsDescending()
-                        .HasDatabaseName("ix_content_reports_created_id");
-
                     b.HasIndex("ReporterUserId", "CommentId")
                         .IsUnique()
                         .HasDatabaseName("uq_content_reports_open_comment")
@@ -2747,10 +2746,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReportId")
                         .IsUnique()
                         .HasDatabaseName("uq_moderation_cases_report_id");
-
-                    b.HasIndex("CreatedAt", "Id")
-                        .IsDescending()
-                        .HasDatabaseName("ix_moderation_cases_created_id");
 
                     b.HasIndex("Status", "CreatedAt", "Id")
                         .IsDescending(false, true, true)

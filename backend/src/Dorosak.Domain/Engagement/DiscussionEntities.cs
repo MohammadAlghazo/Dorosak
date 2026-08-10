@@ -262,6 +262,38 @@ public sealed class DiscussionComment
         return true;
     }
 
+    public bool Hide(DateTimeOffset now)
+    {
+        if (Status == DiscussionCommentStatus.Hidden)
+        {
+            return false;
+        }
+        if (Status != DiscussionCommentStatus.Published)
+        {
+            throw new DomainRuleException("COMMENT.NOT_HIDEABLE", "Only a published comment can be hidden.");
+        }
+
+        Status = DiscussionCommentStatus.Hidden;
+        UpdatedAt = now;
+        return true;
+    }
+
+    public bool Restore(DateTimeOffset now)
+    {
+        if (Status == DiscussionCommentStatus.Published)
+        {
+            return false;
+        }
+        if (Status != DiscussionCommentStatus.Hidden)
+        {
+            throw new DomainRuleException("COMMENT.NOT_RESTORABLE", "Only a hidden comment can be restored.");
+        }
+
+        Status = DiscussionCommentStatus.Published;
+        UpdatedAt = now;
+        return true;
+    }
+
     private void EnsureEditable(DateTimeOffset now)
     {
         if (Status != DiscussionCommentStatus.Published)

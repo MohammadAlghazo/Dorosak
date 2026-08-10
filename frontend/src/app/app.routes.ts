@@ -517,6 +517,19 @@ export const routes: Routes = [
             },
           },
           {
+            path: 'moderation',
+            canActivate: [permissionGuard],
+            loadChildren: () =>
+              import('./features/admin/moderation/moderation.routes').then(
+                (module) => module.MODERATION_ROUTES,
+              ),
+            data: {
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Moderation.ReviewAny',
+            },
+          },
+          {
             path: 'taxonomy',
             canActivate: [permissionGuard],
             loadComponent: () =>

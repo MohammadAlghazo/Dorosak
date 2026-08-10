@@ -174,6 +174,12 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
 
     internal DbSet<CommentLike> CommentLikes => Set<CommentLike>();
 
+    internal DbSet<ContentReport> ContentReports => Set<ContentReport>();
+
+    internal DbSet<ModerationCase> ModerationCases => Set<ModerationCase>();
+
+    internal DbSet<ModerationAction> ModerationActions => Set<ModerationAction>();
+
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)

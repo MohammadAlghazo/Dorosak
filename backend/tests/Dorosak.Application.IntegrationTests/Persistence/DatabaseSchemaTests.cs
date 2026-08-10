@@ -30,9 +30,9 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'operations' AND table_name IN ('outbox_messages', 'idempotency_records')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(4L, await ExecuteScalarAsync<long>(
+        Assert.Equal(7L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'engagement' AND table_name IN ('course_reviews', 'discussion_threads', 'comments', 'comment_likes')",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'engagement' AND table_name IN ('course_reviews', 'discussion_threads', 'comments', 'comment_likes', 'content_reports', 'moderation_cases', 'moderation_actions')",
             TestContext.Current.CancellationToken));
         Assert.Equal(6L, await ExecuteScalarAsync<long>(
             connection,
@@ -129,6 +129,39 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'engagement.comment_likes', 'UPDATE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.content_reports', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.content_reports', 'INSERT') AND has_table_privilege('dorosak_runtime', 'engagement.moderation_cases', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.moderation_cases', 'INSERT')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.content_reports', 'UPDATE') OR has_table_privilege('dorosak_runtime', 'engagement.content_reports', 'DELETE') OR has_table_privilege('dorosak_runtime', 'engagement.content_reports', 'TRUNCATE') OR has_table_privilege('dorosak_runtime', 'engagement.moderation_cases', 'UPDATE') OR has_table_privilege('dorosak_runtime', 'engagement.moderation_cases', 'DELETE') OR has_table_privilege('dorosak_runtime', 'engagement.moderation_cases', 'TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'status', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'updated_at', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'closed_at', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'status', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'assigned_to_user_id', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'version', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'updated_at', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'closed_at', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'reporter_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'course_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'reason', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'details', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'report_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'created_at', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.moderation_actions', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.moderation_actions', 'INSERT')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'engagement.moderation_actions', 'UPDATE,DELETE,TRUNCATE')",
+            TestContext.Current.CancellationToken));
+        string reportTargetConstraint = await ExecuteScalarAsync<string>(
+            connection,
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_content_reports_exact_target'",
+            TestContext.Current.CancellationToken);
+        Assert.Contains("num_nonnulls(course_id, review_id, comment_id, reported_user_id) = 1", reportTargetConstraint, StringComparison.Ordinal);
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM pg_indexes WHERE schemaname = 'engagement' AND indexname IN ('ix_content_reports_created_id', 'ix_moderation_cases_created_id')",
             TestContext.Current.CancellationToken));
         Assert.Equal(1L, await ExecuteScalarAsync<long>(
             connection,

@@ -12,6 +12,7 @@ using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Learning;
 using Dorosak.Infrastructure.Media;
+using Dorosak.Infrastructure.Moderation;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -45,6 +46,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EngagementService>());
         services.AddScoped<Application.Features.Engagement.IDiscussionAccessReader>(provider =>
             provider.GetRequiredService<EngagementService>());
+        services.AddScoped<Application.Features.Moderation.IModerationService, ModerationService>();
         services.AddScoped<Phase6Service>();
         services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());

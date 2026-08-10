@@ -5,6 +5,7 @@ import { By } from '@angular/platform-browser';
 import { Subject, of } from 'rxjs';
 import { ApiProblem } from '../../core/api/api-problem';
 import { EngagementApiClient } from '../../core/api/engagement-api.client';
+import { ModerationApiClient } from '../../core/api/moderation-api.client';
 import type {
   DiscussionComment,
   DiscussionThread,
@@ -26,6 +27,7 @@ describe('LessonDiscussionPanelComponent', () => {
       imports: [LessonDiscussionPanelComponent],
       providers: [
         { provide: EngagementApiClient, useValue: api },
+        { provide: ModerationApiClient, useValue: { createReport: vi.fn() } },
         { provide: LocaleService, useValue: { locale: locale.asReadonly() } },
         { provide: ConnectivityStore, useValue: { isOnline: online.asReadonly() } },
       ],

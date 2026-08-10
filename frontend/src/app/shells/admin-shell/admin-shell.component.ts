@@ -25,6 +25,11 @@ import { LocaleService } from '../../core/i18n/locale.service';
               {{ locale.locale() === 'ar' ? 'مراجعات النشر' : 'Publication reviews' }}
             </a>
           }
+          @if (session.hasPermission('Moderation.ReviewAny')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'moderation']">
+              {{ locale.locale() === 'ar' ? 'الإشراف على المحتوى' : 'Content moderation' }}
+            </a>
+          }
           @if (session.hasPermission('Catalog.ManageTaxonomy')) {
             <a [routerLink]="['/', locale.locale(), 'admin', 'taxonomy']">
               {{ locale.locale() === 'ar' ? 'التصنيف' : 'Taxonomy' }}
