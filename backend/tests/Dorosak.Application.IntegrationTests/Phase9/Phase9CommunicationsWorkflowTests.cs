@@ -798,6 +798,85 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
     }
 
     [Fact]
+    public async Task AnnouncementMutationRechecksManagerAfterCourseLock()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid ownerId = await CreateUserAsync("phase9-announcement-race-owner", DorosakIdentityConstants.TeacherRole);
+        Guid newOwnerId = await CreateUserAsync("phase9-announcement-race-new-owner", DorosakIdentityConstants.TeacherRole);
+        Guid learnerId = await CreateUserAsync("phase9-announcement-race-learner");
+        Guid courseId = await SeedConversationCourseAsync(ownerId, learnerId, cancellationToken);
+        Result<AnnouncementResponse> created = await SendInNewScopeAsync(
+            new CreateAnnouncementCommand(
+                ownerId,
+                courseId,
+                "Before ownership transfer",
+                "The stale owner must not update after the transfer.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+
+        await using var gateConnection = new NpgsqlConnection(fixture.DatabaseConnection);
+        await gateConnection.OpenAsync(cancellationToken);
+        await using NpgsqlTransaction gateTransaction = await gateConnection.BeginTransactionAsync(cancellationToken);
+        await using (var gateCommand = new NpgsqlCommand(
+                         "SELECT 1 FROM catalog.courses WHERE id = @course_id FOR UPDATE",
+                         gateConnection,
+                         gateTransaction))
+        {
+            gateCommand.Parameters.AddWithValue("course_id", courseId);
+            await gateCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        Task<Result<AnnouncementResponse>> updateTask = SendInNewScopeAsync(
+            new UpdateAnnouncementCommand(
+                ownerId,
+                courseId,
+                created.Value.Id,
+                "Stale owner update",
+                "This mutation must be rejected.",
+                created.Value.Version,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        bool gateReleased = false;
+        try
+        {
+            await using var observerConnection = new NpgsqlConnection(fixture.DatabaseConnection);
+            await observerConnection.OpenAsync(cancellationToken);
+            await WaitForCourseLockWaiterAsync(observerConnection, cancellationToken);
+
+            await using (var transferCommand = new NpgsqlCommand(
+                             "UPDATE catalog.courses SET owner_user_id = @owner_id WHERE id = @course_id",
+                             gateConnection,
+                             gateTransaction))
+            {
+                transferCommand.Parameters.AddWithValue("owner_id", newOwnerId);
+                transferCommand.Parameters.AddWithValue("course_id", courseId);
+                Assert.Equal(1, await transferCommand.ExecuteNonQueryAsync(cancellationToken));
+            }
+
+            await gateTransaction.CommitAsync(cancellationToken);
+            gateReleased = true;
+            Result<AnnouncementResponse> update = await updateTask;
+            Assert.False(update.IsSuccess);
+            Assert.Equal("ANNOUNCEMENT.NOT_FOUND", update.Failure.Code);
+        }
+        finally
+        {
+            if (!gateReleased)
+            {
+                await gateTransaction.RollbackAsync(CancellationToken.None);
+            }
+        }
+
+        await using AsyncServiceScope verificationScope = fixture.Services.CreateAsyncScope();
+        DorosakDbContext dbContext = verificationScope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+        Announcement announcement = await dbContext.Set<Announcement>().AsNoTracking().SingleAsync(
+            item => item.Id == created.Value.Id,
+            cancellationToken);
+        Assert.Equal(created.Value.Version, announcement.Version);
+        Assert.Equal(created.Value.Title, announcement.Title);
+    }
+
+    [Fact]
     public async Task AnnouncementsAuthorizeCourseManagersAndTargetOnlyEntitledLearners()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
