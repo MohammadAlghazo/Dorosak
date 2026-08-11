@@ -57,7 +57,7 @@ describe('ModerationStore', () => {
 
     store.applyAction(
       'case-1',
-      { action: 'Dismiss', reason: 'The report is not supported by evidence' },
+      { action: 'Dismiss', reason: 'The report is not supported by evidence', expectedVersion: 1 },
       'action-key',
       'Reviewing the reported discussion content',
     );
@@ -90,13 +90,45 @@ describe('ModerationStore', () => {
 
     store.applyAction(
       'case-1',
-      { action: 'StartReview', reason: 'Starting the required content review' },
+      { action: 'StartReview', reason: 'Starting the required content review', expectedVersion: 1 },
       'action-key',
       'Reviewing the reported discussion content',
     );
 
     expect(store.action().status).toBe('conflict');
     expect(store.detail().value).toEqual(caseResponse);
+  });
+
+  it('marks an ambiguous server failure as retryable for idempotent replay', () => {
+    api.getModerationCase.mockReturnValue(of(caseResponse));
+    api.applyModerationAction.mockReturnValue(
+      throwError(
+        () =>
+          new ApiProblem(
+            503,
+            'DEPENDENCY.UNAVAILABLE',
+            null,
+            null,
+            null,
+            {},
+            'The response is ambiguous.',
+          ),
+      ),
+    );
+    store.loadCase('case-1');
+
+    store.applyAction(
+      'case-1',
+      { action: 'StartReview', reason: 'Starting the required content review', expectedVersion: 1 },
+      'stable-action-key',
+      'Reviewing the reported discussion content',
+    );
+
+    expect(store.action()).toMatchObject({
+      status: 'error',
+      errorCode: 'DEPENDENCY.UNAVAILABLE',
+      retryable: true,
+    });
   });
 
   it('does not call the API while offline', () => {
@@ -106,6 +138,50 @@ describe('ModerationStore', () => {
 
     expect(store.queue().status).toBe('offline');
     expect(api.getModerationCases).not.toHaveBeenCalled();
+  });
+
+  it('loads a pending route case after an in-flight action settles', () => {
+    const action = new Subject<ModerationCaseResponse>();
+    api.getModerationCase
+      .mockReturnValueOnce(of(caseResponse))
+      .mockReturnValueOnce(of(secondCaseResponse));
+    api.applyModerationAction.mockReturnValue(action);
+    store.loadCase('case-1');
+    store.applyAction(
+      'case-1',
+      { action: 'Dismiss', reason: 'The report is not supported by evidence', expectedVersion: 1 },
+      'action-key',
+      'Reviewing the reported discussion content',
+    );
+
+    store.loadCase('case-2');
+    expect(api.getModerationCase).toHaveBeenCalledTimes(1);
+    expect(store.detail()).toEqual({ status: 'loading', value: null, errorCode: null });
+    action.next(closedCaseResponse);
+
+    expect(api.getModerationCase).toHaveBeenLastCalledWith('case-2');
+    expect(store.detail().value?.case.id).toBe('case-2');
+  });
+
+  it('restarts pagination when the server rejects an expired cursor', () => {
+    api.getModerationCases
+      .mockReturnValueOnce(
+        throwError(
+          () => new ApiProblem(422, 'CURSOR.INVALID', null, null, null, {}, 'The cursor expired.'),
+        ),
+      )
+      .mockReturnValueOnce(of({ items: [caseResponse.case], nextCursor: null, hasMore: false }));
+    const filters = { kind: 'cases' as const, status: 'Open' as const, targetKind: null };
+
+    store.loadQueue(filters, 'expired-cursor');
+    store.retryQueue();
+
+    expect(api.getModerationCases).toHaveBeenLastCalledWith({
+      status: 'Open',
+      limit: 20,
+      cursor: null,
+    });
+    expect(store.queue().status).toBe('success');
   });
 });
 
@@ -154,6 +230,12 @@ const caseResponse: ModerationCaseResponse = {
     report,
   },
   actions: [],
+  targetPreview: {
+    status: 'Published',
+    title: 'Discussion comment',
+    body: 'Reported comment body',
+    authorName: 'Learner',
+  },
 };
 
 const secondCase = {
@@ -165,6 +247,11 @@ const secondCase = {
     caseId: 'case-2',
     report: { ...report.report, id: 'report-2' },
   },
+};
+
+const secondCaseResponse: ModerationCaseResponse = {
+  ...caseResponse,
+  case: secondCase,
 };
 
 const closedCaseResponse: ModerationCaseResponse = {

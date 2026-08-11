@@ -82,6 +82,23 @@ public sealed class IdempotencyBehaviorTests
     }
 
     [Fact]
+    public async Task Handle_StoresRedactedResponseAndReturnsOriginalResponse()
+    {
+        var store = new StubIdempotencyStore { LookupStatus = IdempotencyLookupStatus.NotFound };
+        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<string>>(
+            store,
+            responseRedactors: [new StubResponseRedactor()]);
+
+        Result<string> result = await behavior.Handle(
+            new IdempotentRequest("key", "payload"),
+            _ => Task.FromResult(Result.Success("private")),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("private", result.Value);
+        Assert.Equal("redacted", Assert.IsType<Result<string>>(store.StoredResponse).Value);
+    }
+
+    [Fact]
     public async Task Handle_RefreshesCompletedResponseWhenReplayHandlerIsRegistered()
     {
         Result<string> completed = Result.Success("stored");
@@ -126,6 +143,8 @@ public sealed class IdempotencyBehaviorTests
 
         public int StoreCalls { get; private set; }
 
+        public object? StoredResponse { get; private set; }
+
         public Task<IdempotencyLookup<TResponse>> FindAsync<TResponse>(
             string scope,
             string operation,
@@ -146,6 +165,7 @@ public sealed class IdempotencyBehaviorTests
             CancellationToken cancellationToken)
         {
             StoreCalls++;
+            StoredResponse = response;
             return Task.CompletedTask;
         }
     }
@@ -163,5 +183,12 @@ public sealed class IdempotencyBehaviorTests
             Calls++;
             return Task.FromResult(Result.Success("current"));
         }
+    }
+
+    private sealed class StubResponseRedactor
+        : IIdempotencyResponseRedactor<IdempotentRequest, Result<string>>
+    {
+        public Result<string> Redact(IdempotentRequest request, Result<string> response) =>
+            Result.Success("redacted");
     }
 }

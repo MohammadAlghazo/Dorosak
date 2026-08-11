@@ -3,6 +3,7 @@ using System;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Dorosak.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(DorosakDbContext))]
-    partial class DorosakDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811102150_Phase9Communications")]
+    partial class Phase9Communications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2301,127 +2304,13 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Dorosak.Domain.Communications.Announcement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
-                        .HasColumnName("body");
-
-                    b.Property<Guid>("CourseId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("course_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<Guid?>("DeletedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("deleted_by_user_id");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("title");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint")
-                        .HasColumnName("version");
-
-                    b.HasKey("Id")
-                        .HasName("pk_announcements");
-
-                    b.HasIndex("CreatedByUserId")
-                        .HasDatabaseName("ix_announcements_created_by_user_id");
-
-                    b.HasIndex("DeletedByUserId")
-                        .HasDatabaseName("ix_announcements_deleted_by_user_id");
-
-                    b.HasIndex("CourseId", "CreatedAt", "Id")
-                        .IsDescending(false, true, true)
-                        .HasDatabaseName("ix_announcements_course_created_id")
-                        .HasFilter("deleted_at IS NULL");
-
-                    b.ToTable("announcements", "communication", t =>
-                        {
-                            t.HasCheckConstraint("ck_announcements_body", "char_length(btrim(body)) BETWEEN 1 AND 10000");
-
-                            t.HasCheckConstraint("ck_announcements_deleted", "(deleted_at IS NULL AND deleted_by_user_id IS NULL) OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL)");
-
-                            t.HasCheckConstraint("ck_announcements_title", "char_length(btrim(title)) BETWEEN 1 AND 200");
-
-                            t.HasCheckConstraint("ck_announcements_version", "version > 0");
-                        });
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.AnnouncementTarget", b =>
-                {
-                    b.Property<Guid>("AnnouncementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("announcement_id");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<long>("AnnouncementVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("announcement_version");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("NotificationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("notification_id");
-
-                    b.HasKey("AnnouncementId", "UserId", "AnnouncementVersion")
-                        .HasName("pk_announcement_targets");
-
-                    b.HasIndex("NotificationId")
-                        .IsUnique()
-                        .HasDatabaseName("uq_announcement_targets_notification_id");
-
-                    b.HasIndex("NotificationId", "UserId")
-                        .HasDatabaseName("ix_announcement_targets_notification_id_user_id");
-
-                    b.HasIndex("UserId", "CreatedAt")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("ix_announcement_targets_user_created_at");
-
-                    b.ToTable("announcement_targets", "communication", t =>
-                        {
-                            t.HasCheckConstraint("ck_announcement_targets_version", "announcement_version > 0");
-                        });
-                });
-
             modelBuilder.Entity("Dorosak.Domain.Communications.Conversation", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("CourseId")
+                    b.Property<Guid?>("CourseId")
                         .HasColumnType("uuid")
                         .HasColumnName("course_id");
 
@@ -2432,12 +2321,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
-
-                    b.Property<long>("LastSequence")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(0L)
-                        .HasColumnName("last_sequence");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2456,10 +2339,7 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .IsDescending()
                         .HasDatabaseName("ix_conversations_updated_id");
 
-                    b.ToTable("conversations", "communication", t =>
-                        {
-                            t.HasCheckConstraint("ck_conversations_last_sequence", "last_sequence >= 0");
-                        });
+                    b.ToTable("conversations", "communication");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Communications.ConversationParticipant", b =>
@@ -2521,16 +2401,8 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("sender_id");
 
-                    b.Property<long>("Sequence")
-                        .HasColumnType("bigint")
-                        .HasColumnName("sequence");
-
                     b.HasKey("Id")
                         .HasName("pk_messages");
-
-                    b.HasIndex("ConversationId", "Sequence")
-                        .IsUnique()
-                        .HasDatabaseName("uq_messages_conversation_sequence");
 
                     b.HasIndex("ConversationId", "CreatedAt", "Id")
                         .IsDescending(false, true, true)
@@ -2543,107 +2415,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.ToTable("messages", "communication", t =>
                         {
                             t.HasCheckConstraint("ck_messages_body", "char_length(btrim(body)) BETWEEN 1 AND 5000");
-
-                            t.HasCheckConstraint("ck_messages_sequence", "sequence > 0");
-                        });
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("AnnouncementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("announcement_id");
-
-                    b.Property<long?>("AnnouncementVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("announcement_version");
-
-                    b.Property<string>("Body")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
-                        .HasColumnName("body");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_read");
-
-                    b.Property<Guid?>("MessageId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("message_id");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at");
-
-                    b.Property<long>("Sequence")
-                        .HasColumnType("bigint")
-                        .HasColumnName("sequence");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("title");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_notifications");
-
-                    b.HasAlternateKey("Id", "UserId")
-                        .HasName("ak_notifications_id_user_id");
-
-                    b.HasIndex("AnnouncementId")
-                        .HasDatabaseName("ix_notifications_announcement_id");
-
-                    b.HasIndex("MessageId")
-                        .HasDatabaseName("ix_notifications_message_id");
-
-                    b.HasIndex("UserId", "Sequence")
-                        .IsUnique()
-                        .HasDatabaseName("uq_notifications_user_sequence");
-
-                    b.HasIndex("UserId", "IsRead", "CreatedAt", "Id")
-                        .IsDescending(false, false, true, true)
-                        .HasDatabaseName("ix_notifications_user_read_created_id");
-
-                    b.ToTable("notifications", "communication", t =>
-                        {
-                            t.HasCheckConstraint("ck_notifications_read_state", "is_read = (read_at IS NOT NULL)");
-
-                            t.HasCheckConstraint("ck_notifications_sequence", "sequence > 0");
-
-                            t.HasCheckConstraint("ck_notifications_target_projection", "(message_id IS NOT NULL AND announcement_id IS NULL AND announcement_version IS NULL AND title IS NULL AND body IS NULL) OR (message_id IS NULL AND announcement_id IS NOT NULL AND announcement_version > 0 AND char_length(btrim(title)) BETWEEN 1 AND 200 AND char_length(btrim(body)) BETWEEN 1 AND 10000)");
-                        });
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.NotificationSequence", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<long>("LastSequence")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(0L)
-                        .HasColumnName("last_sequence");
-
-                    b.HasKey("UserId")
-                        .HasName("pk_notification_sequences");
-
-                    b.ToTable("notification_sequences", "communication", t =>
-                        {
-                            t.HasCheckConstraint("ck_notification_sequences_last_sequence", "last_sequence >= 0");
                         });
                 });
 
@@ -6515,61 +6286,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_demo_payments_demo_orders_order_id");
                 });
 
-            modelBuilder.Entity("Dorosak.Domain.Communications.Announcement", b =>
-                {
-                    b.HasOne("Dorosak.Domain.Catalog.Course", null)
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_announcements_courses_course_id");
-
-                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_announcements_users_created_by_user_id");
-
-                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("DeletedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_announcements_users_deleted_by_user_id");
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.AnnouncementTarget", b =>
-                {
-                    b.HasOne("Dorosak.Domain.Communications.Announcement", null)
-                        .WithMany()
-                        .HasForeignKey("AnnouncementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_announcement_targets_announcements_announcement_id");
-
-                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_announcement_targets_users_user_id");
-
-                    b.HasOne("Dorosak.Domain.Communications.Notification", null)
-                        .WithMany()
-                        .HasForeignKey("NotificationId", "UserId")
-                        .HasPrincipalKey("Id", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_announcement_targets_notifications_notification_user");
-                });
-
             modelBuilder.Entity("Dorosak.Domain.Communications.Conversation", b =>
                 {
                     b.HasOne("Dorosak.Domain.Catalog.Course", null)
                         .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_conversations_courses_course_id");
 
                     b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
@@ -6612,38 +6334,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_messages_participants_conversation_sender_id");
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.Notification", b =>
-                {
-                    b.HasOne("Dorosak.Domain.Communications.Announcement", null)
-                        .WithMany()
-                        .HasForeignKey("AnnouncementId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_notifications_announcements_announcement_id");
-
-                    b.HasOne("Dorosak.Domain.Communications.Message", null)
-                        .WithMany()
-                        .HasForeignKey("MessageId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_notifications_messages_message_id");
-
-                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_notifications_users_user_id");
-                });
-
-            modelBuilder.Entity("Dorosak.Domain.Communications.NotificationSequence", b =>
-                {
-                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_notification_sequences_users_user_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Engagement.CommentLike", b =>

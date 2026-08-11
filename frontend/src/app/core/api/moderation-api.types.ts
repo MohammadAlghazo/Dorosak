@@ -28,12 +28,12 @@ type ContentReportTarget =
       reportedUserId?: never;
     }
   | {
-     courseId?: never;
-     reviewId?: never;
-     commentId?: never;
-     reportedUserId: string;
-     contextCommentId: string;
-   };
+      courseId?: never;
+      reviewId?: never;
+      commentId?: never;
+      reportedUserId: string;
+      contextCommentId: string;
+    };
 
 export type CreateContentReportRequest = ContentReportTarget & {
   reason: ContentReportReason;

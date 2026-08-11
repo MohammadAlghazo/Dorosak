@@ -102,7 +102,7 @@ describe('ModerationApiClient', () => {
     const promise = firstValueFrom(
       client.applyModerationAction(
         'case/1',
-        { action: 'HideContent', reason: 'Violates the discussion policy' },
+        { action: 'HideContent', reason: 'Violates the discussion policy', expectedVersion: 4 },
         'action-key-1',
         'Reviewing a learner safety report',
       ),
@@ -115,6 +115,7 @@ describe('ModerationApiClient', () => {
     expect(request.request.body).toEqual({
       action: 'HideContent',
       reason: 'Violates the discussion policy',
+      expectedVersion: 4,
     });
     request.flush({ data: moderationCase });
     await expect(promise).resolves.toEqual(moderationCase);
@@ -155,4 +156,10 @@ const moderationCase = {
     report: adminReport,
   },
   actions: [],
+  targetPreview: {
+    status: 'Published',
+    title: 'Discussion comment',
+    body: 'Reported comment body',
+    authorName: 'Learner',
+  },
 };

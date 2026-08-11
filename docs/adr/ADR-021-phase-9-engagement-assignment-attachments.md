@@ -98,6 +98,11 @@ marks it `Ready`.
 - Creating a report requires current visibility of its target and cannot disclose a foreign private discussion. Report
   creation and moderation actions require idempotency keys. Moderation reads require `Moderation.ReviewAny`; actions use
   the existing Admin high-risk policy, MFA/recent authentication, an audit header, and a separate decision reason.
+- A `reported_user_id` report must include a `context_comment_id` whose published author is that user and whose discussion
+  scope is visible to the reporter; this prevents an account-existence oracle. Action requests carry the case `version` as
+  `expectedVersion`; stale decisions return `MODERATION.VERSION_CONFLICT`. A valid no-op visibility decision still creates
+  an append-only action and audit entry, while the admin detail response contains a live, permission-gated target preview
+  rather than a copied body snapshot.
 - Reports, cases, and actions are retained for 730 days after case closure unless legal hold or an approved policy requires
   longer retention. No target body snapshot is copied into the report, moderation action, diagnostic log, or audit payload.
 

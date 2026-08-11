@@ -74,7 +74,11 @@ export class ModerationApiClient {
   ): Observable<ModerationCaseResponse> {
     return this.mutation<ModerationCaseResponse>(
       `admin/moderation-cases/${encodeURIComponent(caseId)}/actions`,
-      { action: request.action, reason: request.reason.trim(), expectedVersion: request.expectedVersion },
+      {
+        action: request.action,
+        reason: request.reason.trim(),
+        expectedVersion: request.expectedVersion,
+      },
       new HttpHeaders({
         'Idempotency-Key': idempotencyKey,
         'X-Audit-Reason': auditReason.trim(),

@@ -11,8 +11,9 @@ notes/bookmarks, quizzes with
 duration/deadline enforcement and append-only grading revisions, text assignments, protected delivery grants, and the
 corresponding Arabic/English Angular workspaces.
 Phase 9 is now in progress: engagement/realtime foundations, assessment audiences, and secure PDF assignment attachments
-are being added. Course reviews and release-scoped lesson discussions with comments and likes are available; reports,
-moderation, communications, notifications, announcements, and realtime resynchronization remain open. New production video
+are being added. Course reviews, release-scoped lesson discussions with comments and likes, authenticated reports, and
+audited moderation cases/actions are available; communications, notifications, announcements, and realtime resynchronization
+remain open. New production video
 uploads are intentionally deferred until the storage/processing/CDN server is chosen;
 the provider-neutral local media pipeline remains available for development and tests.
 A fake checkout using `100 DEMO` credits is available for product testing and never accepts card or bank details. Real

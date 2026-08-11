@@ -3,6 +3,7 @@ using System;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Dorosak.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(DorosakDbContext))]
-    partial class DorosakDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811120659_Phase9NotificationsAnnouncements")]
+    partial class Phase9NotificationsAnnouncements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2421,7 +2424,7 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("CourseId")
+                    b.Property<Guid?>("CourseId")
                         .HasColumnType("uuid")
                         .HasColumnName("course_id");
 
@@ -6569,7 +6572,6 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_conversations_courses_course_id");
 
                     b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)

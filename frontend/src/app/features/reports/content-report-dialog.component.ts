@@ -43,8 +43,8 @@ type ReportReasonControl = ContentReportReason | '';
             <p>
               {{
                 locale.locale() === 'ar'
-                  ? 'يمكنك استخدام رقم البلاغ لمتابعة حالته.'
-                  : 'You can use the report ID to track its status.'
+                  ? 'احتفظ برقم البلاغ كمرجع عند الحاجة.'
+                  : 'Keep the report ID as a reference if you need support.'
               }}
             </p>
             <code>{{ state().report?.id }}</code>

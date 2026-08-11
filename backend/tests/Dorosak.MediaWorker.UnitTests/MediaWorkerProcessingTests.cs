@@ -41,9 +41,9 @@ public sealed class MediaWorkerProcessingTests
                 Assert.True(variant.Height is > 0);
             });
         }
-        catch (InvalidOperationException exception) when (exception.Message.Contains("Could not start", StringComparison.Ordinal))
+        catch (MediaExecutableNotFoundException)
         {
-            Assert.Skip("FFmpeg is unavailable on the test host.");
+            Assert.Skip("FFmpeg or ffprobe is unavailable on the test host.");
         }
         finally
         {
@@ -88,9 +88,9 @@ public sealed class MediaWorkerProcessingTests
             Assert.Contains("hls-720p.m3u8", master, StringComparison.Ordinal);
             Assert.All(result.Variants, variant => Assert.Matches("^[0-9a-f]{64}$", variant.Sha256));
         }
-        catch (InvalidOperationException exception) when (exception.Message.Contains("Could not start", StringComparison.Ordinal))
+        catch (MediaExecutableNotFoundException)
         {
-            Assert.Skip("FFmpeg is unavailable on the test host.");
+            Assert.Skip("FFmpeg or ffprobe is unavailable on the test host.");
         }
         finally
         {
@@ -117,6 +117,20 @@ public sealed class MediaWorkerProcessingTests
         }
 
         await Assert.ThrowsAsync<MediaProcessTimeoutException>(() => runner.RunAsync(executable, arguments, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ProcessRunner_ReportsAMissingExecutableWithoutHidingOtherProcessFailures()
+    {
+        var runner = new MediaProcessRunner(
+            Options.Create(new MediaOptions()),
+            NullLogger<MediaProcessRunner>.Instance);
+        string executable = $"dorosak-missing-media-tool-{Guid.CreateVersion7():N}";
+
+        MediaExecutableNotFoundException exception = await Assert.ThrowsAsync<MediaExecutableNotFoundException>(() =>
+            runner.RunAsync(executable, [], TestContext.Current.CancellationToken));
+
+        Assert.Equal(executable, exception.Executable);
     }
 
     [Fact]

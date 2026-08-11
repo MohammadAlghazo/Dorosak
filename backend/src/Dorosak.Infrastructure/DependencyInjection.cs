@@ -7,6 +7,7 @@ using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Caching;
 using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Commerce;
+using Dorosak.Infrastructure.Communications;
 using Dorosak.Infrastructure.Engagement;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
@@ -35,12 +36,20 @@ public static class DependencyInjection
             DatabaseConfiguration.Configure(options, databaseConnection));
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<DorosakDbContext>());
         services.AddScoped<IIdempotencyStore, EfCoreIdempotencyStore>();
+        services.AddScoped<IIdempotencyRecordCleaner, EfCoreIdempotencyRecordCleaner>();
         services.AddScoped<IMediaService, MediaService>();
         services.AddScoped<IMediaAccessReader, MediaAccessReader>();
         services.AddScoped<IMediaJobStore, MediaJobStore>();
         services.AddScoped<IMediaProcessingStore, MediaProcessingStore>();
         services.AddScoped<Application.Features.Learning.ILearningService, LearningService>();
         services.AddScoped<Application.Features.Commerce.ICommerceService, CommerceService>();
+        services.AddScoped<CommunicationsService>();
+        services.AddScoped<Application.Features.Communications.ICommunicationsService>(provider =>
+            provider.GetRequiredService<CommunicationsService>());
+        services.AddScoped<Application.Features.Communications.IConversationAccessReader>(provider =>
+            provider.GetRequiredService<CommunicationsService>());
+        services.AddScoped<Application.Features.Communications.IAnnouncementAccessReader>(provider =>
+            provider.GetRequiredService<CommunicationsService>());
         services.AddScoped<EngagementService>();
         services.AddScoped<Application.Features.Engagement.IEngagementService>(provider =>
             provider.GetRequiredService<EngagementService>());

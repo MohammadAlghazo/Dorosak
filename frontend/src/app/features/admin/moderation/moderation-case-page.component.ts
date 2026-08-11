@@ -6,6 +6,8 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
+  type ElementRef,
 } from '@angular/core';
 import {
   FormControl,
@@ -88,7 +90,7 @@ import { ModerationStore } from './moderation.store';
             <p class="identity-kicker">
               {{ locale.locale() === 'ar' ? 'مراجعة قضية' : 'Case review' }}
             </p>
-            <h1 id="case-title">
+            <h1 #caseTitle id="case-title" tabindex="-1">
               {{ targetLabel(moderationCase.case.report.report.targetKind) }}
             </h1>
             <p>
@@ -135,7 +137,7 @@ import { ModerationStore } from './moderation.store';
               <div>
                 <dt>{{ locale.locale() === 'ar' ? 'المبلّغ' : 'Reporter' }}</dt>
                 <dd>
-                  {{ moderationCase.case.report.reporterName }}
+                  <span dir="auto">{{ moderationCase.case.report.reporterName }}</span>
                   <code>{{ moderationCase.case.report.reporterUserId }}</code>
                 </dd>
               </div>
@@ -165,17 +167,18 @@ import { ModerationStore } from './moderation.store';
               <div>
                 <dt>{{ locale.locale() === 'ar' ? 'المسند إلى' : 'Assigned to' }}</dt>
                 <dd>
-                  {{
-                    moderationCase.case.assignedToName ??
-                      (locale.locale() === 'ar' ? 'غير مسندة' : 'Unassigned')
-                  }}
+                  @if (moderationCase.case.assignedToName; as assignedToName) {
+                    <span dir="auto">{{ assignedToName }}</span>
+                  } @else {
+                    {{ locale.locale() === 'ar' ? 'غير مسندة' : 'Unassigned' }}
+                  }
                 </dd>
               </div>
             </dl>
             @if (moderationCase.case.report.report.details) {
               <div class="report-note">
                 <strong>{{ locale.locale() === 'ar' ? 'تفاصيل البلاغ' : 'Report details' }}</strong>
-                <p>{{ moderationCase.case.report.report.details }}</p>
+                <p dir="auto">{{ moderationCase.case.report.report.details }}</p>
               </div>
             }
             <div class="target-preview" aria-labelledby="target-preview-title">
@@ -189,20 +192,26 @@ import { ModerationStore } from './moderation.store';
                   </h3>
                 </div>
                 <span class="status-chip" [attr.data-status]="moderationCase.targetPreview.status">
-                  {{ moderationCase.targetPreview.status }}
+                  {{ targetStatusLabel(moderationCase.targetPreview.status) }}
                 </span>
               </div>
               @if (moderationCase.targetPreview.body) {
-                <p class="target-preview-body" dir="auto">{{ moderationCase.targetPreview.body }}</p>
+                <p class="target-preview-body" dir="auto">
+                  {{ moderationCase.targetPreview.body }}
+                </p>
               } @else {
                 <p class="muted">
-                  {{ locale.locale() === 'ar' ? 'لا يوجد نص للمعاينة.' : 'No target body is available.' }}
+                  {{
+                    locale.locale() === 'ar'
+                      ? 'لا يوجد نص للمعاينة.'
+                      : 'No target body is available.'
+                  }}
                 </p>
               }
               @if (moderationCase.targetPreview.authorName) {
-                <p class="muted" dir="auto">
+                <p class="muted">
                   {{ locale.locale() === 'ar' ? 'الكاتب:' : 'Author:' }}
-                  {{ moderationCase.targetPreview.authorName }}
+                  <span dir="auto">{{ moderationCase.targetPreview.authorName }}</span>
                 </p>
               }
             </div>
@@ -279,9 +288,13 @@ import { ModerationStore } from './moderation.store';
                 <li>
                   <div>
                     <strong>{{ actionLabel(action.actionType) }}</strong>
-                    <span>{{ action.actorName }} · {{ formatDate(action.createdAt) }}</span>
+                    <span>
+                      <span dir="auto">{{ action.actorName }}</span>
+                      <span aria-hidden="true"> · </span>
+                      <span>{{ formatDate(action.createdAt) }}</span>
+                    </span>
                   </div>
-                  <p>{{ action.reason }}</p>
+                  <p dir="auto">{{ action.reason }}</p>
                 </li>
               }
             </ol>
@@ -315,12 +328,13 @@ import { ModerationStore } from './moderation.store';
             rows="4"
             minlength="8"
             maxlength="1000"
+            aria-describedby="moderation-action-reason-error"
             [attr.aria-invalid]="
               actionForm.controls.reason.touched && actionForm.controls.reason.invalid
             "
           ></textarea>
           @if (actionForm.controls.reason.touched && actionForm.controls.reason.invalid) {
-            <p class="field-error">
+            <p id="moderation-action-reason-error" class="field-error">
               {{
                 locale.locale() === 'ar'
                   ? 'اكتب سبباً من 8 أحرف على الأقل.'
@@ -338,6 +352,7 @@ import { ModerationStore } from './moderation.store';
             minlength="8"
             maxlength="1000"
             aria-describedby="moderation-audit-help"
+            aria-errormessage="moderation-audit-error"
             [attr.aria-invalid]="
               actionForm.controls.auditReason.touched && actionForm.controls.auditReason.invalid
             "
@@ -350,7 +365,7 @@ import { ModerationStore } from './moderation.store';
             }}
           </small>
           @if (actionForm.controls.auditReason.touched && actionForm.controls.auditReason.invalid) {
-            <p class="field-error">
+            <p id="moderation-audit-error" class="field-error">
               {{
                 locale.locale() === 'ar'
                   ? 'سبب التدقيق مطلوب (8 أحرف على الأقل).'
@@ -604,7 +619,7 @@ import { ModerationStore } from './moderation.store';
         align-items: stretch;
         flex-direction: column;
       }
-    .dialog-actions button {
+      .dialog-actions button {
         inline-size: 100%;
       }
     }
@@ -649,12 +664,32 @@ export class ModerationCasePageComponent {
   });
   private actionSignature: string | null = null;
   private actionKey: string | null = null;
+  private actionCaseId: string | null = null;
+  private routedCaseId: string | null = null;
+  private focusCaseTitleOnLoad = false;
+  private readonly actionDialog = viewChild<ElementRef<HTMLDialogElement>>('actionDialog');
+  private readonly caseTitle = viewChild<ElementRef<HTMLHeadingElement>>('caseTitle');
 
   constructor() {
     effect(() => {
       const caseId = this.caseId();
       untracked(() => {
+        if (this.routedCaseId !== null && this.routedCaseId !== caseId) {
+          this.focusCaseTitleOnLoad = true;
+          this.resetActionForRouteChange();
+        }
+        this.routedCaseId = caseId;
         this.store.loadCase(caseId);
+      });
+    });
+    effect(() => {
+      const detail = this.store.detail();
+      if (!this.focusCaseTitleOnLoad || detail.status !== 'success' || detail.value === null)
+        return;
+      const loadedCaseId = detail.value.case.id;
+      this.focusCaseTitleOnLoad = false;
+      queueMicrotask(() => {
+        if (this.caseId() === loadedCaseId) this.caseTitle()?.nativeElement.focus();
       });
     });
   }
@@ -663,17 +698,19 @@ export class ModerationCasePageComponent {
     this.store.loadCase(this.caseId());
   }
 
-  protected actionOptions(
-    moderationCase: ModerationCaseResponse,
-  ): readonly ModerationActionType[] {
+  protected actionOptions(moderationCase: ModerationCaseResponse): readonly ModerationActionType[] {
     if (moderationCase.case.status === 'Open') return ['StartReview'];
     if (moderationCase.case.status === 'InReview') {
-      if (moderationCase.case.report.report.targetKind === 'Course' ||
-        moderationCase.case.report.report.targetKind === 'ReportedUser') {
+      if (
+        moderationCase.case.report.report.targetKind === 'Course' ||
+        moderationCase.case.report.report.targetKind === 'ReportedUser'
+      ) {
         return ['Resolve', 'Dismiss'];
       }
-      if (moderationCase.targetPreview.status === 'Published') return ['HideContent', 'Resolve', 'Dismiss'];
-      if (moderationCase.targetPreview.status === 'Hidden') return ['RestoreContent', 'Resolve', 'Dismiss'];
+      if (moderationCase.targetPreview.status === 'Published')
+        return ['HideContent', 'Resolve', 'Dismiss'];
+      if (moderationCase.targetPreview.status === 'Hidden')
+        return ['RestoreContent', 'Resolve', 'Dismiss'];
       return ['Resolve', 'Dismiss'];
     }
     return [];
@@ -682,6 +719,7 @@ export class ModerationCasePageComponent {
   protected openAction(action: ModerationActionType, dialog: HTMLDialogElement): void {
     if (this.store.action().status === 'saving') return;
     this.selectedAction.set(action);
+    this.actionCaseId = this.caseId();
     this.actionForm.reset({ reason: '', auditReason: '', confirmed: false });
     this.actionSignature = null;
     this.actionKey = null;
@@ -691,7 +729,8 @@ export class ModerationCasePageComponent {
 
   protected submitAction(): void {
     const action = this.selectedAction();
-    if (action === null) return;
+    const actionCaseId = this.actionCaseId;
+    if (action === null || actionCaseId === null || actionCaseId !== this.caseId()) return;
     this.actionForm.markAllAsTouched();
     if (this.actionForm.invalid || this.store.action().status === 'success') return;
 
@@ -700,17 +739,17 @@ export class ModerationCasePageComponent {
     const expectedVersion = this.store.detail().value?.case.version;
     if (expectedVersion === undefined) return;
     const actionState = this.store.action();
-    if (actionState.status === 'error' && !isRetryableActionError(actionState.errorCode)) {
+    if (actionState.status === 'error' && !actionState.retryable) {
       this.actionSignature = null;
       this.actionKey = null;
     }
-    const signature = JSON.stringify([this.caseId(), action, reason, auditReason, expectedVersion]);
+    const signature = JSON.stringify([actionCaseId, action, reason, auditReason, expectedVersion]);
     if (this.actionSignature !== signature || this.actionKey === null) {
       this.actionSignature = signature;
       this.actionKey = globalThis.crypto.randomUUID();
     }
     this.store.applyAction(
-      this.caseId(),
+      actionCaseId,
       { action, reason, expectedVersion },
       this.actionKey,
       auditReason,
@@ -721,6 +760,7 @@ export class ModerationCasePageComponent {
     if (this.store.action().status === 'saving') return;
     dialog.close();
     this.selectedAction.set(null);
+    this.actionCaseId = null;
     this.actionSignature = null;
     this.actionKey = null;
     this.store.resetAction();
@@ -737,6 +777,7 @@ export class ModerationCasePageComponent {
       return;
     }
     this.selectedAction.set(null);
+    this.actionCaseId = null;
     this.actionSignature = null;
     this.actionKey = null;
     this.store.resetAction();
@@ -756,6 +797,26 @@ export class ModerationCasePageComponent {
 
   protected targetLabel(target: ContentReportTargetKind): string {
     return moderationTargetLabel(target, this.locale.locale());
+  }
+
+  protected targetStatusLabel(status: string): string {
+    const labels: Readonly<Record<string, readonly [string, string]>> = {
+      Published: ['منشور', 'Published'],
+      Hidden: ['مخفي', 'Hidden'],
+      Removed: ['محذوف', 'Removed'],
+      Active: ['نشط', 'Active'],
+      Inactive: ['غير نشط', 'Inactive'],
+      Unavailable: ['غير متاح', 'Unavailable'],
+      Draft: ['مسودة', 'Draft'],
+      InReview: ['قيد المراجعة', 'In review'],
+      ChangesRequested: ['مطلوب تعديلات', 'Changes requested'],
+      ReadyToPublish: ['جاهز للنشر', 'Ready to publish'],
+      Unpublished: ['غير منشور', 'Unpublished'],
+      Archived: ['مؤرشف', 'Archived'],
+    };
+    const label = labels[status];
+    if (!label) return status;
+    return label[this.locale.locale() === 'ar' ? 0 : 1];
   }
 
   protected reasonLabel(reason: ContentReportReason): string {
@@ -781,6 +842,17 @@ export class ModerationCasePageComponent {
       timeStyle: 'short',
     }).format(date);
   }
+
+  private resetActionForRouteChange(): void {
+    const dialog = this.actionDialog()?.nativeElement;
+    if (dialog?.open) dialog.close();
+    this.selectedAction.set(null);
+    this.actionCaseId = null;
+    this.actionSignature = null;
+    this.actionKey = null;
+    this.actionForm.reset({ reason: '', auditReason: '', confirmed: false });
+    this.store.resetAction();
+  }
 }
 
 const requiredTrueValidator: ValidatorFn = (control) => Validators.requiredTrue(control);
@@ -789,6 +861,3 @@ const trimmedLengthValidator: ValidatorFn = (control) =>
   typeof control.value === 'string' && control.value.trim().length >= 8
     ? null
     : { trimmedMinLength: true };
-
-const isRetryableActionError = (code: string | null): boolean =>
-  code === null || code === 'HTTP.408' || code === 'HTTP.429' || code === 'NETWORK.OFFLINE';

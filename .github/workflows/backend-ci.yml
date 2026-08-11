@@ -32,7 +32,7 @@ jobs:
   build-test-container:
     name: Build, test, and containerize
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       CI: "true"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -49,6 +49,13 @@ jobs:
           global-json-file: backend/global.json
           cache: true
           cache-dependency-path: backend/**/packages.lock.json
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
 
       - name: Restore locked dependencies
         run: dotnet restore backend/Dorosak.slnx --locked-mode
@@ -75,11 +82,37 @@ jobs:
       - name: Build Worker image
         run: docker build --file backend/src/Dorosak.Worker/Dockerfile --tag dorosak-worker:ci .
 
+      - name: Build MediaWorker image
+        run: docker build --file backend/src/Dorosak.MediaWorker/Dockerfile --tag dorosak-media-worker:ci .
+
       - name: Smoke test containers
         shell: bash
         working-directory: backend
         run: |
           set -euo pipefail
+          containers=(
+            dorosak-api-ci
+            dorosak-worker-ci
+            dorosak-media-worker-ci
+            dorosak-media-smoke-ci
+            dorosak-postgres-ci
+            dorosak-redis-ci
+            dorosak-minio-ci
+            dorosak-clamav-ci
+          )
+          cleanup() {
+            status=$?
+            trap - EXIT
+            if [ "$status" -ne 0 ]; then
+              for container in "${containers[@]}"; do
+                docker logs "$container" 2>/dev/null || true
+              done
+            fi
+            docker rm --force "${containers[@]}" >/dev/null 2>&1 || true
+            docker network rm dorosak-ci >/dev/null 2>&1 || true
+            exit "$status"
+          }
+          trap cleanup EXIT
           docker network create dorosak-ci
           docker run --detach --name dorosak-postgres-ci --network dorosak-ci \
             --publish 127.0.0.1:54329:5432 \
@@ -90,16 +123,26 @@ jobs:
           docker run --detach --name dorosak-redis-ci --network dorosak-ci \
             redis:8.10.0@sha256:39353c6a2f310da333374e1290c91805d15a85def073b5090f58e4ac646d284c \
             redis-server --save '' --appendonly no
-          trap 'docker rm --force dorosak-api-ci dorosak-worker-ci dorosak-postgres-ci dorosak-redis-ci >/dev/null 2>&1 || true; docker network rm dorosak-ci >/dev/null 2>&1 || true' EXIT
-          for attempt in {1..30}; do
+          docker run --detach --name dorosak-minio-ci --network dorosak-ci \
+            --env MINIO_ROOT_USER=dorosak-ci-minio \
+            --env MINIO_ROOT_PASSWORD=dorosak-ci-minio-secret \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e \
+            server /data
+          docker run --detach --name dorosak-clamav-ci --network dorosak-ci \
+            --env CLAMAV_NO_CLAMD=false \
+            --env CLAMAV_NO_FRESHCLAMD=true \
+            clamav/clamav:1.5.3-debian13-slim@sha256:741e6c447241220e0792a901befcaec1d55a755c5097fc9cd88d7fd8be251a5c
+          for attempt in {1..60}; do
             if docker exec dorosak-postgres-ci pg_isready --username dorosak_ci --dbname dorosak_ci >/dev/null && \
-               docker exec dorosak-redis-ci redis-cli ping >/dev/null; then
+               docker exec dorosak-redis-ci redis-cli ping >/dev/null && \
+               docker exec dorosak-minio-ci curl --fail --silent http://localhost:9000/minio/health/live >/dev/null && \
+               docker exec dorosak-clamav-ci clamdscan --ping 1 >/dev/null 2>&1; then
               break
             fi
-            if [ "$attempt" -eq 30 ]; then
+            if [ "$attempt" -eq 60 ]; then
               exit 1
             fi
-            sleep 2
+            sleep 5
           done
           export Migrations__ConnectionString='Host=127.0.0.1;Port=54329;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci'
           dotnet tool restore
@@ -111,19 +154,68 @@ jobs:
             --no-build
           database='Host=dorosak-postgres-ci;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci'
           redis='dorosak-redis-ci:6379,abortConnect=false,connectTimeout=100'
+          cursor_key='dorosak-ci-cursor-signing-key-at-least-32-characters'
+          jwt_key="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 2>/dev/null)"
           docker run --detach --name dorosak-api-ci --read-only --tmpfs /tmp \
             --network dorosak-ci \
             --publish 127.0.0.1:5053:8080 \
+            --env ASPNETCORE_ENVIRONMENT=Production \
+            --env DOTNET_ENVIRONMENT=Production \
             --env "ConnectionStrings__Database=$database" \
             --env "ConnectionStrings__Redis=$redis" \
+            --env "ConnectionStrings__RedisSecurity=$redis" \
+            --env "Jwt__PrivateKeyPem=$jwt_key" \
+            --env Jwt__KeyId=dorosak-ci \
+            --env App__PublicUrl=https://ci.dorosak.invalid \
+            --env PasswordBreachCheck__Enabled=true \
+            --env SecurityRateLimits__KeyPrefix=dorosak:ci:v1:security-rate-limit \
+            --env SecurityRateLimits__PartitionSalt=dorosak-ci-rate-limit-partition-secret-2026 \
+            --env "Catalog__Cursors__SigningKey=$cursor_key" \
+            --env Catalog__Cursors__Environment=ci \
+            --env HOME=/tmp \
             dorosak-api:ci
           docker run --detach --name dorosak-worker-ci --read-only --tmpfs /tmp \
             --network dorosak-ci \
+            --env DOTNET_ENVIRONMENT=Production \
             --env "ConnectionStrings__Database=$database" \
             --env "ConnectionStrings__Redis=$redis" \
+            --env "ConnectionStrings__RedisSecurity=$redis" \
+            --env "Catalog__Cursors__SigningKey=$cursor_key" \
+            --env Catalog__Cursors__Environment=ci \
+            --env App__PublicUrl=https://ci.dorosak.invalid \
+            --env HOME=/tmp \
             dorosak-worker:ci
+          media_env=(
+            --env DOTNET_ENVIRONMENT=Production
+            --env "ConnectionStrings__Database=$database"
+            --env "ConnectionStrings__Redis=$redis"
+            --env "ConnectionStrings__RedisSecurity=$redis"
+            --env "Catalog__Cursors__SigningKey=$cursor_key"
+            --env Catalog__Cursors__Environment=ci
+            --env Media__Environment=ci
+            --env Media__Storage__Enabled=true
+            --env Media__Storage__Endpoint=http://dorosak-minio-ci:9000
+            --env Media__Storage__PublicEndpoint=http://dorosak-minio-ci:9000
+            --env Media__Storage__Bucket=dorosak-ci-media
+            --env Media__Storage__AccessKey=dorosak-ci-minio
+            --env Media__Storage__SecretKey=dorosak-ci-minio-secret
+            --env Media__Storage__CreateBucketIfMissing=true
+            --env Media__ClamAV__Host=dorosak-clamav-ci
+            --env Media__ClamAV__Port=3310
+            --env HOME=/tmp
+          )
+          docker run --name dorosak-media-smoke-ci --read-only --tmpfs /tmp:size=2g \
+            --network dorosak-ci \
+            "${media_env[@]}" \
+            dorosak-media-worker:ci --container-smoke
+          docker run --detach --name dorosak-media-worker-ci --read-only --tmpfs /tmp:size=2g \
+            --network dorosak-ci \
+            "${media_env[@]}" \
+            dorosak-media-worker:ci
           curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 2 \
             http://127.0.0.1:5053/health/ready >/dev/null
           test "$(docker inspect dorosak-api-ci --format '{{.Config.User}}')" = "1654"
           test "$(docker inspect dorosak-worker-ci --format '{{.Config.User}}')" = "1654"
+          test "$(docker inspect dorosak-media-worker-ci --format '{{.Config.User}}')" = "1654"
           test "$(docker inspect dorosak-worker-ci --format '{{.State.Running}}')" = "true"
+          test "$(docker inspect dorosak-media-worker-ci --format '{{.State.Running}}')" = "true"

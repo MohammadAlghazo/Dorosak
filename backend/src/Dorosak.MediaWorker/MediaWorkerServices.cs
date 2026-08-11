@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Globalization;
@@ -351,6 +352,12 @@ internal sealed class MagicByteMediaValidator(IOptions<MediaOptions> options) : 
 
 internal sealed class MediaProcessTimeoutException(string executable) : InvalidOperationException($"{executable} exceeded the media processing timeout.");
 
+internal sealed class MediaExecutableNotFoundException(string executable, Exception innerException)
+    : InvalidOperationException($"Could not start {executable}.", innerException)
+{
+    public string Executable { get; } = executable;
+}
+
 internal sealed record MediaProcessResult(string StandardOutput, string StandardError);
 
 internal sealed partial class MediaProcessRunner(IOptions<MediaOptions> options, ILogger<MediaProcessRunner> logger)
@@ -364,9 +371,16 @@ internal sealed partial class MediaProcessRunner(IOptions<MediaOptions> options,
         {
             process.StartInfo.ArgumentList.Add(argument);
         }
-        if (!process.Start())
+        try
         {
-            throw new InvalidOperationException($"Could not start {executable}.");
+            if (!process.Start())
+            {
+                throw new InvalidOperationException($"Could not start {executable}.");
+            }
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode is 2 or 3)
+        {
+            throw new MediaExecutableNotFoundException(executable, exception);
         }
         Task<string> output = ReadBoundedAsync(process.StandardOutput, _options.ProcessOutputCharacterLimit, cancellationToken);
         Task<string> error = ReadBoundedAsync(process.StandardError, _options.ProcessOutputCharacterLimit, cancellationToken);

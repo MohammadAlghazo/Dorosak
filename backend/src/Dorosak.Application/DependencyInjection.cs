@@ -32,9 +32,11 @@ public static class DependencyInjection
         AddMediaHandlers(services);
         AddLearningHandlers(services);
         AddCommerceHandlers(services);
+        AddCommunicationsHandlers(services);
         AddEngagementHandlers(services);
         AddModerationHandlers(services);
         AddEngagementAuthorization(services);
+        AddCommunicationsAuthorization(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
             Features.Phase6.Phase6ResourceAuthorizer<Features.Phase6.GetCourseQuery>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.UpdateCourseMetadataCommand>,
@@ -178,6 +180,82 @@ public static class DependencyInjection
         AddCommerceHandler<Features.Commerce.CreateDemoCheckoutCommand, Features.Commerce.DemoCheckoutResponse>(services);
     }
 
+    private static void AddCommunicationsHandlers(IServiceCollection services)
+    {
+        AddCommunicationsHandler<Features.Communications.GetConversationsQuery,
+            Features.Communications.ConversationPageResponse>(services);
+        AddCommunicationsHandler<Features.Communications.CreateConversationCommand,
+            Features.Communications.ConversationResponse>(services);
+        AddCommunicationsHandler<Features.Communications.GetConversationMessagesQuery,
+            Features.Communications.MessagePageResponse>(services);
+        AddCommunicationsHandler<Features.Communications.CreateMessageCommand,
+            Features.Communications.MessageResponse>(services);
+        AddCommunicationsHandler<Features.Communications.LeaveConversationCommand,
+            Features.Communications.ConversationOperationResponse>(services);
+        AddCommunicationsHandler<Features.Communications.GetNotificationsQuery,
+            Features.Communications.NotificationPageResponse>(services);
+        AddCommunicationsHandler<Features.Communications.GetNotificationUnreadCountQuery,
+            Features.Communications.NotificationUnreadCountResponse>(services);
+        AddCommunicationsHandler<Features.Communications.MarkNotificationReadCommand,
+            Features.Communications.NotificationResponse>(services);
+        AddCommunicationsHandler<Features.Communications.MarkAllNotificationsReadCommand,
+            Features.Communications.NotificationsReadResponse>(services);
+        AddCommunicationsHandler<Features.Communications.GetAnnouncementsQuery,
+            Features.Communications.AnnouncementPageResponse>(services);
+        AddCommunicationsHandler<Features.Communications.GetAnnouncementQuery,
+            Features.Communications.AnnouncementResponse>(services);
+        AddCommunicationsHandler<Features.Communications.CreateAnnouncementCommand,
+            Features.Communications.AnnouncementResponse>(services);
+        AddCommunicationsHandler<Features.Communications.UpdateAnnouncementCommand,
+            Features.Communications.AnnouncementResponse>(services);
+        AddCommunicationsHandler<Features.Communications.DeleteAnnouncementCommand,
+            Features.Communications.AnnouncementOperationResponse>(services);
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Communications.CreateConversationCommand,
+            Common.Results.Result<Features.Communications.ConversationResponse>>,
+            Features.Communications.CreateConversationReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Communications.CreateMessageCommand,
+            Common.Results.Result<Features.Communications.MessageResponse>>,
+            Features.Communications.CreateMessageReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Communications.CreateAnnouncementCommand,
+            Common.Results.Result<Features.Communications.AnnouncementResponse>>,
+            Features.Communications.CreateAnnouncementReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyReplayHandler<
+            Features.Communications.UpdateAnnouncementCommand,
+            Common.Results.Result<Features.Communications.AnnouncementResponse>>,
+            Features.Communications.UpdateAnnouncementReplayHandler>();
+        services.AddScoped<Common.Idempotency.IIdempotencyResponseRedactor<
+            Features.Communications.CreateConversationCommand,
+            Common.Results.Result<Features.Communications.ConversationResponse>>,
+            Features.Communications.CreateConversationResponseRedactor>();
+        services.AddScoped<Common.Idempotency.IIdempotencyResponseRedactor<
+            Features.Communications.CreateMessageCommand,
+            Common.Results.Result<Features.Communications.MessageResponse>>,
+            Features.Communications.CreateMessageResponseRedactor>();
+        services.AddScoped<Common.Idempotency.IIdempotencyResponseRedactor<
+            Features.Communications.CreateAnnouncementCommand,
+            Common.Results.Result<Features.Communications.AnnouncementResponse>>,
+            Features.Communications.CreateAnnouncementResponseRedactor>();
+        services.AddScoped<Common.Idempotency.IIdempotencyResponseRedactor<
+            Features.Communications.UpdateAnnouncementCommand,
+            Common.Results.Result<Features.Communications.AnnouncementResponse>>,
+            Features.Communications.UpdateAnnouncementResponseRedactor>();
+    }
+
+    private static void AddCommunicationsAuthorization(IServiceCollection services)
+    {
+        AddConversationAuthorizer<Features.Communications.GetConversationMessagesQuery>(services);
+        AddConversationAuthorizer<Features.Communications.CreateMessageCommand>(services);
+        AddConversationAuthorizer<Features.Communications.LeaveConversationCommand>(services);
+        AddAnnouncementAuthorizer<Features.Communications.GetAnnouncementsQuery>(services);
+        AddAnnouncementAuthorizer<Features.Communications.GetAnnouncementQuery>(services);
+        AddAnnouncementAuthorizer<Features.Communications.CreateAnnouncementCommand>(services);
+        AddAnnouncementAuthorizer<Features.Communications.UpdateAnnouncementCommand>(services);
+        AddAnnouncementAuthorizer<Features.Communications.DeleteAnnouncementCommand>(services);
+    }
+
     private static void AddEngagementHandlers(IServiceCollection services)
     {
         AddEngagementHandler<Features.Engagement.GetCourseReviewsQuery, Features.Engagement.CourseReviewPageResponse>(services);
@@ -273,6 +351,12 @@ public static class DependencyInjection
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Commerce.CommerceHandler<TRequest, TResponse>>();
 
+    private static void AddCommunicationsHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Communications.CommunicationsHandler<TRequest, TResponse>>();
+
     private static void AddEngagementHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
         where TResponse : notnull =>
@@ -289,4 +373,14 @@ public static class DependencyInjection
         where TRequest : Features.Engagement.IDiscussionAuthorizedRequest =>
         services.AddScoped<Common.Authorization.IRequestAuthorizer<TRequest>,
             Features.Engagement.DiscussionResourceAuthorizer<TRequest>>();
+
+    private static void AddConversationAuthorizer<TRequest>(IServiceCollection services)
+        where TRequest : Features.Communications.IConversationAuthorizedRequest =>
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<TRequest>,
+            Features.Communications.ConversationResourceAuthorizer<TRequest>>();
+
+    private static void AddAnnouncementAuthorizer<TRequest>(IServiceCollection services)
+        where TRequest : Features.Communications.IAnnouncementAuthorizedRequest =>
+        services.AddScoped<Common.Authorization.IRequestAuthorizer<TRequest>,
+            Features.Communications.AnnouncementResourceAuthorizer<TRequest>>();
 }

@@ -10,11 +10,13 @@ import { LocaleService } from '../../core/i18n/locale.service';
     <div class="admin-layout">
       <header>
         <a [routerLink]="['/', locale.locale()]">{{ locale.copy().brand }}</a
-        ><strong>Operations</strong>
+        ><strong>{{ locale.locale() === 'ar' ? 'مساحة العمليات' : 'Operations' }}</strong>
       </header>
       <aside>
-        <nav aria-label="Administration">
-          <a [routerLink]="['/', locale.locale(), 'admin']">Overview</a>
+        <nav [attr.aria-label]="locale.locale() === 'ar' ? 'الإدارة' : 'Administration'">
+          <a [routerLink]="['/', locale.locale(), 'admin']">
+            {{ locale.locale() === 'ar' ? 'نظرة عامة' : 'Overview' }}
+          </a>
           @if (session.hasPermission('TeacherApplication.ReviewAny')) {
             <a [routerLink]="['/', locale.locale(), 'admin', 'teacher-applications']">
               {{ locale.locale() === 'ar' ? 'طلبات المدرسين' : 'Teacher applications' }}
@@ -35,7 +37,9 @@ import { LocaleService } from '../../core/i18n/locale.service';
               {{ locale.locale() === 'ar' ? 'التصنيف' : 'Taxonomy' }}
             </a>
           }
-          <span>Audit-ready workspace</span>
+          <span>{{
+            locale.locale() === 'ar' ? 'مساحة جاهزة للتدقيق' : 'Audit-ready workspace'
+          }}</span>
         </nav>
       </aside>
       <main id="main-content" tabindex="-1"><router-outlet /></main>

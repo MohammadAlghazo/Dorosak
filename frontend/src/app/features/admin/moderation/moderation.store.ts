@@ -47,6 +47,7 @@ export type ModerationActionStatus =
 export interface ModerationActionState {
   readonly status: ModerationActionStatus;
   readonly errorCode: string | null;
+  readonly retryable: boolean;
 }
 
 const defaultFilters: ModerationQueueFilters = {
@@ -79,6 +80,7 @@ export class ModerationStore {
   private readonly moderationActionState = signal<ModerationActionState>({
     status: 'idle',
     errorCode: null,
+    retryable: false,
   });
   private filters = defaultFilters;
   private failedCursor: string | null = null;
@@ -191,12 +193,15 @@ export class ModerationStore {
   loadCase(caseId: string): void {
     if (this.moderationActionState().status === 'saving') {
       this.pendingCaseId = caseId;
+      this.detailSubscription?.unsubscribe();
+      this.detailVersion++;
+      this.detailState.set({ status: 'loading', value: null, errorCode: null });
       return;
     }
     this.pendingCaseId = null;
     this.detailSubscription?.unsubscribe();
     const version = ++this.detailVersion;
-    this.moderationActionState.set({ status: 'idle', errorCode: null });
+    this.moderationActionState.set({ status: 'idle', errorCode: null, retryable: false });
     this.detailState.set({ status: 'loading', value: null, errorCode: null });
     if (!this.connectivity.isOnline()) {
       this.detailState.set({ status: 'offline', value: null, errorCode: null });
@@ -233,11 +238,11 @@ export class ModerationStore {
       return;
     }
     if (!this.connectivity.isOnline()) {
-      this.moderationActionState.set({ status: 'offline', errorCode: null });
+      this.moderationActionState.set({ status: 'offline', errorCode: null, retryable: true });
       return;
     }
 
-    this.moderationActionState.set({ status: 'saving', errorCode: null });
+    this.moderationActionState.set({ status: 'saving', errorCode: null, retryable: false });
     this.api
       .applyModerationAction(caseId, request, idempotencyKey, auditReason)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -246,13 +251,22 @@ export class ModerationStore {
           const currentCase = this.detailState().value?.case.id;
           if (currentCase === caseId) {
             this.detailState.set({ status: 'success', value, errorCode: null });
-            this.moderationActionState.set({ status: 'success', errorCode: null });
+            this.moderationActionState.set({
+              status: 'success',
+              errorCode: null,
+              retryable: false,
+            });
           } else {
-            this.moderationActionState.set({ status: 'idle', errorCode: null });
+            this.moderationActionState.set({ status: 'idle', errorCode: null, retryable: false });
           }
           const pendingCaseId = this.pendingCaseId;
           this.pendingCaseId = null;
-          if (pendingCaseId !== null && pendingCaseId !== caseId) this.loadCase(pendingCaseId);
+          if (
+            pendingCaseId !== null &&
+            (pendingCaseId !== caseId || this.detailState().value?.case.id !== pendingCaseId)
+          ) {
+            this.loadCase(pendingCaseId);
+          }
         },
         error: (error: unknown) => {
           if (this.detailState().value?.case.id === caseId) {
@@ -263,20 +277,26 @@ export class ModerationStore {
                   ? 'offline'
                   : 'error',
               errorCode: problemCode(error),
+              retryable: isAmbiguousMutationFailure(error),
             });
           } else {
-            this.moderationActionState.set({ status: 'idle', errorCode: null });
+            this.moderationActionState.set({ status: 'idle', errorCode: null, retryable: false });
           }
           const pendingCaseId = this.pendingCaseId;
           this.pendingCaseId = null;
-          if (pendingCaseId !== null && pendingCaseId !== caseId) this.loadCase(pendingCaseId);
+          if (
+            pendingCaseId !== null &&
+            (pendingCaseId !== caseId || this.detailState().value?.case.id !== pendingCaseId)
+          ) {
+            this.loadCase(pendingCaseId);
+          }
         },
       });
   }
 
   resetAction(): void {
     if (this.moderationActionState().status !== 'saving') {
-      this.moderationActionState.set({ status: 'idle', errorCode: null });
+      this.moderationActionState.set({ status: 'idle', errorCode: null, retryable: false });
     }
   }
 
@@ -305,6 +325,10 @@ export const isModerationConflict = (error: unknown): error is ApiProblem =>
 
 const isOfflineProblem = (error: unknown): boolean =>
   error instanceof ApiProblem && error.status === 0;
+
+const isAmbiguousMutationFailure = (error: unknown): boolean =>
+  error instanceof ApiProblem &&
+  ([0, 408, 425, 429, 502, 503, 504].includes(error.status) || error.status >= 500);
 
 const problemCode = (error: unknown): string | null =>
   error instanceof ApiProblem ? error.code : null;

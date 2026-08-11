@@ -7,7 +7,8 @@ namespace Dorosak.Application.Common.Behaviors;
 
 public sealed class IdempotencyBehavior<TRequest, TResponse>(
     IIdempotencyStore store,
-    IEnumerable<IIdempotencyReplayHandler<TRequest, TResponse>>? replayHandlers = null)
+    IEnumerable<IIdempotencyReplayHandler<TRequest, TResponse>>? replayHandlers = null,
+    IEnumerable<IIdempotencyResponseRedactor<TRequest, TResponse>>? responseRedactors = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -60,12 +61,22 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>(
         }
 
         TResponse response = await next(cancellationToken);
+        IIdempotencyResponseRedactor<TRequest, TResponse>[] redactors = [.. responseRedactors ?? []];
+        if (redactors.Length > 1)
+        {
+            throw new InvalidOperationException(
+                $"Idempotent request {typeof(TRequest).Name} has more than one response redactor.");
+        }
+
+        TResponse storedResponse = redactors.Length == 0
+            ? response
+            : redactors[0].Redact(request, response);
         await store.StoreAsync(
             idempotentRequest.IdempotencyScope,
             idempotentRequest.IdempotencyOperation,
             idempotentRequest.IdempotencyKey,
             idempotentRequest.IdempotencyPayload,
-            response,
+            storedResponse,
             idempotentRequest.ResponseSchemaVersion,
             idempotentRequest.Retention,
             cancellationToken);

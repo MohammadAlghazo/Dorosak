@@ -3,6 +3,7 @@ using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Commerce;
+using Dorosak.Domain.Communications;
 using Dorosak.Domain.Engagement;
 using Dorosak.Domain.Identity;
 using Dorosak.Domain.Learning;
@@ -179,6 +180,20 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<ModerationCase> ModerationCases => Set<ModerationCase>();
 
     internal DbSet<ModerationAction> ModerationActions => Set<ModerationAction>();
+
+    internal DbSet<Conversation> Conversations => Set<Conversation>();
+
+    internal DbSet<ConversationParticipant> ConversationParticipants => Set<ConversationParticipant>();
+
+    internal DbSet<Message> Messages => Set<Message>();
+
+    internal DbSet<NotificationSequence> NotificationSequences => Set<NotificationSequence>();
+
+    internal DbSet<Notification> Notifications => Set<Notification>();
+
+    internal DbSet<Announcement> Announcements => Set<Announcement>();
+
+    internal DbSet<AnnouncementTarget> AnnouncementTargets => Set<AnnouncementTarget>();
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

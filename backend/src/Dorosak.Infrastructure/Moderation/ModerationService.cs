@@ -18,6 +18,8 @@ internal sealed class ModerationService(
     TimeProvider timeProvider,
     CatalogCursorCodec cursorCodec) : IModerationService
 {
+    private sealed record ReportCaseRow(ContentReport Report, ModerationCase Case);
+
     public async Task<Result<ContentReportResponse>> CreateContentReportAsync(
         CreateContentReportCommand request,
         CancellationToken cancellationToken)
@@ -122,32 +124,31 @@ internal sealed class ModerationService(
                 item.CreatedAt == timestamp && item.Id.CompareTo(id) < 0);
         }
 
-        List<ContentReport> reports = await query
-            .OrderByDescending(item => item.CreatedAt)
-            .ThenByDescending(item => item.Id)
+        List<ReportCaseRow> rows = await (
+            from report in query
+            join moderationCase in dbContext.ModerationCases.AsNoTracking()
+                on report.Id equals moderationCase.ReportId
+            orderby report.CreatedAt descending, report.Id descending
+            select new ReportCaseRow(report, moderationCase))
             .Take(request.Limit + 1)
             .ToListAsync(cancellationToken);
-        bool hasMore = reports.Count > request.Limit;
-        ContentReport[] page = reports.Take(request.Limit).ToArray();
-        Guid[] reportIds = page.Select(item => item.Id).ToArray();
-        Dictionary<Guid, ModerationCase> cases = await dbContext.ModerationCases.AsNoTracking()
-            .Where(item => reportIds.Contains(item.ReportId))
-            .ToDictionaryAsync(item => item.ReportId, cancellationToken);
+        bool hasMore = rows.Count > request.Limit;
+        ReportCaseRow[] page = rows.Take(request.Limit).ToArray();
         Guid[] userIds = page
-            .SelectMany(item => new[] { item.ReporterUserId, cases.GetValueOrDefault(item.Id)?.AssignedToUserId })
+            .SelectMany(item => new[] { item.Report.ReporterUserId, item.Case.AssignedToUserId })
             .Where(item => item is not null)
             .Select(item => item!.Value)
             .Distinct()
             .ToArray();
         Dictionary<Guid, string> names = await GetDisplayNamesAsync(userIds, cancellationToken);
         string? nextCursor = hasMore && page.Length > 0
-            ? cursorCodec.Create("moderation-reports", canonicalQuery, page[^1].CreatedAt, page[^1].Id)
+            ? cursorCodec.Create("moderation-reports", canonicalQuery, page[^1].Report.CreatedAt, page[^1].Report.Id)
             : null;
         return Result.Success(new ContentReportPageResponse(
             page.Select(item => MapAdminReport(
-                item,
-                cases[item.Id],
-                names.GetValueOrDefault(item.ReporterUserId, "User"))).ToArray(),
+                item.Report,
+                item.Case,
+                names.GetValueOrDefault(item.Report.ReporterUserId, "User"))).ToArray(),
             nextCursor,
             hasMore));
     }
@@ -184,34 +185,32 @@ internal sealed class ModerationService(
                 item.CreatedAt == timestamp && item.Id.CompareTo(id) < 0);
         }
 
-        List<ModerationCase> cases = await query
-            .OrderByDescending(item => item.CreatedAt)
-            .ThenByDescending(item => item.Id)
+        List<ReportCaseRow> rows = await (
+            from moderationCase in query
+            join report in dbContext.ContentReports.AsNoTracking()
+                on moderationCase.ReportId equals report.Id
+            orderby moderationCase.CreatedAt descending, moderationCase.Id descending
+            select new ReportCaseRow(report, moderationCase))
             .Take(request.Limit + 1)
             .ToListAsync(cancellationToken);
-        bool hasMore = cases.Count > request.Limit;
-        ModerationCase[] page = cases.Take(request.Limit).ToArray();
-        Guid[] reportIds = page.Select(item => item.ReportId).ToArray();
-        ContentReport[] reports = await dbContext.ContentReports.AsNoTracking()
-            .Where(item => reportIds.Contains(item.Id))
-            .ToArrayAsync(cancellationToken);
-        Dictionary<Guid, ContentReport> reportsById = reports.ToDictionary(item => item.Id);
+        bool hasMore = rows.Count > request.Limit;
+        ReportCaseRow[] page = rows.Take(request.Limit).ToArray();
         Guid[] userIds = page
-            .SelectMany(item => new[] { reportsById[item.ReportId].ReporterUserId, item.AssignedToUserId })
+            .SelectMany(item => new[] { item.Report.ReporterUserId, item.Case.AssignedToUserId })
             .Where(item => item is not null)
             .Select(item => item!.Value)
             .Distinct()
             .ToArray();
         Dictionary<Guid, string> names = await GetDisplayNamesAsync(userIds, cancellationToken);
         string? nextCursor = hasMore && page.Length > 0
-            ? cursorCodec.Create("moderation-cases", canonicalQuery, page[^1].CreatedAt, page[^1].Id)
+            ? cursorCodec.Create("moderation-cases", canonicalQuery, page[^1].Case.CreatedAt, page[^1].Case.Id)
             : null;
         return Result.Success(new ModerationCasePageResponse(
             page.Select(item => MapCaseSummary(
-                item,
-                reportsById[item.ReportId],
-                names.GetValueOrDefault(reportsById[item.ReportId].ReporterUserId, "User"),
-                item.AssignedToUserId is { } assignedId ? names.GetValueOrDefault(assignedId) : null)).ToArray(),
+                item.Case,
+                item.Report,
+                names.GetValueOrDefault(item.Report.ReporterUserId, "User"),
+                item.Case.AssignedToUserId is { } assignedId ? names.GetValueOrDefault(assignedId) : null)).ToArray(),
             nextCursor,
             hasMore));
     }
@@ -225,20 +224,15 @@ internal sealed class ModerationService(
             return Forbidden<ModerationCaseResponse>();
         }
 
-        ModerationCase? moderationCase = await dbContext.ModerationCases.AsNoTracking().SingleOrDefaultAsync(
-            item => item.Id == request.CaseId,
-            cancellationToken);
-        if (moderationCase is null)
-        {
-            return NotFound<ModerationCaseResponse>();
-        }
-
-        ContentReport? report = await dbContext.ContentReports.AsNoTracking().SingleOrDefaultAsync(
-            item => item.Id == moderationCase.ReportId,
-            cancellationToken);
-        return report is null
+        ReportCaseRow? row = await (
+            from moderationCase in dbContext.ModerationCases.AsNoTracking()
+            join report in dbContext.ContentReports.AsNoTracking()
+                on moderationCase.ReportId equals report.Id
+            where moderationCase.Id == request.CaseId
+            select new ReportCaseRow(report, moderationCase)).SingleOrDefaultAsync(cancellationToken);
+        return row is null
             ? NotFound<ModerationCaseResponse>()
-            : Result.Success(await MapCaseAsync(moderationCase, report, cancellationToken));
+            : Result.Success(await MapCaseAsync(row.Case, row.Report, cancellationToken));
     }
 
     public async Task<Result<ModerationCaseResponse>> ApplyModerationActionAsync(
@@ -550,6 +544,12 @@ internal sealed class ModerationService(
     {
         if (report.ReviewId is { } reviewId)
         {
+            CourseReview? trackedReview = dbContext.CourseReviews.Local.SingleOrDefault(item => item.Id == reviewId);
+            if (trackedReview is not null)
+            {
+                string trackedAuthor = await GetDisplayNameAsync(trackedReview.UserId, cancellationToken);
+                return new(trackedReview.Status.ToString(), "Course review", trackedReview.Text, trackedAuthor);
+            }
             var review = await (
                 from item in dbContext.CourseReviews.AsNoTracking()
                 join user in dbContext.Users.AsNoTracking() on item.UserId equals user.Id
@@ -561,6 +561,12 @@ internal sealed class ModerationService(
         }
         if (report.CommentId is { } commentId)
         {
+            DiscussionComment? trackedComment = dbContext.DiscussionComments.Local.SingleOrDefault(item => item.Id == commentId);
+            if (trackedComment is not null)
+            {
+                string trackedAuthor = await GetDisplayNameAsync(trackedComment.AuthorUserId, cancellationToken);
+                return new(trackedComment.Status.ToString(), "Discussion comment", trackedComment.Body, trackedAuthor);
+            }
             var comment = await (
                 from item in dbContext.DiscussionComments.AsNoTracking()
                 join user in dbContext.Users.AsNoTracking() on item.AuthorUserId equals user.Id
@@ -591,13 +597,13 @@ internal sealed class ModerationService(
             return new(course.Status.ToString(), title, string.Empty, author);
         }
 
-        string? accountName = await dbContext.Users.AsNoTracking()
+        var account = await dbContext.Users.AsNoTracking()
             .Where(user => user.Id == report.ReportedUserId)
-            .Select(user => user.DisplayName)
+            .Select(user => new { user.DisplayName, user.IsActive })
             .SingleOrDefaultAsync(cancellationToken);
-        return accountName is null
+        return account is null
             ? UnavailablePreview()
-            : new("Active", accountName, string.Empty, accountName);
+            : new(account.IsActive ? "Active" : "Inactive", account.DisplayName, string.Empty, account.DisplayName);
     }
 
     private static ModerationTargetPreviewResponse UnavailablePreview() =>
@@ -655,6 +661,12 @@ internal sealed class ModerationService(
         CancellationToken cancellationToken) => dbContext.Users.AsNoTracking()
         .Where(user => userIds.Contains(user.Id))
         .ToDictionaryAsync(user => user.Id, user => user.DisplayName, cancellationToken);
+
+    private async Task<string> GetDisplayNameAsync(Guid userId, CancellationToken cancellationToken) =>
+        await dbContext.Users.AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => user.DisplayName)
+            .SingleOrDefaultAsync(cancellationToken) ?? "User";
 
     private Task<int> LockAsync(string identity, CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlInterpolatedAsync(

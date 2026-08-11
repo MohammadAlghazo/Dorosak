@@ -2432,24 +2432,30 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
   instructor course/lesson scopes, signed cursor pagination, two-level reply nesting (`depth` 0 through 2), tombstone
   removal, author edit windows, audit records, idempotent create replay reauthorization, and Angular Arabic/English
   learner interactions.
+- Reports and moderation now have durable concrete-target rows, one case per report, authenticated own-report reads,
+  permission-gated moderation queues, append-only audited actions, idempotent replay rehydration, target visibility
+  projections, advisory locks, and expected-version concurrency protection. Review/comment hide and restore transitions
+  cannot be bypassed by author mutations.
 
 #### Verification
 
-- Backend solution Debug build: `0 warnings`, `0 errors`.
-- Domain unit tests: `43 passed`.
+- Backend solution Release build: `0 warnings`, `0 errors`.
+- Domain unit tests: `49 passed`.
 - Application unit tests: `21 passed`; architecture tests: `6 passed`.
-- MediaWorker unit tests: `8 passed`, `2 skipped` because Docker/Compose services were unavailable.
-- Angular tests: `71 passed` across `25` files; ESLint, Prettier, production build, PWA checks, and bundle budgets passed.
-- API and PostgreSQL integration gates were attempted but could not start because Docker Desktop was unavailable at
-  `npipe://./pipe/docker_engine`. They must be rerun with Docker/PostgreSQL/Redis/ClamAV available.
-- After Docker became available, PostgreSQL schema/workflow tests passed `3/3`, including DemoOrder/DemoPayment tables,
-  runtime grants, no-card-column assertion, and release-pinned learning. Commerce/Learning API integration tests passed
-  `3/3`, including demo checkout authorization and enrollment IDOR coverage.
+- MediaWorker unit tests: `8 passed`, `2 skipped` because the Compose ClamAV service was not running.
+- Angular tests: `88 passed` across `29` files; ESLint, Prettier, production build, PWA checks, and bundle budgets passed.
+- Application integration tests passed `31`, with `1` MinIO test skipped because the Compose MinIO service was not running;
+  API integration tests passed `30`, including moderation HTTP policy and OpenAPI coverage.
+- PostgreSQL schema tests passed with concrete report targets, append-only action grants, column-level update grants, and
+  global queue indexes. Docker-backed workflow tests passed for discussions and moderation.
+- Neon Dev applied migrations through `20260810212341_Phase9ModerationHardening`; `dotnet ef migrations list` has no pending
+  entries and `has-pending-model-changes` reports no model drift. Direct/pooled runtime privilege verification passed.
 
 #### Still Open
 
-- Durable Phase 9 engagement modules still open: reports, moderation, messages, notifications, announcements, and SignalR
-  reconnect/resync. Reviews and discussions/comments/likes are implemented locally but remain subject to the integration gate.
+- Durable Phase 9 engagement modules still open: messages, notifications, announcements, and SignalR reconnect/resync.
+  Reports, moderation, reviews, and discussions/comments/likes are implemented and covered by the current local gates.
 - Dedicated integration coverage remains for selected/all-enrolled IDOR, attachment lifecycle, rejected malware,
-  non-ready grading, collaborator downloads, multipart assignment uploads, and demo checkout persistence once Docker is available.
-- The full backend/frontend/Playwright release gates remain to run before Phase 9 can be closed.
+  non-ready grading, collaborator downloads, multipart assignment uploads, and demo checkout persistence when the
+  corresponding Compose services are running.
+- The full backend/frontend/Playwright release gates have now passed; Phase 9 remains open only for the modules listed above.

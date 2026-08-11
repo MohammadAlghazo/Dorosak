@@ -27,6 +27,7 @@ try
     builder.Services.AddHostedService<WorkerHeartbeatService>();
     builder.Services.AddHostedService<IdentityEmailWorker>();
     builder.Services.AddHostedService<AdminBootstrapWorker>();
+    builder.Services.AddHostedService<IdempotencyCleanupWorker>();
 
     using IHost host = builder.Build();
     await host.RunAsync();

@@ -1,5 +1,8 @@
 using System.Security.Claims;
+using Dorosak.Application.Common.Exceptions;
 using Dorosak.Application.Common.Results;
+using Dorosak.Application.Features.Commerce;
+using Dorosak.Application.Features.Engagement;
 using Dorosak.Application.Features.Moderation;
 using Dorosak.Application.Features.Phase6;
 using Dorosak.Application.Features.Publishing;
@@ -78,6 +81,10 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
         ModerationCaseSummaryResponse moderationCase = Assert.Single(
             cases.Value.Items,
             item => item.ReportId == created.Value.Id);
+        Result<ContentReportPageResponse> reports = await sender.Send(
+            new GetAdminContentReportsQuery(adminId, "Open", "Course", 20, null),
+            cancellationToken);
+        Assert.Single(reports.Value.Items, item => item.Report.Id == created.Value.Id);
         string startKey = Guid.CreateVersion7().ToString("N");
         var startReview = new ApplyModerationActionCommand(
             adminId,
@@ -151,8 +158,173 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
             cancellationToken));
     }
 
+    [Fact]
+    public async Task ReviewModeration_UsesVersionedLocksAndCannotBeBypassedByTheAuthor()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid learnerId = await CreateUserAsync(
+            "phase9-moderated-review-author",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid reporterId = await CreateUserAsync(
+            "phase9-moderated-review-reporter",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid moderatorId = await CreateUserAsync(
+            "phase9-moderated-review-moderator",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        await GrantModerationPermissionAsync(moderatorId);
+        Guid courseId = await CreatePublishedCourseAsync(cancellationToken);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        ISender sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        Assert.True((await sender.Send(
+            new CreateDemoCheckoutCommand(
+                learnerId,
+                courseId,
+                "success",
+                "en",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken)).IsSuccess);
+        Result<CourseReviewResponse> review = await sender.Send(
+            new CreateCourseReviewCommand(
+                learnerId,
+                courseId,
+                4,
+                "Synthetic review content that requires moderation.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(review.IsSuccess);
+        Result<ContentReportResponse> report = await sender.Send(
+            new CreateContentReportCommand(
+                reporterId,
+                null,
+                review.Value.Id,
+                null,
+                null,
+                null,
+                "Harassment",
+                "Synthetic report details for the review target.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(report.IsSuccess);
+        ModerationCaseSummaryResponse moderationCase = Assert.Single(
+            (await sender.Send(
+                new GetModerationCasesQuery(moderatorId, "Open", 100, null),
+                cancellationToken)).Value.Items,
+            item => item.ReportId == report.Value.Id);
+
+        var invalidAction = new ApplyModerationActionCommand(
+            moderatorId,
+            moderationCase.Id,
+            "3",
+            "Synthetic invalid action reason.",
+            moderationCase.Version,
+            "Synthetic invalid action audit.",
+            Guid.CreateVersion7().ToString("N"));
+        await Assert.ThrowsAsync<ApplicationValidationException>(() => sender.Send(invalidAction, cancellationToken));
+        await Assert.ThrowsAsync<ApplicationValidationException>(() => sender.Send(
+            invalidAction with
+            {
+                Action = "StartReview",
+                Reason = "        ",
+                IdempotencyKey = Guid.CreateVersion7().ToString("N"),
+            },
+            cancellationToken));
+
+        Result<ModerationCaseResponse> started = await sender.Send(
+            new ApplyModerationActionCommand(
+                moderatorId,
+                moderationCase.Id,
+                "StartReview",
+                "Starting the synthetic review investigation.",
+                moderationCase.Version,
+                "Synthetic review investigation audit.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.Equal(2, started.Value.Case.Version);
+
+        var hide = new ApplyModerationActionCommand(
+            moderatorId,
+            moderationCase.Id,
+            "HideContent",
+            "Hiding the review while the report is investigated.",
+            started.Value.Case.Version,
+            "Synthetic review visibility audit.",
+            Guid.CreateVersion7().ToString("N"));
+        Result<ModerationCaseResponse>[] concurrent = await Task.WhenAll(
+            SendActionInNewScopeAsync(hide, cancellationToken),
+            SendActionInNewScopeAsync(
+                hide with { IdempotencyKey = Guid.CreateVersion7().ToString("N") },
+                cancellationToken));
+        Result<ModerationCaseResponse> hidden = Assert.Single(concurrent, result => result.IsSuccess);
+        Assert.Single(concurrent, result =>
+            !result.IsSuccess && result.Failure.Code == "MODERATION.VERSION_CONFLICT");
+        Assert.Equal("Hidden", hidden.Value.TargetPreview.Status);
+        Assert.Equal(3, hidden.Value.Case.Version);
+
+        Result<ModerationCaseResponse> repeatedHide = await SendActionInNewScopeAsync(
+            hide with
+            {
+                ExpectedVersion = hidden.Value.Case.Version,
+                IdempotencyKey = Guid.CreateVersion7().ToString("N"),
+            },
+            cancellationToken);
+        Assert.True(repeatedHide.IsSuccess);
+        Assert.Equal(4, repeatedHide.Value.Case.Version);
+        Assert.Equal(3, repeatedHide.Value.Actions.Count);
+
+        Result<EngagementOperationResponse> authorDelete = await SendDeleteReviewInNewScopeAsync(
+            new DeleteCourseReviewCommand(learnerId, courseId, review.Value.Id),
+            cancellationToken);
+        Assert.False(authorDelete.IsSuccess);
+        Assert.Equal("REVIEW.NOT_REMOVABLE", authorDelete.Failure.Code);
+
+        Result<ModerationCaseResponse> staleRestore = await SendActionInNewScopeAsync(
+            new ApplyModerationActionCommand(
+                moderatorId,
+                moderationCase.Id,
+                "RestoreContent",
+                "Restoring the synthetic review after investigation.",
+                hidden.Value.Case.Version,
+                "Synthetic stale restore audit.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(staleRestore.IsSuccess);
+        Assert.Equal("MODERATION.VERSION_CONFLICT", staleRestore.Failure.Code);
+
+        Result<ModerationCaseResponse> restored = await SendActionInNewScopeAsync(
+            new ApplyModerationActionCommand(
+                moderatorId,
+                moderationCase.Id,
+                "RestoreContent",
+                "Restoring the synthetic review after investigation.",
+                repeatedHide.Value.Case.Version,
+                "Synthetic approved restore audit.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(restored.IsSuccess);
+        Assert.Equal("Published", restored.Value.TargetPreview.Status);
+        Assert.Equal(5, restored.Value.Case.Version);
+        Assert.Equal(4, restored.Value.Actions.Count);
+    }
+
     private async Task<Result<ContentReportResponse>> SendInNewScopeAsync(
         CreateContentReportCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command, cancellationToken);
+    }
+
+    private async Task<Result<ModerationCaseResponse>> SendActionInNewScopeAsync(
+        ApplyModerationActionCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command, cancellationToken);
+    }
+
+    private async Task<Result<EngagementOperationResponse>> SendDeleteReviewInNewScopeAsync(
+        DeleteCourseReviewCommand command,
         CancellationToken cancellationToken)
     {
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
@@ -179,6 +351,7 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
         Guid reviewerId = await CreateUserAsync(
             "phase9-moderation-publication-reviewer",
             Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        string suffix = Guid.CreateVersion7().ToString("N")[24..];
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         ISender sender = scope.ServiceProvider.GetRequiredService<ISender>();
         Result<CourseMutationResponse> course = await sender.Send(
@@ -188,13 +361,15 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
                 "Beginner",
                 [new CourseLocalizationInput(
                     "en",
-                    "Moderation Safety",
+                    $"Moderation Safety {suffix}",
                     "Synthetic report target",
                     "A synthetic published course used by the moderation workflow.")],
                 [],
                 []),
             cancellationToken);
-        Assert.True(course.IsSuccess);
+        Assert.True(
+            course.IsSuccess,
+            course.IsSuccess ? string.Empty : $"{course.Failure.Code}: {course.Failure.Description}");
         Result<CourseMutationResponse> curriculum = await sender.Send(
             new UpdateCurriculumCommand(
                 teacherId,
