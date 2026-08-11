@@ -3,6 +3,7 @@ using System.IO.Compression;
 using Dorosak.Api;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
+using Dorosak.Api.Realtime;
 using Dorosak.Application;
 using Dorosak.Infrastructure;
 using Dorosak.Infrastructure.Observability;
@@ -30,7 +31,7 @@ try
         builder.Configuration["Licensing:MediatRKey"],
         builder.Configuration["Licensing:AutoMapperKey"]);
     builder.Services.AddInfrastructure(builder.Configuration);
-    builder.Services.AddApiServices(builder.Configuration);
+    builder.Services.AddApiServices(builder.Configuration, builder.Environment);
     builder.Services.AddDorosakObservability(builder.Configuration, "Dorosak.Api", true);
 
     builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
@@ -67,6 +68,10 @@ try
     }
 
     app.MapControllers();
+    app.MapHub<CommunicationsHub>(CommunicationsHub.Path, options =>
+        options.CloseOnAuthenticationExpiration = true)
+        .RequireAuthorization()
+        .RequireRateLimiting(ApiConstants.SensitiveRateLimitPolicy);
     app.MapDorosakHealthChecks();
 
     await app.RunAsync();

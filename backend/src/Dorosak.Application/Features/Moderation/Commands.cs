@@ -8,6 +8,7 @@ public sealed record CreateContentReportCommand(
     Guid? ReviewId,
     Guid? CommentId,
     Guid? ReportedUserId,
+    Guid? MessageId,
     Guid? ContextCommentId,
     string Reason,
     string? Details,
@@ -17,16 +18,28 @@ public sealed record CreateContentReportCommand(
 
     public string IdempotencyScope => $"user:{UserId:D}";
 
-    public object IdempotencyPayload => new
-    {
-        CourseId,
-        ReviewId,
-        CommentId,
-        ReportedUserId,
-        ContextCommentId,
-        Reason,
-        Details,
-    };
+    public object IdempotencyPayload => MessageId is null
+        ? new
+        {
+            CourseId,
+            ReviewId,
+            CommentId,
+            ReportedUserId,
+            ContextCommentId,
+            Reason,
+            Details,
+        }
+        : new
+        {
+            CourseId,
+            ReviewId,
+            CommentId,
+            ReportedUserId,
+            MessageId,
+            ContextCommentId,
+            Reason,
+            Details,
+        };
 
     public int ResponseSchemaVersion => 1;
 

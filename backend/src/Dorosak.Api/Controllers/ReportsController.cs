@@ -45,6 +45,7 @@ public sealed class ReportsController(ISender sender) : ControllerBase
                 request.ReviewId,
                 request.CommentId,
                 request.ReportedUserId,
+                request.MessageId,
                 request.ContextCommentId,
                 request.Reason,
                 request.Details,
@@ -73,6 +74,7 @@ public sealed record ContentReportRequest(
     Guid? ReviewId,
     Guid? CommentId,
     Guid? ReportedUserId,
+    Guid? MessageId,
     Guid? ContextCommentId,
     string Reason,
     string? Details);

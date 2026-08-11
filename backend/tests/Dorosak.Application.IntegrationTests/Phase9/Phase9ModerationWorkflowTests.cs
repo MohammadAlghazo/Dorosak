@@ -2,11 +2,13 @@ using System.Security.Claims;
 using Dorosak.Application.Common.Exceptions;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Commerce;
+using Dorosak.Application.Features.Communications;
 using Dorosak.Application.Features.Engagement;
 using Dorosak.Application.Features.Moderation;
 using Dorosak.Application.Features.Phase6;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Domain.Engagement;
+using Dorosak.Domain.Learning;
 using Dorosak.Domain.Operations;
 using Dorosak.Infrastructure.Identity;
 using Dorosak.Infrastructure.Persistence;
@@ -39,6 +41,7 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
         var createReport = new CreateContentReportCommand(
             reporterId,
             courseId,
+            null,
             null,
             null,
             null,
@@ -137,6 +140,7 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
             null,
             null,
             null,
+            null,
             "Spam",
             null,
             Guid.CreateVersion7().ToString("N"));
@@ -156,6 +160,155 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
             audit => audit.ActorUserId == adminId && audit.TargetId == moderationCase.Id &&
                 audit.Action.StartsWith("moderation.action-"),
             cancellationToken));
+    }
+
+    [Fact]
+    public async Task MessageReports_RequireCurrentReadAccessAndKeepAnImmutableModeratorSnapshot()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid senderId = await CreateUserAsync(
+            "phase9-message-report-sender",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid reporterId = await CreateUserAsync(
+            "phase9-message-report-reporter",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid revokedParticipantId = await CreateUserAsync(
+            "phase9-message-report-revoked",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid outsiderId = await CreateUserAsync(
+            "phase9-message-report-outsider",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        Guid adminId = await CreateUserAsync(
+            "phase9-message-report-admin",
+            Dorosak.Infrastructure.Identity.IdentityConstants.StudentRole);
+        await GrantModerationPermissionAsync(adminId);
+        Guid courseId = await CreatePublishedCourseAsync(cancellationToken);
+
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        ISender sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        foreach (Guid userId in new[] { senderId, reporterId, revokedParticipantId, outsiderId })
+        {
+            Result<DemoCheckoutResponse> checkout = await sender.Send(
+                new CreateDemoCheckoutCommand(
+                    userId,
+                    courseId,
+                    "success",
+                    "en",
+                    Guid.CreateVersion7().ToString("N")),
+                cancellationToken);
+            Assert.True(checkout.IsSuccess);
+        }
+
+        Result<ConversationResponse> conversation = await sender.Send(
+            new CreateConversationCommand(
+                senderId,
+                [reporterId, revokedParticipantId],
+                courseId,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(conversation.IsSuccess);
+        const string messageBody = "Immutable message body preserved for the moderation case.";
+        Result<MessageResponse> message = await sender.Send(
+            new CreateMessageCommand(
+                senderId,
+                conversation.Value.Id,
+                Guid.CreateVersion7(),
+                messageBody,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Result<MessageResponse> secondMessage = await sender.Send(
+            new CreateMessageCommand(
+                senderId,
+                conversation.Value.Id,
+                Guid.CreateVersion7(),
+                "A second immutable message verifies the idempotency payload.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(message.IsSuccess);
+        Assert.True(secondMessage.IsSuccess);
+
+        Result<ContentReportResponse> selfReport = await sender.Send(
+            MessageReportCommand(senderId, message.Value.Id, Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(selfReport.IsSuccess);
+        Assert.Equal("MODERATION.NOT_FOUND", selfReport.Failure.Code);
+
+        Result<ContentReportResponse> outsiderReport = await sender.Send(
+            MessageReportCommand(outsiderId, message.Value.Id, Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(outsiderReport.IsSuccess);
+        Assert.Equal("MODERATION.NOT_FOUND", outsiderReport.Failure.Code);
+
+        string idempotencyKey = Guid.CreateVersion7().ToString("N");
+        CreateContentReportCommand createReport = MessageReportCommand(
+            reporterId,
+            message.Value.Id,
+            idempotencyKey);
+        Result<ContentReportResponse> created = await sender.Send(createReport, cancellationToken);
+        Result<ContentReportResponse> replayed = await sender.Send(createReport, cancellationToken);
+        Assert.True(created.IsSuccess);
+        Assert.Equal(created.Value.Id, replayed.Value.Id);
+        Assert.Equal("Message", created.Value.TargetKind);
+        Assert.Equal(message.Value.Id, created.Value.TargetId);
+
+        RequestConflictException reusedKey = await Assert.ThrowsAsync<RequestConflictException>(() => sender.Send(
+            createReport with { MessageId = secondMessage.Value.Id },
+            cancellationToken));
+        Assert.Equal("IDEMPOTENCY.KEY_REUSED", reusedKey.Code);
+        Result<ContentReportResponse> duplicate = await sender.Send(
+            createReport with { IdempotencyKey = Guid.CreateVersion7().ToString("N") },
+            cancellationToken);
+        Assert.False(duplicate.IsSuccess);
+        Assert.Equal("REPORT.ALREADY_OPEN", duplicate.Failure.Code);
+
+        Result<ContentReportPageResponse> reports = await sender.Send(
+            new GetAdminContentReportsQuery(adminId, "Open", "Message", 100, null),
+            cancellationToken);
+        AdminContentReportResponse adminReport = Assert.Single(
+            reports.Value.Items,
+            item => item.Report.Id == created.Value.Id);
+        MessageReportSnapshotResponse snapshot = Assert.IsType<MessageReportSnapshotResponse>(adminReport.MessageSnapshot);
+        Assert.Equal(senderId, snapshot.SenderUserId);
+        Assert.Equal("phase9-message-report-sender", snapshot.SenderName);
+        Assert.Equal(courseId, snapshot.CourseId);
+        Assert.Equal(conversation.Value.Id, snapshot.ConversationId);
+        Assert.Equal(message.Value.Sequence, snapshot.Sequence);
+        Assert.Equal(messageBody, snapshot.Body);
+
+        DorosakDbContext dbContext = scope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+        await dbContext.Users.Where(user => user.Id == senderId).ExecuteUpdateAsync(
+            setters => setters.SetProperty(user => user.DisplayName, "Changed sender name"),
+            cancellationToken);
+        await dbContext.CourseLocalizations.Where(localization => localization.CourseId == courseId).ExecuteUpdateAsync(
+            setters => setters.SetProperty(localization => localization.Title, "Changed course title"),
+            cancellationToken);
+        Result<ModerationCaseResponse> moderationCase = await sender.Send(
+            new GetModerationCaseQuery(adminId, adminReport.CaseId),
+            cancellationToken);
+        Assert.Equal(messageBody, moderationCase.Value.TargetPreview.Body);
+        Assert.Equal(snapshot.SenderName, moderationCase.Value.TargetPreview.AuthorName);
+        Assert.Equal(snapshot.CourseTitle, moderationCase.Value.TargetPreview.Title);
+        Assert.Equal(snapshot, moderationCase.Value.Case.Report.MessageSnapshot);
+
+        Entitlement entitlement = await dbContext.Set<Entitlement>().SingleAsync(
+            item => item.UserId == revokedParticipantId && item.CourseId == courseId,
+            cancellationToken);
+        entitlement.Revoke(DateTimeOffset.UtcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        Result<ContentReportResponse> revokedAccess = await sender.Send(
+            MessageReportCommand(revokedParticipantId, message.Value.Id, Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.False(revokedAccess.IsSuccess);
+        Assert.Equal("MODERATION.NOT_FOUND", revokedAccess.Failure.Code);
+
+        Assert.True((await sender.Send(
+            new LeaveConversationCommand(reporterId, conversation.Value.Id),
+            cancellationToken)).IsSuccess);
+        Result<ContentReportResponse> formerParticipant = await sender.Send(
+            createReport with { IdempotencyKey = Guid.CreateVersion7().ToString("N") },
+            cancellationToken);
+        Assert.False(formerParticipant.IsSuccess);
+        Assert.Equal("MODERATION.NOT_FOUND", formerParticipant.Failure.Code);
     }
 
     [Fact]
@@ -198,6 +351,7 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
                 reporterId,
                 null,
                 review.Value.Id,
+                null,
                 null,
                 null,
                 null,
@@ -314,6 +468,21 @@ public sealed class Phase9ModerationWorkflowTests(InfrastructureFixture fixture)
         await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command, cancellationToken);
     }
+
+    private static CreateContentReportCommand MessageReportCommand(
+        Guid userId,
+        Guid messageId,
+        string idempotencyKey) => new(
+        userId,
+        null,
+        null,
+        null,
+        null,
+        messageId,
+        null,
+        "Harassment",
+        "Synthetic report details for a conversation message.",
+        idempotencyKey);
 
     private async Task<Result<ModerationCaseResponse>> SendActionInNewScopeAsync(
         ApplyModerationActionCommand command,

@@ -12,11 +12,12 @@ public sealed class ModerationTests
         DateTimeOffset now = DateTimeOffset.UtcNow;
 
         DomainRuleException missing = Assert.Throws<DomainRuleException>(() => ContentReport.Create(
-            reporterId, null, null, null, null, ContentReportReason.Spam, null, now));
+            reporterId, null, null, null, null, null, ContentReportReason.Spam, null, now));
         DomainRuleException multiple = Assert.Throws<DomainRuleException>(() => ContentReport.Create(
             reporterId,
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
+            null,
             null,
             null,
             ContentReportReason.Spam,
@@ -38,6 +39,7 @@ public sealed class ModerationTests
             null,
             null,
             userId,
+            null,
             ContentReportReason.Harassment,
             "Synthetic report details",
             DateTimeOffset.UtcNow));
@@ -53,6 +55,7 @@ public sealed class ModerationTests
             Guid.CreateVersion7(),
             null,
             Guid.CreateVersion7(),
+            null,
             null,
             null,
             ContentReportReason.Spam,
@@ -72,6 +75,71 @@ public sealed class ModerationTests
         Assert.Equal(3, moderationCase.Version);
         Assert.NotNull(report.ClosedAt);
         Assert.NotNull(moderationCase.ClosedAt);
+    }
+
+    [Fact]
+    public void MessageReportPersistsItsImmutableModerationSnapshot()
+    {
+        Guid reporterId = Guid.CreateVersion7();
+        Guid messageId = Guid.CreateVersion7();
+        DateTimeOffset createdAt = DateTimeOffset.UtcNow;
+        var snapshot = new MessageReportSnapshot(
+            Guid.CreateVersion7(),
+            "Message sender",
+            Guid.CreateVersion7(),
+            "Message course",
+            Guid.CreateVersion7(),
+            7,
+            "Immutable message body",
+            createdAt);
+
+        ContentReport report = ContentReport.Create(
+            reporterId,
+            null,
+            null,
+            null,
+            null,
+            messageId,
+            ContentReportReason.Harassment,
+            "Message report details",
+            createdAt,
+            snapshot);
+
+        Assert.Equal(messageId, report.MessageId);
+        Assert.Equal(snapshot.Body, report.MessageBodySnapshot);
+        Assert.Equal(snapshot.SenderName, report.MessageSenderNameSnapshot);
+        Assert.Equal(snapshot.CourseId, report.MessageCourseIdSnapshot);
+        Assert.Equal(snapshot.ConversationId, report.MessageConversationIdSnapshot);
+    }
+
+    [Fact]
+    public void AccountCannotReportItsOwnMessage()
+    {
+        Guid userId = Guid.CreateVersion7();
+        DateTimeOffset createdAt = DateTimeOffset.UtcNow;
+        var snapshot = new MessageReportSnapshot(
+            userId,
+            "Message sender",
+            Guid.CreateVersion7(),
+            "Message course",
+            Guid.CreateVersion7(),
+            1,
+            "Immutable message body",
+            createdAt);
+
+        DomainRuleException exception = Assert.Throws<DomainRuleException>(() => ContentReport.Create(
+            userId,
+            null,
+            null,
+            null,
+            null,
+            Guid.CreateVersion7(),
+            ContentReportReason.Harassment,
+            null,
+            createdAt,
+            snapshot));
+
+        Assert.Equal("REPORT.SELF_REPORT_INVALID", exception.Code);
     }
 
     [Fact]

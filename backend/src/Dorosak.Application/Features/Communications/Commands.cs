@@ -109,13 +109,13 @@ public sealed record UpdateAnnouncementCommand(
     long ExpectedVersion,
     string IdempotencyKey) : IIdempotentCommand<AnnouncementResponse>, IAnnouncementAuthorizedRequest
 {
-    public string IdempotencyOperation => "communications.announcement-update.v1";
+    public string IdempotencyOperation => "communications.announcement-update.v2";
 
     public string IdempotencyScope => $"user:{UserId:D}";
 
     public object IdempotencyPayload => new { CourseId, AnnouncementId, Title, Body, ExpectedVersion };
 
-    public int ResponseSchemaVersion => 1;
+    public int ResponseSchemaVersion => 2;
 
     public TimeSpan Retention => TimeSpan.FromDays(30);
 }

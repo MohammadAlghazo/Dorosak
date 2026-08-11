@@ -29,6 +29,11 @@
       <a [routerLink]="['../media']" aria-current="page">{{
         locale.locale() === 'ar' ? 'الوسائط' : 'Media'
       }}</a>
+      @if (session.hasPermission('Announcement.ManageCourse')) {
+        <a [routerLink]="['../announcements']">{{
+          locale.locale() === 'ar' ? 'الإعلانات' : 'Announcements'
+        }}</a>
+      }
       <a [routerLink]="['../publication']">{{
         locale.locale() === 'ar' ? 'النشر' : 'Publication'
       }}</a>

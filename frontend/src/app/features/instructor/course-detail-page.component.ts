@@ -17,6 +17,7 @@ import type {
   CourseLocalizationInput,
   CourseMetadataRequest,
 } from '../../core/api/phase6-api.types';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { requiredValidator } from '../auth/auth-form.helpers';
 import { CourseEditorStore } from './course-editor.store';
@@ -60,6 +61,11 @@ type EditableLevel = CourseLevel | '';
             locale.locale() === 'ar' ? 'التقييمات' : 'Assessments'
           }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
+          @if (session.hasPermission('Announcement.ManageCourse')) {
+            <a [routerLink]="['../announcements']">{{
+              locale.locale() === 'ar' ? 'الإعلانات' : 'Announcements'
+            }}</a>
+          }
           <a [routerLink]="['../publication']">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>
@@ -271,6 +277,7 @@ type EditableLevel = CourseLevel | '';
 })
 export class CourseDetailPageComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
   protected readonly store = inject(CourseEditorStore);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);

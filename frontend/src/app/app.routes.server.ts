@@ -2,6 +2,10 @@ import { RenderMode, type ServerRoute } from '@angular/ssr';
 
 export const serverRoutes: ServerRoute[] = [
   { path: ':locale/dashboard', renderMode: RenderMode.Client },
+  { path: ':locale/my-learning', renderMode: RenderMode.Client },
+  { path: ':locale/chat', renderMode: RenderMode.Client },
+  { path: ':locale/chat/**', renderMode: RenderMode.Client },
+  { path: ':locale/notifications', renderMode: RenderMode.Client },
   { path: ':locale/learn/**', renderMode: RenderMode.Client },
   { path: ':locale/instructor/**', renderMode: RenderMode.Client },
   { path: ':locale/admin/**', renderMode: RenderMode.Client },

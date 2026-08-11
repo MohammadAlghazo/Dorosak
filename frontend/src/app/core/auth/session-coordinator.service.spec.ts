@@ -6,6 +6,7 @@ import { RuntimeConfigService } from '../api/runtime-config.service';
 import { IndexedDbService } from '../pwa/indexed-db.service';
 import { AuthRefreshService } from './auth-refresh.service';
 import { SessionCoordinator } from './session-coordinator.service';
+import { SessionLifecycleService } from './session-lifecycle.service';
 import { SessionStore } from './session.store';
 
 const resetCsrf = vi.fn();
@@ -13,6 +14,7 @@ const signOut = vi.fn(() => of(undefined));
 const completeMfaChallenge = vi.fn(() => of(authSession()));
 const signIn = vi.fn();
 const purgeUser = vi.fn(() => Promise.resolve());
+const disconnectRealtime = vi.fn();
 
 describe('SessionCoordinator', () => {
   beforeEach(() => {
@@ -21,6 +23,7 @@ describe('SessionCoordinator', () => {
     completeMfaChallenge.mockClear();
     signIn.mockReset();
     purgeUser.mockClear();
+    disconnectRealtime.mockClear();
     TestBed.configureTestingModule({
       providers: [
         {
@@ -32,6 +35,10 @@ describe('SessionCoordinator', () => {
           useValue: { refresh: () => of('access-token'), broadcastLogout: vi.fn() },
         },
         { provide: IndexedDbService, useValue: { purgeUser } },
+        {
+          provide: SessionLifecycleService,
+          useValue: { endActiveSession: disconnectRealtime },
+        },
         {
           provide: RuntimeConfigService,
           useValue: { value: () => ({ capabilities: { identity: true } }) },
@@ -64,6 +71,7 @@ describe('SessionCoordinator', () => {
     expect(store.isAuthenticated()).toBe(true);
     expect(coordinator.pendingMfaChallenge()).toBeNull();
     expect(resetCsrf).toHaveBeenCalledOnce();
+    expect(disconnectRealtime).toHaveBeenCalledOnce();
   });
 
   it('purges user-scoped offline data before ending the local session', async () => {
@@ -76,6 +84,7 @@ describe('SessionCoordinator', () => {
     expect(signOut).toHaveBeenCalledOnce();
     expect(purgeUser).toHaveBeenCalledWith('user-1');
     expect(store.status()).toBe('anonymous');
+    expect(disconnectRealtime).toHaveBeenCalledTimes(2);
   });
 });
 

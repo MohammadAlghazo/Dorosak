@@ -1,5 +1,6 @@
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
+using Dorosak.Application.Features.Communications;
 using Dorosak.Application.Features.Moderation;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Common;
@@ -16,20 +17,48 @@ namespace Dorosak.Infrastructure.Moderation;
 internal sealed class ModerationService(
     DorosakDbContext dbContext,
     TimeProvider timeProvider,
-    CatalogCursorCodec cursorCodec) : IModerationService
+    CatalogCursorCodec cursorCodec,
+    IConversationAccessReader conversationAccessReader) : IModerationService
 {
     private sealed record ReportCaseRow(ContentReport Report, ModerationCase Case);
+
+    private sealed record MessageReportSource(
+        Guid SenderUserId,
+        string SenderName,
+        Guid CourseId,
+        string? CourseTitle,
+        Guid ConversationId,
+        long Sequence,
+        string Body,
+        DateTimeOffset CreatedAt);
 
     public async Task<Result<ContentReportResponse>> CreateContentReportAsync(
         CreateContentReportCommand request,
         CancellationToken cancellationToken)
     {
-        if (!await HasReportTargetAccessAsync(request.UserId, request, cancellationToken))
+        MessageReportSnapshot? messageSnapshot = null;
+        if (request.MessageId is { } messageId)
+        {
+            messageSnapshot = await GetMessageReportSnapshotAsync(
+                request.UserId,
+                messageId,
+                cancellationToken);
+            if (messageSnapshot is null)
+            {
+                return NotFound<ContentReportResponse>();
+            }
+        }
+        else if (!await HasReportTargetAccessAsync(request.UserId, request, cancellationToken))
         {
             return NotFound<ContentReportResponse>();
         }
 
-        string targetIdentity = TargetIdentity(request.CourseId, request.ReviewId, request.CommentId, request.ReportedUserId);
+        string targetIdentity = TargetIdentity(
+            request.CourseId,
+            request.ReviewId,
+            request.CommentId,
+            request.ReportedUserId,
+            request.MessageId);
         await LockAsync($"report-target:{request.UserId:D}:{targetIdentity}", cancellationToken);
         if (await HasOpenDuplicateAsync(request, cancellationToken))
         {
@@ -53,9 +82,11 @@ internal sealed class ModerationService(
                 request.ReviewId,
                 request.CommentId,
                 request.ReportedUserId,
+                request.MessageId,
                 reason,
                 request.Details,
-                now);
+                now,
+                messageSnapshot);
         }
         catch (DomainRuleException exception)
         {
@@ -115,6 +146,7 @@ internal sealed class ModerationService(
                 "Review" => query.Where(item => item.ReviewId != null),
                 "Comment" => query.Where(item => item.CommentId != null),
                 "ReportedUser" => query.Where(item => item.ReportedUserId != null),
+                "Message" => query.Where(item => item.MessageId != null),
                 _ => query.Where(_ => false),
             };
         }
@@ -447,6 +479,55 @@ internal sealed class ModerationService(
                 await CanManageCourseAsync(userId, context.CourseId, cancellationToken));
     }
 
+    private async Task<MessageReportSnapshot?> GetMessageReportSnapshotAsync(
+        Guid userId,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        MessageReportSource? source = await (
+            from message in dbContext.Messages.AsNoTracking()
+            join conversation in dbContext.Conversations.AsNoTracking()
+                on message.ConversationId equals conversation.Id
+            join sender in dbContext.Users.AsNoTracking()
+                on message.SenderUserId equals sender.Id
+            join course in dbContext.Courses.AsNoTracking()
+                on conversation.CourseId equals course.Id
+            where message.Id == messageId
+            select new MessageReportSource(
+                message.SenderUserId,
+                sender.DisplayName,
+                conversation.CourseId,
+                dbContext.CourseLocalizations.AsNoTracking()
+                    .Where(localization => localization.CourseId == conversation.CourseId &&
+                        localization.Locale == course.DefaultLocale)
+                    .Select(localization => localization.Title)
+                    .SingleOrDefault(),
+                message.ConversationId,
+                message.Sequence,
+                message.Body,
+                message.CreatedAt)).SingleOrDefaultAsync(cancellationToken);
+        if (source is null || source.SenderUserId == userId)
+        {
+            return null;
+        }
+
+        await LockAsync($"conversation:{source.ConversationId:D}", cancellationToken);
+        if (!await conversationAccessReader.CanAccessAsync(userId, source.ConversationId, cancellationToken))
+        {
+            return null;
+        }
+
+        return new MessageReportSnapshot(
+            source.SenderUserId,
+            source.SenderName,
+            source.CourseId,
+            source.CourseTitle ?? "Course",
+            source.ConversationId,
+            source.Sequence,
+            source.Body,
+            source.CreatedAt);
+    }
+
     private async Task<bool> HasOpenDuplicateAsync(
         CreateContentReportCommand request,
         CancellationToken cancellationToken)
@@ -457,6 +538,7 @@ internal sealed class ModerationService(
         if (request.CourseId is { } courseId) return await query.AnyAsync(item => item.CourseId == courseId, cancellationToken);
         if (request.ReviewId is { } reviewId) return await query.AnyAsync(item => item.ReviewId == reviewId, cancellationToken);
         if (request.CommentId is { } commentId) return await query.AnyAsync(item => item.CommentId == commentId, cancellationToken);
+        if (request.MessageId is { } messageId) return await query.AnyAsync(item => item.MessageId == messageId, cancellationToken);
         return await query.AnyAsync(item => item.ReportedUserId == request.ReportedUserId, cancellationToken);
     }
 
@@ -542,6 +624,13 @@ internal sealed class ModerationService(
         ContentReport report,
         CancellationToken cancellationToken)
     {
+        if (report.MessageId is not null)
+        {
+            MessageReportSnapshotResponse? snapshot = MapMessageSnapshot(report);
+            return snapshot is null
+                ? UnavailablePreview()
+                : new("Available", snapshot.CourseTitle, snapshot.Body, snapshot.SenderName);
+        }
         if (report.ReviewId is { } reviewId)
         {
             CourseReview? trackedReview = dbContext.CourseReviews.Local.SingleOrDefault(item => item.Id == reviewId);
@@ -633,7 +722,29 @@ internal sealed class ModerationService(
         report.ReporterUserId,
         reporterName,
         moderationCase.Id,
-        moderationCase.Status.ToString());
+        moderationCase.Status.ToString(),
+        MapMessageSnapshot(report));
+
+    private static MessageReportSnapshotResponse? MapMessageSnapshot(ContentReport report) =>
+        report.MessageId is not null &&
+        report.MessageSenderUserIdSnapshot is { } senderUserId &&
+        report.MessageSenderNameSnapshot is { } senderName &&
+        report.MessageCourseIdSnapshot is { } courseId &&
+        report.MessageCourseTitleSnapshot is { } courseTitle &&
+        report.MessageConversationIdSnapshot is { } conversationId &&
+        report.MessageSequenceSnapshot is { } sequence &&
+        report.MessageBodySnapshot is { } body &&
+        report.MessageCreatedAtSnapshot is { } createdAt
+            ? new MessageReportSnapshotResponse(
+                senderUserId,
+                senderName,
+                courseId,
+                courseTitle,
+                conversationId,
+                sequence,
+                body,
+                createdAt)
+            : null;
 
     private static ContentReportResponse MapReport(ContentReport report)
     {
@@ -643,7 +754,9 @@ internal sealed class ModerationService(
                 ? ("Review", reviewId)
                 : report.CommentId is { } commentId
                     ? ("Comment", commentId)
-                    : ("ReportedUser", report.ReportedUserId!.Value);
+                    : report.ReportedUserId is { } reportedUserId
+                        ? ("ReportedUser", reportedUserId)
+                        : ("Message", report.MessageId!.Value);
         return new ContentReportResponse(
             report.Id,
             kind,
@@ -689,13 +802,20 @@ internal sealed class ModerationService(
         "review" or "Review" => "Review",
         "comment" or "Comment" => "Comment",
         "reportedUser" or "ReportedUser" => "ReportedUser",
+        "message" or "Message" => "Message",
         _ => value.Trim(),
     };
 
-    private static string TargetIdentity(Guid? courseId, Guid? reviewId, Guid? commentId, Guid? reportedUserId) =>
+    private static string TargetIdentity(
+        Guid? courseId,
+        Guid? reviewId,
+        Guid? commentId,
+        Guid? reportedUserId,
+        Guid? messageId) =>
         courseId is { } course ? $"course:{course:D}" :
         reviewId is { } review ? $"review:{review:D}" :
-        commentId is { } comment ? $"comment:{comment:D}" : $"user:{reportedUserId!.Value:D}";
+        commentId is { } comment ? $"comment:{comment:D}" :
+        reportedUserId is { } reportedUser ? $"user:{reportedUser:D}" : $"message:{messageId!.Value:D}";
 
     private static TEnum? ParseStatus<TEnum>(string? value)
         where TEnum : struct, Enum => string.IsNullOrWhiteSpace(value)

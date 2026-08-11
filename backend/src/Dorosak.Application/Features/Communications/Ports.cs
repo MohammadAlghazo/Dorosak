@@ -107,3 +107,17 @@ public interface IAnnouncementAccessReader
         Guid courseId,
         CancellationToken cancellationToken);
 }
+
+public interface ICommunicationsRealtimePublisher
+{
+    Task PublishAsync<TPayload>(
+        IReadOnlyCollection<Guid> userIds,
+        CommunicationsRealtimeEnvelope<TPayload> envelope,
+        CancellationToken cancellationToken)
+        where TPayload : class;
+}
+
+public interface ICommunicationsRealtimeDispatcher
+{
+    Task<int> DispatchPendingAsync(CancellationToken cancellationToken);
+}

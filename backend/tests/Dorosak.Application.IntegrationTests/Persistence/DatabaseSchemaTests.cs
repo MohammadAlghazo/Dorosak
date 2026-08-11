@@ -1,4 +1,5 @@
 using Dorosak.Domain.Communications;
+using Dorosak.Domain.Engagement;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -152,6 +153,10 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'reporter_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'course_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'reason', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'details', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'report_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.moderation_cases', 'created_at', 'UPDATE')",
             TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_body_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_sender_user_id_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_sender_name_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_course_id_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_course_title_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_conversation_id_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_sequence_snapshot', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'engagement.content_reports', 'message_created_at_snapshot', 'UPDATE')",
+            TestContext.Current.CancellationToken));
         Assert.True(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_table_privilege('dorosak_runtime', 'engagement.moderation_actions', 'SELECT') AND has_table_privilege('dorosak_runtime', 'engagement.moderation_actions', 'INSERT')",
@@ -174,7 +179,7 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             TestContext.Current.CancellationToken));
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
-            "SELECT has_column_privilege('dorosak_runtime', 'communication.conversations', 'id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversations', 'created_by_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.messages', 'sequence', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notification_sequences', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'sequence', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'message_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'announcement_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'title', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'body', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcements', 'course_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcements', 'created_by_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcement_targets', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcement_targets', 'notification_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'conversation_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'joined_at', 'UPDATE')",
+            "SELECT has_column_privilege('dorosak_runtime', 'communication.conversations', 'id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversations', 'created_by_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.messages', 'sequence', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notification_sequences', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'sequence', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'message_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'announcement_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'announcement_version', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'target_announcement_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'target_announcement_version', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'title', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.notifications', 'body', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcements', 'course_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcements', 'created_by_user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcement_targets', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.announcement_targets', 'notification_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'conversation_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'user_id', 'UPDATE') OR has_column_privilege('dorosak_runtime', 'communication.conversation_participants', 'joined_at', 'UPDATE')",
             TestContext.Current.CancellationToken));
         Assert.False(await ExecuteScalarAsync<bool>(
             connection,
@@ -184,7 +189,33 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_content_reports_exact_target'",
             TestContext.Current.CancellationToken);
-        Assert.Contains("num_nonnulls(course_id, review_id, comment_id, reported_user_id) = 1", reportTargetConstraint, StringComparison.Ordinal);
+        Assert.Contains(
+            "num_nonnulls(course_id, review_id, comment_id, reported_user_id, message_id) = 1",
+            reportTargetConstraint,
+            StringComparison.Ordinal);
+        string reportMessageSnapshotConstraint = await ExecuteScalarAsync<string>(
+            connection,
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'ck_content_reports_message_snapshot'",
+            TestContext.Current.CancellationToken);
+        Assert.Contains("message_id IS NOT NULL", reportMessageSnapshotConstraint, StringComparison.Ordinal);
+        Assert.Contains("message_sender_user_id_snapshot <> reporter_user_id", reportMessageSnapshotConstraint, StringComparison.Ordinal);
+        Assert.Contains("message_sequence_snapshot > 0", reportMessageSnapshotConstraint, StringComparison.Ordinal);
+        string reportMessageForeignKey = await ExecuteScalarAsync<string>(
+            connection,
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fk_content_reports_messages_message_id'",
+            TestContext.Current.CancellationToken);
+        Assert.Contains(
+            "FOREIGN KEY (message_id) REFERENCES communication.messages(id)",
+            reportMessageForeignKey,
+            StringComparison.Ordinal);
+        Assert.Equal(9L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'engagement' AND table_name = 'content_reports' AND column_name IN ('message_id', 'message_body_snapshot', 'message_sender_user_id_snapshot', 'message_sender_name_snapshot', 'message_course_id_snapshot', 'message_course_title_snapshot', 'message_conversation_id_snapshot', 'message_sequence_snapshot', 'message_created_at_snapshot') AND is_nullable = 'YES'",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM pg_indexes WHERE schemaname = 'engagement' AND indexname = 'uq_content_reports_open_message' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%message_id IS NOT NULL%'",
+            TestContext.Current.CancellationToken));
         Assert.Equal(2L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM pg_indexes WHERE schemaname = 'engagement' AND indexname IN ('ix_content_reports_created_id', 'ix_moderation_cases_created_id')",
@@ -223,6 +254,10 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             "REFERENCES communication.notifications(id, user_id, target_announcement_id, target_announcement_version)",
             targetOwnershipConstraint,
             StringComparison.Ordinal);
+        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'communication' AND table_name = 'notifications' AND column_name IN ('target_announcement_id', 'target_announcement_version') AND is_nullable = 'NO'",
+            TestContext.Current.CancellationToken));
         Assert.Equal(1L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'engagement' AND table_name = 'discussion_threads' AND column_name = 'edited_at'",
@@ -262,7 +297,7 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             "SELECT minimum_compatible_migration_id || '|' || maximum_compatible_migration_id FROM operations.schema_compatibility WHERE singleton",
             TestContext.Current.CancellationToken);
         string[] boundaries = compatibilityRange.Split('|', 2);
-        Assert.Equal("20260806063112_AddSchemaCompatibilityMarker", boundaries[0]);
+        Assert.Equal("20260811143212_Phase9CommunicationsConsistency", boundaries[0]);
         Assert.Equal(dbContext.Database.GetMigrations().Last(), boundaries[1]);
         Assert.True(await ExecuteScalarAsync<bool>(
             connection,
@@ -330,6 +365,26 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             "SELECT indexdef FROM pg_indexes WHERE schemaname = 'operations' AND indexname = 'ix_outbox_messages_pending'",
             TestContext.Current.CancellationToken);
         Assert.Contains("processed_at IS NULL", pendingIndex, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ContentReportModel_EncodesMessageTargetSnapshotAndActiveDedupe()
+    {
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        DorosakDbContext dbContext = scope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+        IEntityType report = Assert.IsAssignableFrom<IEntityType>(
+            dbContext.Model.FindEntityType(typeof(ContentReport)));
+
+        Assert.NotNull(report.FindProperty(nameof(ContentReport.MessageId)));
+        Assert.Equal(5000, report.FindProperty(nameof(ContentReport.MessageBodySnapshot))?.GetMaxLength());
+        Assert.Equal(100, report.FindProperty(nameof(ContentReport.MessageSenderNameSnapshot))?.GetMaxLength());
+        Assert.Equal(200, report.FindProperty(nameof(ContentReport.MessageCourseTitleSnapshot))?.GetMaxLength());
+        IForeignKey messageForeignKey = Assert.Single(report.GetForeignKeys(), foreignKey =>
+            foreignKey.GetConstraintName() == "fk_content_reports_messages_message_id");
+        Assert.Equal(typeof(Message), messageForeignKey.PrincipalEntityType.ClrType);
+        Assert.Contains(report.GetIndexes(), index => index.IsUnique &&
+            index.Properties.Select(property => property.Name).SequenceEqual(
+                new[] { nameof(ContentReport.ReporterUserId), nameof(ContentReport.MessageId) }));
     }
 
     [Fact]

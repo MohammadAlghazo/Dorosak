@@ -4,6 +4,7 @@ import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { SessionCoordinator } from '../../core/auth/session-coordinator.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
+import { NotificationBadgeStore } from '../../features/communications/notification-badge.store';
 
 @Component({
   selector: 'drs-workspace-shell',
@@ -21,7 +22,32 @@ import { LocaleService } from '../../core/i18n/locale.service';
           ☰
         </button>
         <a class="brand" [routerLink]="['/', locale.locale()]">{{ locale.copy().brand }}</a>
-        <span>{{ session.identity()?.displayName ?? locale.copy().dashboard }}</span>
+        <span class="identity-name">{{
+          session.identity()?.displayName ?? locale.copy().dashboard
+        }}</span>
+        @if (session.hasPermission('Conversation.ReadOwn')) {
+          <a
+            class="header-communication-link"
+            [routerLink]="['/', locale.locale(), 'chat']"
+            [attr.aria-label]="locale.copy().chat"
+          >
+            {{ locale.copy().chat }}
+          </a>
+        }
+        @if (session.hasPermission('Notification.ReadOwn')) {
+          <a
+            class="header-communication-link notification-header-link"
+            [routerLink]="['/', locale.locale(), 'notifications']"
+            [attr.aria-label]="locale.copy().notifications"
+          >
+            {{ locale.copy().notifications }}
+            @if (badge.state().count > 0) {
+              <span class="notification-badge" [attr.aria-label]="badgeLabel()">{{
+                badgeCount()
+              }}</span>
+            }
+          </a>
+        }
         <a
           class="header-security-link"
           [routerLink]="['/', locale.locale(), 'settings', 'security']"
@@ -56,6 +82,23 @@ import { LocaleService } from '../../core/i18n/locale.service';
           <a [routerLink]="['/', locale.locale(), 'instructor']" (click)="closeNavigation()">{{
             locale.locale() === 'ar' ? 'التدريس' : 'Teaching'
           }}</a>
+          @if (session.hasPermission('Conversation.ReadOwn')) {
+            <a [routerLink]="['/', locale.locale(), 'chat']" (click)="closeNavigation()">{{
+              locale.copy().chat
+            }}</a>
+          }
+          @if (session.hasPermission('Notification.ReadOwn')) {
+            <a
+              class="notification-nav-link"
+              [routerLink]="['/', locale.locale(), 'notifications']"
+              (click)="closeNavigation()"
+            >
+              {{ locale.copy().notifications }}
+              @if (badge.state().count > 0) {
+                <span class="notification-badge">{{ badgeCount() }}</span>
+              }
+            </a>
+          }
           <a
             [routerLink]="['/', locale.locale(), 'settings', 'security']"
             (click)="closeNavigation()"
@@ -113,6 +156,41 @@ import { LocaleService } from '../../core/i18n/locale.service';
       inline-size: 44px;
       block-size: 44px;
     }
+    .identity-name {
+      min-inline-size: 0;
+      max-inline-size: 14rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .header-communication-link,
+    .header-security-link {
+      color: var(--color-text);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .header-communication-link,
+    .notification-nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+    .header-communication-link {
+      min-block-size: 44px;
+    }
+    .notification-badge {
+      display: inline-grid;
+      place-items: center;
+      min-inline-size: 1.35rem;
+      block-size: 1.35rem;
+      padding-inline: 0.2rem;
+      color: var(--color-on-brand);
+      background: var(--color-danger);
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1;
+    }
     .header-security-link,
     .header-logout {
       margin-inline-start: auto;
@@ -163,6 +241,34 @@ import { LocaleService } from '../../core/i18n/locale.service';
         display: inline-grid;
         place-items: center;
       }
+      header {
+        gap: var(--space-2);
+        padding-inline: var(--space-3);
+      }
+      .identity-name,
+      .header-security-link {
+        display: none;
+      }
+      .header-communication-link {
+        position: relative;
+        max-inline-size: 2rem;
+        overflow: hidden;
+        font-size: 0;
+      }
+      .header-communication-link::before {
+        content: '•';
+        display: grid;
+        place-items: center;
+        inline-size: 2rem;
+        block-size: 2rem;
+        color: var(--color-brand);
+        font-size: 1.4rem;
+      }
+      .notification-header-link .notification-badge {
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline-end: 0;
+      }
       aside {
         position: fixed;
         inset-block: 68px 0;
@@ -192,6 +298,7 @@ import { LocaleService } from '../../core/i18n/locale.service';
 export class WorkspaceShellComponent {
   protected readonly locale = inject(LocaleService);
   protected readonly session = inject(SessionStore);
+  protected readonly badge = inject(NotificationBadgeStore);
   private readonly coordinator = inject(SessionCoordinator);
   private readonly router = inject(Router);
   protected readonly navigationOpen = signal(false);
@@ -201,6 +308,15 @@ export class WorkspaceShellComponent {
   }
   protected closeNavigation(): void {
     this.navigationOpen.set(false);
+  }
+
+  protected badgeCount(): string {
+    const count = this.badge.state().count;
+    return count > 99 ? '99+' : String(count);
+  }
+
+  protected badgeLabel(): string {
+    return `${this.locale.copy().unreadNotifications}: ${this.badgeCount()}`;
   }
 
   protected logout(): void {

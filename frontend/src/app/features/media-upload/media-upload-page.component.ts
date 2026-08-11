@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { MediaPurpose } from '../../core/api/media-api.types';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { MediaUploadStore, type MediaUploadStatus } from './media-upload.store';
 
@@ -22,6 +23,7 @@ import { MediaUploadStore, type MediaUploadStatus } from './media-upload.store';
 })
 export class MediaUploadPageComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
   protected readonly store = inject(MediaUploadStore);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);

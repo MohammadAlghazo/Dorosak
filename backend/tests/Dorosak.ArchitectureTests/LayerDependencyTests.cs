@@ -1,4 +1,5 @@
 using Dorosak.Api.Controllers;
+using Dorosak.Application.Features.Communications;
 using Dorosak.Domain.Common;
 using Dorosak.Worker;
 using NetArchTest.Rules;
@@ -28,6 +29,14 @@ public sealed class LayerDependencyTests
             .GetResult();
 
         AssertSuccessful(result);
+    }
+
+    [Fact]
+    public void ApplicationRealtimePorts_DoNotReferenceSignalR()
+    {
+        Assert.DoesNotContain(
+            typeof(ICommunicationsRealtimePublisher).Assembly.GetReferencedAssemblies(),
+            assembly => assembly.Name?.StartsWith("Microsoft.AspNetCore.SignalR", StringComparison.Ordinal) == true);
     }
 
     [Fact]

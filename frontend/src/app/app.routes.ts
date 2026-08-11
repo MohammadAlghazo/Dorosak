@@ -304,6 +304,80 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'chat',
+        canActivate: [sessionGuard],
+        data: {
+          titleAr: 'المحادثات',
+          titleEn: 'Chat',
+          indexing: 'noindex',
+          renderMode: 'client',
+        },
+        loadComponent: () =>
+          import('./shells/workspace-shell/workspace-shell.component').then(
+            (module) => module.WorkspaceShellComponent,
+          ),
+        children: [
+          {
+            path: '',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/communications/chat-list-page.component').then(
+                (module) => module.ChatListPageComponent,
+              ),
+            data: {
+              permission: 'Conversation.ReadOwn',
+              titleAr: 'المحادثات',
+              titleEn: 'Chat',
+              renderMode: 'client',
+            },
+          },
+          {
+            path: ':conversationId',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/communications/chat-thread-page.component').then(
+                (module) => module.ChatThreadPageComponent,
+              ),
+            data: {
+              permission: 'Conversation.ReadOwn',
+              titleAr: 'محادثة',
+              titleEn: 'Conversation',
+              renderMode: 'client',
+            },
+          },
+        ],
+      },
+      {
+        path: 'notifications',
+        canActivate: [sessionGuard],
+        data: {
+          titleAr: 'الإشعارات',
+          titleEn: 'Notifications',
+          indexing: 'noindex',
+          renderMode: 'client',
+        },
+        loadComponent: () =>
+          import('./shells/workspace-shell/workspace-shell.component').then(
+            (module) => module.WorkspaceShellComponent,
+          ),
+        children: [
+          {
+            path: '',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/communications/notifications-page.component').then(
+                (module) => module.NotificationsPageComponent,
+              ),
+            data: {
+              permission: 'Notification.ReadOwn',
+              titleAr: 'الإشعارات',
+              titleEn: 'Notifications',
+              renderMode: 'client',
+            },
+          },
+        ],
+      },
+      {
         path: 'learn',
         canActivate: [sessionGuard],
         loadComponent: () =>
@@ -457,6 +531,21 @@ export const routes: Routes = [
                 data: {
                   titleAr: 'حالة النشر',
                   titleEn: 'Publication status',
+                  indexing: 'noindex',
+                  renderMode: 'client',
+                },
+              },
+              {
+                path: 'announcements',
+                canActivate: [permissionGuard],
+                loadComponent: () =>
+                  import('./features/communications/announcements-page.component').then(
+                    (module) => module.AnnouncementsPageComponent,
+                  ),
+                data: {
+                  permission: 'Announcement.ManageCourse',
+                  titleAr: 'إعلانات الدورة',
+                  titleEn: 'Course announcements',
                   indexing: 'noindex',
                   renderMode: 'client',
                 },

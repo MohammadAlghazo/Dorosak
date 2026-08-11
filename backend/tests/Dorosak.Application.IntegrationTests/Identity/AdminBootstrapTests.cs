@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Dorosak.Application.IntegrationTests.Identity;
 
-[Collection(InfrastructureTestGroup.Name)]
+[Collection(AdminBootstrapInfrastructureTestGroup.Name)]
 public sealed class AdminBootstrapTests(InfrastructureFixture fixture)
 {
     [Fact]
@@ -35,4 +35,10 @@ public sealed class AdminBootstrapTests(InfrastructureFixture fixture)
         Assert.True(await userManager.IsInRoleAsync(user, Dorosak.Infrastructure.Identity.IdentityConstants.AdminRole));
         Assert.True(await userManager.CheckPasswordAsync(user, "temporary bootstrap password"));
     }
+}
+
+[CollectionDefinition(Name)]
+public sealed class AdminBootstrapInfrastructureTestGroup : ICollectionFixture<InfrastructureFixture>
+{
+    public const string Name = "Admin bootstrap infrastructure";
 }

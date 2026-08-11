@@ -16,6 +16,7 @@ import type { AuthSession, SignInRequest, SignInResult } from '../api/identity-a
 import { RuntimeConfigService } from '../api/runtime-config.service';
 import { IndexedDbService } from '../pwa/indexed-db.service';
 import { AuthRefreshService } from './auth-refresh.service';
+import { SessionLifecycleService } from './session-lifecycle.service';
 import { SessionStore } from './session.store';
 
 export interface PendingMfaChallenge {
@@ -31,6 +32,7 @@ export class SessionCoordinator {
   private readonly refreshService = inject(AuthRefreshService);
   private readonly runtimeConfig = inject(RuntimeConfigService);
   private readonly session = inject(SessionStore);
+  private readonly sessionLifecycle = inject(SessionLifecycleService);
   private readonly activeMfaChallenge = signal<PendingMfaChallenge | null>(null);
   private restorationAttempted = false;
   private restorationRequest: Observable<boolean> | undefined;
@@ -93,6 +95,7 @@ export class SessionCoordinator {
   }
 
   establish(session: AuthSession): void {
+    this.sessionLifecycle.endActiveSession();
     this.session.establish(session);
     this.identityApi.resetCsrf();
     this.activeMfaChallenge.set(null);
@@ -101,6 +104,7 @@ export class SessionCoordinator {
   }
 
   logout(): Observable<void> {
+    this.sessionLifecycle.endActiveSession();
     const signOutRequest = this.session.isAuthenticated()
       ? this.identityApi.signOut().pipe(catchError(() => of(undefined)))
       : of(undefined);
@@ -108,6 +112,7 @@ export class SessionCoordinator {
   }
 
   endLocalSession(): Observable<void> {
+    this.sessionLifecycle.endActiveSession();
     const userId = this.session.identity()?.userId;
     const purgeRequest = userId
       ? from(this.indexedDb.purgeUser(userId)).pipe(catchError(() => of(undefined)))

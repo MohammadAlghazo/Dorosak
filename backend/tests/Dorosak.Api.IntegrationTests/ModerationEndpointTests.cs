@@ -50,6 +50,32 @@ public sealed class ModerationEndpointTests(ApiFixture fixture)
         using HttpResponseMessage invalidContext = await fixture.Client.SendAsync(missingContext, cancellationToken);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidContext.StatusCode);
 
+        using HttpRequestMessage multipleTargets = Authorized(HttpMethod.Post, "/api/v1/reports", student.AccessToken);
+        multipleTargets.Headers.Add("Idempotency-Key", Guid.CreateVersion7().ToString("N"));
+        multipleTargets.Content = JsonContent.Create(new
+        {
+            courseId = Guid.CreateVersion7(),
+            messageId = Guid.CreateVersion7(),
+            reason = "Spam",
+        });
+        using HttpResponseMessage invalidTarget = await fixture.Client.SendAsync(multipleTargets, cancellationToken);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidTarget.StatusCode);
+
+        string messageReportKey = Guid.CreateVersion7().ToString("N");
+        using HttpRequestMessage missingMessage = Authorized(HttpMethod.Post, "/api/v1/reports", student.AccessToken);
+        missingMessage.Headers.Add("Idempotency-Key", messageReportKey);
+        missingMessage.Content = JsonContent.Create(new { messageId = Guid.CreateVersion7(), reason = "Spam" });
+        using HttpResponseMessage safeNotFound = await fixture.Client.SendAsync(missingMessage, cancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, safeNotFound.StatusCode);
+        Assert.Equal("MODERATION.NOT_FOUND", await ReadProblemCodeAsync(safeNotFound, cancellationToken));
+
+        using HttpRequestMessage reusedMessageKey = Authorized(HttpMethod.Post, "/api/v1/reports", student.AccessToken);
+        reusedMessageKey.Headers.Add("Idempotency-Key", messageReportKey);
+        reusedMessageKey.Content = JsonContent.Create(new { messageId = Guid.CreateVersion7(), reason = "Spam" });
+        using HttpResponseMessage messageConflict = await fixture.Client.SendAsync(reusedMessageKey, cancellationToken);
+        Assert.Equal(HttpStatusCode.Conflict, messageConflict.StatusCode);
+        Assert.Equal("IDEMPOTENCY.KEY_REUSED", await ReadProblemCodeAsync(messageConflict, cancellationToken));
+
         using HttpRequestMessage queue = Authorized(HttpMethod.Get, "/api/v1/admin/reports", student.AccessToken);
         using HttpResponseMessage deniedQueue = await fixture.Client.SendAsync(queue, cancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, deniedQueue.StatusCode);

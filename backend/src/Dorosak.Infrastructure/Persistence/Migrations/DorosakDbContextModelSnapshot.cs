@@ -2706,6 +2706,45 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("details");
 
+                    b.Property<string>("MessageBodySnapshot")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("message_body_snapshot");
+
+                    b.Property<Guid?>("MessageConversationIdSnapshot")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_conversation_id_snapshot");
+
+                    b.Property<Guid?>("MessageCourseIdSnapshot")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_course_id_snapshot");
+
+                    b.Property<string>("MessageCourseTitleSnapshot")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("message_course_title_snapshot");
+
+                    b.Property<DateTimeOffset?>("MessageCreatedAtSnapshot")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("message_created_at_snapshot");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<string>("MessageSenderNameSnapshot")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("message_sender_name_snapshot");
+
+                    b.Property<Guid?>("MessageSenderUserIdSnapshot")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_sender_user_id_snapshot");
+
+                    b.Property<long?>("MessageSequenceSnapshot")
+                        .HasColumnType("bigint")
+                        .HasColumnName("message_sequence_snapshot");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -2743,6 +2782,9 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.HasIndex("CourseId")
                         .HasDatabaseName("ix_content_reports_course_id");
 
+                    b.HasIndex("MessageId")
+                        .HasDatabaseName("ix_content_reports_message_id");
+
                     b.HasIndex("ReportedUserId")
                         .HasDatabaseName("ix_content_reports_reported_user_id");
 
@@ -2762,6 +2804,11 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_content_reports_open_course")
                         .HasFilter("course_id IS NOT NULL AND status IN ('Open', 'InReview')");
+
+                    b.HasIndex("ReporterUserId", "MessageId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_content_reports_open_message")
+                        .HasFilter("message_id IS NOT NULL AND status IN ('Open', 'InReview')");
 
                     b.HasIndex("ReporterUserId", "ReportedUserId")
                         .IsUnique()
@@ -2783,7 +2830,9 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
 
                     b.ToTable("content_reports", "engagement", t =>
                         {
-                            t.HasCheckConstraint("ck_content_reports_exact_target", "num_nonnulls(course_id, review_id, comment_id, reported_user_id) = 1");
+                            t.HasCheckConstraint("ck_content_reports_exact_target", "num_nonnulls(course_id, review_id, comment_id, reported_user_id, message_id) = 1");
+
+                            t.HasCheckConstraint("ck_content_reports_message_snapshot", "(message_id IS NULL AND message_body_snapshot IS NULL AND message_sender_user_id_snapshot IS NULL AND message_sender_name_snapshot IS NULL AND message_course_id_snapshot IS NULL AND message_course_title_snapshot IS NULL AND message_conversation_id_snapshot IS NULL AND message_sequence_snapshot IS NULL AND message_created_at_snapshot IS NULL) OR (message_id IS NOT NULL AND message_body_snapshot IS NOT NULL AND char_length(btrim(message_body_snapshot)) BETWEEN 1 AND 5000 AND message_sender_user_id_snapshot IS NOT NULL AND message_sender_user_id_snapshot <> reporter_user_id AND message_sender_name_snapshot IS NOT NULL AND char_length(btrim(message_sender_name_snapshot)) BETWEEN 1 AND 100 AND message_course_id_snapshot IS NOT NULL AND message_course_title_snapshot IS NOT NULL AND char_length(btrim(message_course_title_snapshot)) BETWEEN 1 AND 200 AND message_conversation_id_snapshot IS NOT NULL AND message_sequence_snapshot > 0 AND message_created_at_snapshot IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_content_reports_reason", "reason IN ('Spam', 'Harassment', 'HateSpeech', 'Misinformation', 'Copyright', 'PersonalData', 'Other')");
 
@@ -6684,6 +6733,12 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_content_reports_courses_course_id");
+
+                    b.HasOne("Dorosak.Domain.Communications.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_content_reports_messages_message_id");
 
                     b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

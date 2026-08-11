@@ -42,6 +42,11 @@ import { CourseEditorStore } from './course-editor.store';
             locale.locale() === 'ar' ? 'المنهج' : 'Curriculum'
           }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
+          @if (session.hasPermission('Announcement.ManageCourse')) {
+            <a [routerLink]="['../announcements']">{{
+              locale.locale() === 'ar' ? 'الإعلانات' : 'Announcements'
+            }}</a>
+          }
           <a [routerLink]="['../publication']" aria-current="page">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>

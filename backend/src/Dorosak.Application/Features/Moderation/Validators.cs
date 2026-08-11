@@ -9,8 +9,10 @@ internal sealed class CreateContentReportCommandValidator : AbstractValidator<Cr
     {
         RuleFor(request => request.UserId).NotEmpty();
         RuleFor(request => request).Must(request =>
-            new[] { request.CourseId, request.ReviewId, request.CommentId, request.ReportedUserId }
-                .Count(target => target is not null) == 1)
+            new[] { request.CourseId, request.ReviewId, request.CommentId, request.ReportedUserId, request.MessageId }
+                .Count(target => target is not null) == 1 &&
+            new[] { request.CourseId, request.ReviewId, request.CommentId, request.ReportedUserId, request.MessageId }
+                .All(target => target is null || target != Guid.Empty))
             .WithMessage("Exactly one report target is required.");
         RuleFor(request => request.Reason).NotEmpty().Must(ModerationContractValues.IsDefined<ContentReportReason>);
         RuleFor(request => request.Details).MaximumLength(2000);
@@ -45,7 +47,7 @@ internal sealed class GetAdminContentReportsQueryValidator : AbstractValidator<G
         RuleFor(request => request.Status)
             .Must(value => value is null || ModerationContractValues.IsDefined<ContentReportStatus>(value));
         RuleFor(request => request.TargetKind)
-            .Must(value => value is null || value is "Course" or "Review" or "Comment" or "ReportedUser");
+            .Must(value => value is null || value is "Course" or "Review" or "Comment" or "ReportedUser" or "Message");
         RuleFor(request => request.Limit).InclusiveBetween(1, 100);
         RuleFor(request => request.Cursor).MaximumLength(1000);
     }

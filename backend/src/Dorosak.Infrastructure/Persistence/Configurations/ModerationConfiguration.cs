@@ -1,4 +1,5 @@
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Communications;
 using Dorosak.Domain.Engagement;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,21 @@ internal sealed class ContentReportConfiguration : IEntityTypeConfiguration<Cont
         {
             table.HasCheckConstraint(
                 "ck_content_reports_exact_target",
-                "num_nonnulls(course_id, review_id, comment_id, reported_user_id) = 1");
+                "num_nonnulls(course_id, review_id, comment_id, reported_user_id, message_id) = 1");
+            table.HasCheckConstraint(
+                "ck_content_reports_message_snapshot",
+                "(message_id IS NULL AND message_body_snapshot IS NULL AND message_sender_user_id_snapshot IS NULL AND " +
+                "message_sender_name_snapshot IS NULL AND message_course_id_snapshot IS NULL AND " +
+                "message_course_title_snapshot IS NULL AND message_conversation_id_snapshot IS NULL AND " +
+                "message_sequence_snapshot IS NULL AND message_created_at_snapshot IS NULL) OR " +
+                "(message_id IS NOT NULL AND message_body_snapshot IS NOT NULL AND " +
+                "char_length(btrim(message_body_snapshot)) BETWEEN 1 AND 5000 AND " +
+                "message_sender_user_id_snapshot IS NOT NULL AND message_sender_user_id_snapshot <> reporter_user_id AND " +
+                "message_sender_name_snapshot IS NOT NULL AND char_length(btrim(message_sender_name_snapshot)) BETWEEN 1 AND 100 AND " +
+                "message_course_id_snapshot IS NOT NULL AND message_course_title_snapshot IS NOT NULL AND " +
+                "char_length(btrim(message_course_title_snapshot)) BETWEEN 1 AND 200 AND " +
+                "message_conversation_id_snapshot IS NOT NULL AND message_sequence_snapshot > 0 AND " +
+                "message_created_at_snapshot IS NOT NULL)");
             table.HasCheckConstraint(
                 "ck_content_reports_reason",
                 "reason IN ('Spam', 'Harassment', 'HateSpeech', 'Misinformation', 'Copyright', 'PersonalData', 'Other')");
@@ -26,6 +41,9 @@ internal sealed class ContentReportConfiguration : IEntityTypeConfiguration<Cont
         builder.Property(report => report.Id).ValueGeneratedNever();
         builder.Property(report => report.Reason).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(report => report.Details).HasMaxLength(2000).IsRequired();
+        builder.Property(report => report.MessageBodySnapshot).HasMaxLength(5000);
+        builder.Property(report => report.MessageSenderNameSnapshot).HasMaxLength(100);
+        builder.Property(report => report.MessageCourseTitleSnapshot).HasMaxLength(200);
         builder.Property(report => report.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.HasIndex(report => new { report.Status, report.CreatedAt, report.Id })
             .IsDescending(false, true, true)
@@ -40,6 +58,7 @@ internal sealed class ContentReportConfiguration : IEntityTypeConfiguration<Cont
         ConfigureOpenTargetIndex(builder, report => new { report.ReporterUserId, report.ReviewId }, "review_id", "uq_content_reports_open_review");
         ConfigureOpenTargetIndex(builder, report => new { report.ReporterUserId, report.CommentId }, "comment_id", "uq_content_reports_open_comment");
         ConfigureOpenTargetIndex(builder, report => new { report.ReporterUserId, report.ReportedUserId }, "reported_user_id", "uq_content_reports_open_user");
+        ConfigureOpenTargetIndex(builder, report => new { report.ReporterUserId, report.MessageId }, "message_id", "uq_content_reports_open_message");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(report => report.ReporterUserId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_content_reports_users_reporter_user_id");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(report => report.ReportedUserId)
@@ -50,6 +69,8 @@ internal sealed class ContentReportConfiguration : IEntityTypeConfiguration<Cont
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_content_reports_reviews_review_id");
         builder.HasOne<DiscussionComment>().WithMany().HasForeignKey(report => report.CommentId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_content_reports_comments_comment_id");
+        builder.HasOne<Message>().WithMany().HasForeignKey(report => report.MessageId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_content_reports_messages_message_id");
     }
 
     private static void ConfigureOpenTargetIndex(

@@ -38,6 +38,16 @@ public enum ModerationActionType
     Dismiss,
 }
 
+public sealed record MessageReportSnapshot(
+    Guid SenderUserId,
+    string SenderName,
+    Guid CourseId,
+    string CourseTitle,
+    Guid ConversationId,
+    long Sequence,
+    string Body,
+    DateTimeOffset CreatedAt);
+
 public sealed class ContentReport
 {
     private ContentReport()
@@ -51,9 +61,11 @@ public sealed class ContentReport
         Guid? reviewId,
         Guid? commentId,
         Guid? reportedUserId,
+        Guid? messageId,
         ContentReportReason reason,
         string details,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        MessageReportSnapshot? messageSnapshot)
     {
         Id = id;
         ReporterUserId = reporterUserId;
@@ -61,6 +73,15 @@ public sealed class ContentReport
         ReviewId = reviewId;
         CommentId = commentId;
         ReportedUserId = reportedUserId;
+        MessageId = messageId;
+        MessageBodySnapshot = messageSnapshot?.Body;
+        MessageSenderUserIdSnapshot = messageSnapshot?.SenderUserId;
+        MessageSenderNameSnapshot = messageSnapshot?.SenderName;
+        MessageCourseIdSnapshot = messageSnapshot?.CourseId;
+        MessageCourseTitleSnapshot = messageSnapshot?.CourseTitle;
+        MessageConversationIdSnapshot = messageSnapshot?.ConversationId;
+        MessageSequenceSnapshot = messageSnapshot?.Sequence;
+        MessageCreatedAtSnapshot = messageSnapshot?.CreatedAt;
         Reason = reason;
         Details = details;
         Status = ContentReportStatus.Open;
@@ -80,6 +101,24 @@ public sealed class ContentReport
 
     public Guid? ReportedUserId { get; private set; }
 
+    public Guid? MessageId { get; private set; }
+
+    public string? MessageBodySnapshot { get; private set; }
+
+    public Guid? MessageSenderUserIdSnapshot { get; private set; }
+
+    public string? MessageSenderNameSnapshot { get; private set; }
+
+    public Guid? MessageCourseIdSnapshot { get; private set; }
+
+    public string? MessageCourseTitleSnapshot { get; private set; }
+
+    public Guid? MessageConversationIdSnapshot { get; private set; }
+
+    public long? MessageSequenceSnapshot { get; private set; }
+
+    public DateTimeOffset? MessageCreatedAtSnapshot { get; private set; }
+
     public ContentReportReason Reason { get; private set; }
 
     public string Details { get; private set; } = string.Empty;
@@ -98,24 +137,49 @@ public sealed class ContentReport
         Guid? reviewId,
         Guid? commentId,
         Guid? reportedUserId,
+        Guid? messageId,
         ContentReportReason reason,
         string? details,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        MessageReportSnapshot? messageSnapshot = null)
     {
         if (reporterUserId == Guid.Empty)
         {
             throw new DomainRuleException("REPORT.REPORTER_REQUIRED", "A report owner is required.");
         }
 
-        Guid?[] targets = [courseId, reviewId, commentId, reportedUserId];
+        Guid?[] targets = [courseId, reviewId, commentId, reportedUserId, messageId];
         if (targets.Count(target => target is not null) != 1 || targets.Any(target => target == Guid.Empty))
         {
             throw new DomainRuleException("REPORT.TARGET_INVALID", "A report must identify exactly one concrete target.");
         }
 
+        if (messageId is null && messageSnapshot is not null)
+        {
+            throw new DomainRuleException("REPORT.MESSAGE_SNAPSHOT_INVALID", "A message snapshot requires a message target.");
+        }
+
+        if (messageSnapshot is not null)
+        {
+            if (messageSnapshot.SenderUserId == Guid.Empty || messageSnapshot.CourseId == Guid.Empty ||
+                messageSnapshot.ConversationId == Guid.Empty || messageSnapshot.Sequence <= 0 ||
+                string.IsNullOrWhiteSpace(messageSnapshot.Body) || messageSnapshot.Body.Length > 5000 ||
+                string.IsNullOrWhiteSpace(messageSnapshot.SenderName) || messageSnapshot.SenderName.Length > 100 ||
+                string.IsNullOrWhiteSpace(messageSnapshot.CourseTitle) || messageSnapshot.CourseTitle.Length > 200 ||
+                messageSnapshot.CreatedAt.Offset != TimeSpan.Zero)
+            {
+                throw new DomainRuleException("REPORT.MESSAGE_SNAPSHOT_INVALID", "The message report snapshot is invalid.");
+            }
+        }
+
         if (reportedUserId == reporterUserId)
         {
             throw new DomainRuleException("REPORT.SELF_REPORT_INVALID", "An account cannot report itself.");
+        }
+
+        if (messageSnapshot?.SenderUserId == reporterUserId)
+        {
+            throw new DomainRuleException("REPORT.SELF_REPORT_INVALID", "An account cannot report its own message.");
         }
 
         string normalizedDetails = details?.Trim() ?? string.Empty;
@@ -129,13 +193,15 @@ public sealed class ContentReport
         return new ContentReport(
             Guid.CreateVersion7(),
             reporterUserId,
-            courseId,
-            reviewId,
-            commentId,
-            reportedUserId,
-            reason,
-            normalizedDetails,
-            now);
+                courseId,
+                reviewId,
+                commentId,
+                reportedUserId,
+                messageId,
+                reason,
+                normalizedDetails,
+                now,
+                messageSnapshot);
     }
 
     public bool StartReview(DateTimeOffset now)

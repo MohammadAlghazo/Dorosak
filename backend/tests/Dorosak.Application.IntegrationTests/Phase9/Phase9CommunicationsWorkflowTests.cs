@@ -1,7 +1,7 @@
+using System.Text.Json;
 using Dorosak.Application.Common.Exceptions;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Communications;
-using System.Text.Json;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Communications;
@@ -518,6 +518,8 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
             new GetConversationMessagesQuery(creatorId, conversation.Value.Id, 1, second.Value.NextCursor, 0),
             cancellationToken);
         Assert.Equal(new long[] { 2, 3 }, new[] { second.Value.Items[0].Sequence, third.Value.Items[0].Sequence });
+        Assert.Equal(3, second.Value.LatestSequence);
+        Assert.Equal(3, third.Value.LatestSequence);
         Assert.DoesNotContain(second.Value.Items.Concat(third.Value.Items), item => item.Sequence == 4);
 
         Result<NotificationPageResponse> notificationSecond = await SendInNewScopeAsync(
@@ -529,6 +531,8 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
         Assert.Equal(
             new long[] { 2, 3 },
             new[] { notificationSecond.Value.Items[0].Sequence, notificationThird.Value.Items[0].Sequence });
+        Assert.Equal(3, notificationSecond.Value.LatestSequence);
+        Assert.Equal(3, notificationThird.Value.LatestSequence);
         Assert.DoesNotContain(
             notificationSecond.Value.Items.Concat(notificationThird.Value.Items),
             item => item.Sequence == 4);
@@ -637,11 +641,6 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
                 cancellationToken));
         Assert.Equal("CONVERSATION.NOT_FOUND", deniedRead.Code);
         Assert.Equal("CONVERSATION.NOT_FOUND", deniedSend.Code);
-        Result<NotificationResponse> deniedNotificationRead = await SendInNewScopeAsync(
-            new MarkNotificationReadCommand(learnerId, notificationBeforeRevoke.Id),
-            cancellationToken);
-        Assert.False(deniedNotificationRead.IsSuccess);
-        Assert.Equal("NOTIFICATION.NOT_FOUND", deniedNotificationRead.Failure.Code);
 
         Result<MessageResponse> ownerMessage = await SendInNewScopeAsync(
             new CreateMessageCommand(
@@ -655,7 +654,12 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
         Result<NotificationPageResponse> notifications = await SendInNewScopeAsync(
             new GetNotificationsQuery(learnerId, 20, null, 0),
             cancellationToken);
-        Assert.Empty(notifications.Value.Items);
+        NotificationResponse remainingNotification = Assert.Single(notifications.Value.Items);
+        Assert.Equal(notificationBeforeRevoke.Id, remainingNotification.Id);
+        Result<NotificationResponse> read = await SendInNewScopeAsync(
+            new MarkNotificationReadCommand(learnerId, remainingNotification.Id),
+            cancellationToken);
+        Assert.True(read.IsSuccess);
         Result<NotificationUnreadCountResponse> unread = await SendInNewScopeAsync(
             new GetNotificationUnreadCountQuery(learnerId),
             cancellationToken);
@@ -1045,7 +1049,7 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
                 record.Key == create.IdempotencyKey,
             cancellationToken);
         IdempotencyRecord updateRecord = await dbContext.Set<IdempotencyRecord>().AsNoTracking().SingleAsync(
-            record => record.Operation == "communications.announcement-update.v1" &&
+            record => record.Operation == "communications.announcement-update.v2" &&
                 record.Key == update.IdempotencyKey,
             cancellationToken);
         using JsonDocument createPayload = JsonDocument.Parse(createRecord.ResponsePayload);
@@ -1311,6 +1315,33 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
         }
 
         Assert.Fail($"Expected at least {expectedCount} transactions to wait on an advisory lock.");
+    }
+
+    private static async Task WaitForCourseLockWaiterAsync(
+        NpgsqlConnection connection,
+        CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; attempt < 200; attempt++)
+        {
+            await using var command = new NpgsqlCommand(
+                """
+                SELECT count(*)
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND wait_event_type = 'Lock'
+                  AND query ILIKE '%catalog.courses%FOR UPDATE%'
+                """,
+                connection);
+            object? count = await command.ExecuteScalarAsync(cancellationToken);
+            if (Assert.IsType<long>(count) > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+        }
+
+        Assert.Fail("Expected the announcement mutation to wait on the course row lock.");
     }
 
     private async Task<Result<TResponse>> SendInNewScopeAsync<TResponse>(

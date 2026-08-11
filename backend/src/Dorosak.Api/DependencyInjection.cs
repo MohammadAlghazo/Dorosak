@@ -9,8 +9,11 @@ using Dorosak.Api.ErrorHandling;
 using Dorosak.Api.Health;
 using Dorosak.Api.Middleware;
 using Dorosak.Api.OpenApi;
+using Dorosak.Api.Realtime;
 using Dorosak.Api.Startup;
+using Dorosak.Application.Features.Communications;
 using Dorosak.Application.Features.Publishing;
+using Dorosak.Infrastructure.Communications;
 using Dorosak.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -18,11 +21,14 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using StackExchange.Redis;
 
 namespace Dorosak.Api;
 
@@ -30,9 +36,57 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApiServices(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment)
     {
+        CommunicationsRealtimeOptions realtimeOptions = configuration
+            .GetSection(CommunicationsRealtimeOptions.SectionName)
+            .Get<CommunicationsRealtimeOptions>() ?? new CommunicationsRealtimeOptions();
+        string? realtimeRedisConnection = configuration.GetConnectionString(
+            realtimeOptions.Redis.ConnectionStringName);
+
         services.AddControllers();
+        services
+            .AddOptions<CommunicationsRealtimeOptions>()
+            .Bind(configuration.GetSection(CommunicationsRealtimeOptions.SectionName))
+            .Validate(
+                options => options.IdleDelay >= TimeSpan.FromMilliseconds(100) &&
+                    options.IdleDelay <= TimeSpan.FromMinutes(1),
+                "Communications realtime idle delay must be between 100 milliseconds and one minute.")
+            .Validate(
+                options => options.FailureDelay >= TimeSpan.FromSeconds(1) &&
+                    options.FailureDelay <= TimeSpan.FromMinutes(5),
+                "Communications realtime failure delay must be between one second and five minutes.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Redis.ConnectionStringName),
+                "Communications realtime Redis connection-string name is required.")
+            .Validate(
+                options => HasValidChannelPrefixRoot(options.Redis.ChannelPrefixRoot),
+                "Communications realtime Redis channel-prefix root is invalid.")
+            .Validate(
+                options => !options.Redis.Enabled || !string.IsNullOrWhiteSpace(
+                    configuration.GetConnectionString(options.Redis.ConnectionStringName)),
+                "Communications realtime Redis connection string is required when the backplane is enabled.")
+            .ValidateOnStart();
+
+        var signalRBuilder = services.AddSignalR();
+        if (realtimeOptions.Redis.Enabled && !string.IsNullOrWhiteSpace(realtimeRedisConnection))
+        {
+            string channelPrefix = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{realtimeOptions.Redis.ChannelPrefixRoot}:{hostEnvironment.EnvironmentName.Trim().ToLowerInvariant()}:v1:communications");
+            signalRBuilder.AddStackExchangeRedis(realtimeRedisConnection, options =>
+                options.Configuration.ChannelPrefix = RedisChannel.Literal(channelPrefix));
+        }
+
+        services.AddSingleton<IUserIdProvider, SubjectUserIdProvider>();
+        services.AddSingleton<ICommunicationsRealtimePublisher, SignalRCommunicationsRealtimePublisher>();
+        services.AddCommunicationsRealtimeDispatching();
+        if (realtimeOptions.DispatcherEnabled)
+        {
+            services.AddHostedService<CommunicationsRealtimeWorker>();
+        }
+
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer();
@@ -60,6 +114,17 @@ public static class DependencyInjection
                 };
                 options.Events = new JwtBearerEvents
                 {
+                    OnMessageReceived = context =>
+                    {
+                        string accessToken = context.Request.Query["access_token"].ToString();
+                        if (!string.IsNullOrWhiteSpace(accessToken) &&
+                            context.HttpContext.Request.Path.StartsWithSegments(CommunicationsHub.Path))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                     OnTokenValidated = async context =>
                     {
                         IIdentitySessionValidator validator = context.HttpContext.RequestServices
@@ -287,11 +352,18 @@ public static class DependencyInjection
         }));
 
         string redisConnection = GetRequiredConnectionString(configuration, "Redis");
-        services
+        var healthChecks = services
             .AddHealthChecks()
             .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"])
             .AddCheck<DatabaseMigrationHealthCheck>("database-schema", tags: ["ready", "startup"])
             .AddRedis(redisConnection, name: "redis", tags: ["dependency"]);
+        if (realtimeOptions.Redis.Enabled && !string.IsNullOrWhiteSpace(realtimeRedisConnection))
+        {
+            healthChecks.AddRedis(
+                realtimeRedisConnection,
+                name: "redis-realtime",
+                tags: ["dependency"]);
+        }
 
         string[] knownProxies = configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
         string[] knownNetworks = configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [];
@@ -344,6 +416,11 @@ public static class DependencyInjection
         Array.Clear(network, 8, 8);
         return $"{new IPAddress(network)}/64";
     }
+
+    private static bool HasValidChannelPrefixRoot(string value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= 64 &&
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
 
     private static string GetHttpErrorCode(int status) => status switch
     {

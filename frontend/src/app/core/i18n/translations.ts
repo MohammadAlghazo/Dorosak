@@ -9,6 +9,10 @@ export interface ApplicationCopy {
   switchTheme: string;
   skipToContent: string;
   offline: string;
+  chat: string;
+  notifications: string;
+  announcements: string;
+  unreadNotifications: string;
 }
 
 export const applicationCopy: Record<Locale, ApplicationCopy> = {
@@ -21,6 +25,10 @@ export const applicationCopy: Record<Locale, ApplicationCopy> = {
     switchTheme: 'تغيير المظهر',
     skipToContent: 'انتقل إلى المحتوى',
     offline: 'أنت غير متصل. سنعرض ما هو متاح على الجهاز.',
+    chat: 'المحادثات',
+    notifications: 'الإشعارات',
+    announcements: 'الإعلانات',
+    unreadNotifications: 'إشعارات غير مقروءة',
   },
   en: {
     brand: 'Dorosak',
@@ -31,5 +39,9 @@ export const applicationCopy: Record<Locale, ApplicationCopy> = {
     switchTheme: 'Change theme',
     skipToContent: 'Skip to content',
     offline: 'You are offline. Available device content remains accessible.',
+    chat: 'Chat',
+    notifications: 'Notifications',
+    announcements: 'Announcements',
+    unreadNotifications: 'Unread notifications',
   },
 };

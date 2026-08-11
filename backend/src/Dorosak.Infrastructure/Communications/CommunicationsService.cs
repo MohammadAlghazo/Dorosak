@@ -417,11 +417,6 @@ internal sealed class CommunicationsService(
         CancellationToken cancellationToken)
     {
         bool resync = request.AfterSequence.HasValue;
-        bool canManageAny = await HasPermissionAsync(
-            request.UserId,
-            Permissions.CourseManageAny,
-            cancellationToken);
-        DateTimeOffset now = timeProvider.GetUtcNow();
         long currentLatestSequence = resync
             ? await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken)
             : 0;
@@ -439,10 +434,8 @@ internal sealed class CommunicationsService(
             return CursorInvalid<NotificationPageResponse>();
         }
 
-        IQueryable<Notification> query = GetAuthorizedNotificationQuery(
-            request.UserId,
-            canManageAny,
-            now);
+        IQueryable<Notification> query = dbContext.Notifications.AsNoTracking()
+            .Where(notification => notification.UserId == request.UserId);
         List<Notification> notifications;
         long latestSequence = currentLatestSequence;
         if (resync)
@@ -493,11 +486,7 @@ internal sealed class CommunicationsService(
                     ? CreateResyncCursorKey(page[^1].Sequence, latestSequence)
                     : page[^1].Sequence.ToString(CultureInfo.InvariantCulture))
             : null;
-        long unreadCount = await GetUnreadNotificationCountAsync(
-            request.UserId,
-            canManageAny,
-            now,
-            cancellationToken);
+        long unreadCount = await GetUnreadNotificationCountAsync(request.UserId, cancellationToken);
         if (!resync)
         {
             latestSequence = await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken);
@@ -514,17 +503,8 @@ internal sealed class CommunicationsService(
         GetNotificationUnreadCountQuery request,
         CancellationToken cancellationToken)
     {
-        bool canManageAny = await HasPermissionAsync(
-            request.UserId,
-            Permissions.CourseManageAny,
-            cancellationToken);
-        DateTimeOffset now = timeProvider.GetUtcNow();
         long latestSequence = await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken);
-        long unreadCount = await GetUnreadNotificationCountAsync(
-            request.UserId,
-            canManageAny,
-            now,
-            cancellationToken);
+        long unreadCount = await GetUnreadNotificationCountAsync(request.UserId, cancellationToken);
         return Result.Success(new NotificationUnreadCountResponse(unreadCount, latestSequence));
     }
 
@@ -532,18 +512,9 @@ internal sealed class CommunicationsService(
         MarkNotificationReadCommand request,
         CancellationToken cancellationToken)
     {
-        bool canManageAny = await HasPermissionAsync(
-            request.UserId,
-            Permissions.CourseManageAny,
+        Notification? notification = await dbContext.Notifications.SingleOrDefaultAsync(
+            candidate => candidate.Id == request.NotificationId && candidate.UserId == request.UserId,
             cancellationToken);
-        Notification? notification = await GetAuthorizedNotificationQuery(
-                request.UserId,
-                canManageAny,
-                timeProvider.GetUtcNow())
-            .AsTracking()
-            .SingleOrDefaultAsync(
-                candidate => candidate.Id == request.NotificationId,
-                cancellationToken);
         if (notification is null)
         {
             return NotificationNotFound<NotificationResponse>();
@@ -563,14 +534,7 @@ internal sealed class CommunicationsService(
             .Select(sequence => sequence.LastSequence)
             .SingleOrDefaultAsync(cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
-        bool canManageAny = await HasPermissionAsync(
-            request.UserId,
-            Permissions.CourseManageAny,
-            cancellationToken);
-        int updatedCount = await GetAuthorizedNotificationQuery(
-                request.UserId,
-                canManageAny,
-                now)
+        int updatedCount = await dbContext.Notifications
             .Where(notification => notification.UserId == request.UserId &&
                 !notification.IsRead &&
                 notification.Sequence <= throughSequence)
@@ -1237,7 +1201,7 @@ internal sealed class CommunicationsService(
                   AND recipient.is_active
                 ORDER BY enrollment.user_id
                 LIMIT {AnnouncementRecipientLimit + 1}
-                FOR SHARE OF enrollment, entitlement
+                FOR SHARE OF enrollment, entitlement, recipient
                 """)
             .ToArrayAsync(cancellationToken);
 
@@ -1332,52 +1296,6 @@ internal sealed class CommunicationsService(
             target => target.AnnouncementId == announcementId && target.AnnouncementVersion == version,
             cancellationToken);
 
-    private IQueryable<Notification> GetAuthorizedNotificationQuery(
-        Guid userId,
-        bool canManageAny,
-        DateTimeOffset now)
-    {
-        IQueryable<Course> accessibleCourses = dbContext.Courses.AsNoTracking()
-            .Where(course => course.DeletedAt == null &&
-                (canManageAny ||
-                    course.OwnerUserId == userId ||
-                    dbContext.CourseInstructors.Any(instructor =>
-                        instructor.CourseId == course.Id &&
-                        instructor.UserId == userId &&
-                        (instructor.Role == CourseCollaboratorRole.Editor ||
-                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
-                    dbContext.Enrollments.Any(enrollment =>
-                        enrollment.UserId == userId &&
-                        enrollment.CourseId == course.Id &&
-                        (enrollment.Status == EnrollmentStatus.Active ||
-                            enrollment.Status == EnrollmentStatus.Completed) &&
-                        dbContext.Entitlements.Any(entitlement =>
-                            entitlement.Id == enrollment.EntitlementId &&
-                            entitlement.UserId == enrollment.UserId &&
-                            entitlement.CourseId == enrollment.CourseId &&
-                            entitlement.Status == EntitlementStatus.Active &&
-                            (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)))));
-
-        return dbContext.Notifications.AsNoTracking()
-            .Where(notification =>
-                notification.UserId == userId &&
-                dbContext.Users.Any(user => user.Id == userId && user.IsActive) &&
-                ((notification.MessageId.HasValue &&
-                    dbContext.Messages.Any(message =>
-                        message.Id == notification.MessageId.Value &&
-                        dbContext.ConversationParticipants.Any(participant =>
-                            participant.ConversationId == message.ConversationId &&
-                            participant.UserId == userId &&
-                            participant.LeftAt == null) &&
-                        dbContext.Conversations.Any(conversation =>
-                            conversation.Id == message.ConversationId &&
-                            accessibleCourses.Any(course => course.Id == conversation.CourseId)))) ||
-                    (notification.AnnouncementId.HasValue &&
-                        dbContext.Announcements.Any(announcement =>
-                            announcement.Id == notification.AnnouncementId.Value &&
-                            accessibleCourses.Any(course => course.Id == announcement.CourseId)))));
-    }
-
     private Task<long> GetLatestNotificationSequenceAsync(
         Guid userId,
         CancellationToken cancellationToken) =>
@@ -1388,11 +1306,9 @@ internal sealed class CommunicationsService(
 
     private Task<long> GetUnreadNotificationCountAsync(
         Guid userId,
-        bool canManageAny,
-        DateTimeOffset now,
         CancellationToken cancellationToken) =>
-        GetAuthorizedNotificationQuery(userId, canManageAny, now)
-            .LongCountAsync(notification => !notification.IsRead, cancellationToken);
+        dbContext.Notifications.AsNoTracking()
+            .LongCountAsync(notification => notification.UserId == userId && !notification.IsRead, cancellationToken);
 
     private Task<int> LockNotificationSequenceAsync(Guid userId, CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlInterpolatedAsync(

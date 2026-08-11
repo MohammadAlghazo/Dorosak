@@ -10,6 +10,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { debounceTime, Subject } from 'rxjs';
 import type { LessonType, SectionInput } from '../../core/api/phase6-api.types';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 import { CourseEditorStore } from './course-editor.store';
 
@@ -67,6 +68,11 @@ interface EditableSection {
             locale.locale() === 'ar' ? 'التقييمات' : 'Assessments'
           }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الوسائط' : 'Media' }}</a>
+          @if (session.hasPermission('Announcement.ManageCourse')) {
+            <a [routerLink]="['../announcements']">{{
+              locale.locale() === 'ar' ? 'الإعلانات' : 'Announcements'
+            }}</a>
+          }
           <a [routerLink]="['../publication']">{{
             locale.locale() === 'ar' ? 'النشر' : 'Publication'
           }}</a>
@@ -335,6 +341,7 @@ interface EditableSection {
 })
 export class CurriculumPageComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
   protected readonly store = inject(CourseEditorStore);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);

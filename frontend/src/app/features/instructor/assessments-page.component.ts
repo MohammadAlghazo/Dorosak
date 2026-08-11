@@ -18,6 +18,7 @@ import type {
   VersionedResult,
 } from '../../core/api/phase6-api.types';
 import { InstructorApiClient } from '../../core/api/instructor-api.client';
+import { SessionStore } from '../../core/auth/session.store';
 import { LocaleService } from '../../core/i18n/locale.service';
 
 type AssessmentKind = 'Quiz' | 'Assignment';
@@ -53,6 +54,11 @@ type AssessmentKind = 'Quiz' | 'Assignment';
             locale.locale() === 'ar' ? 'التقييمات' : 'Assessments'
           }}</a>
           <a [routerLink]="['../media']">{{ locale.locale() === 'ar' ? 'الملفات' : 'Files' }}</a>
+          @if (session.hasPermission('Announcement.ManageCourse')) {
+            <a [routerLink]="['../announcements']">{{
+              locale.locale() === 'ar' ? 'الإعلانات' : 'Announcements'
+            }}</a>
+          }
         </nav>
       </header>
 
@@ -382,6 +388,7 @@ type AssessmentKind = 'Quiz' | 'Assignment';
 })
 export class AssessmentsPageComponent {
   protected readonly locale = inject(LocaleService);
+  protected readonly session = inject(SessionStore);
   private readonly api = inject(LearningApiClient);
   private readonly instructorApi = inject(InstructorApiClient);
   private readonly destroyRef = inject(DestroyRef);

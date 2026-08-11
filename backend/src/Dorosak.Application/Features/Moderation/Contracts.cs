@@ -16,7 +16,18 @@ public sealed record AdminContentReportResponse(
     Guid ReporterUserId,
     string ReporterName,
     Guid CaseId,
-    string CaseStatus);
+    string CaseStatus,
+    MessageReportSnapshotResponse? MessageSnapshot = null);
+
+public sealed record MessageReportSnapshotResponse(
+    Guid SenderUserId,
+    string SenderName,
+    Guid CourseId,
+    string CourseTitle,
+    Guid ConversationId,
+    long Sequence,
+    string Body,
+    DateTimeOffset CreatedAt);
 
 public sealed record ContentReportPageResponse(
     IReadOnlyList<AdminContentReportResponse> Items,

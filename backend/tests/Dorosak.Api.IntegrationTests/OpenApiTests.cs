@@ -41,6 +41,12 @@ public sealed class OpenApiTests(ApiFixture fixture)
         JsonElement createReport = reports.GetProperty("post");
         Assert.True(FindHeader(createReport, "Idempotency-Key").GetProperty("required").GetBoolean());
         Assert.True(createReport.GetProperty("responses").GetProperty("200").TryGetProperty("content", out _));
+        Assert.True(createReport.GetProperty("responses").TryGetProperty("404", out _));
+        Assert.True(createReport.GetProperty("responses").TryGetProperty("409", out _));
+        Assert.True(createReport.GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(createReport.GetProperty("responses").TryGetProperty("428", out _));
+        JsonElement createReportSchema = ResolveRequestSchema(document.RootElement, createReport);
+        Assert.True(createReportSchema.GetProperty("properties").TryGetProperty("messageId", out _));
         Assert.True(paths.TryGetProperty(
             "/api/v1/admin/moderation-cases/{caseId}/actions",
             out JsonElement moderationActions));
@@ -102,6 +108,14 @@ public sealed class OpenApiTests(ApiFixture fixture)
             out JsonElement notificationRead));
         Assert.True(notificationRead.GetProperty("put").GetProperty("responses").TryGetProperty("404", out _));
         Assert.True(notificationRead.GetProperty("put").GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/me/notifications/unread-count",
+            out JsonElement unreadCount));
+        Assert.True(unreadCount.GetProperty("get").GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/me/notifications/read-all",
+            out JsonElement readAll));
+        Assert.True(readAll.GetProperty("post").GetProperty("responses").TryGetProperty("422", out _));
 
         Assert.Equal(HttpStatusCode.OK, uiResponse.StatusCode);
         string csp = uiResponse.Headers.GetValues("Content-Security-Policy").Single();
