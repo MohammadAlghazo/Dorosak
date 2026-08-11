@@ -208,11 +208,21 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             TestContext.Current.CancellationToken);
         Assert.Contains("message_id IS NOT NULL", notificationProjectionConstraint, StringComparison.Ordinal);
         Assert.Contains("announcement_id IS NOT NULL", notificationProjectionConstraint, StringComparison.Ordinal);
+        Assert.Contains("announcement_version IS NOT NULL", notificationProjectionConstraint, StringComparison.Ordinal);
+        Assert.Contains("title IS NOT NULL", notificationProjectionConstraint, StringComparison.Ordinal);
+        Assert.Contains("body IS NOT NULL", notificationProjectionConstraint, StringComparison.Ordinal);
         string targetOwnershipConstraint = await ExecuteScalarAsync<string>(
             connection,
-            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fk_announcement_targets_notifications_notification_user'",
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fk_announcement_targets_notifications_projection'",
             TestContext.Current.CancellationToken);
-        Assert.Contains("FOREIGN KEY (notification_id, user_id)", targetOwnershipConstraint, StringComparison.Ordinal);
+        Assert.Contains(
+            "FOREIGN KEY (notification_id, user_id, announcement_id, announcement_version)",
+            targetOwnershipConstraint,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "REFERENCES communication.notifications(id, user_id, target_announcement_id, target_announcement_version)",
+            targetOwnershipConstraint,
+            StringComparison.Ordinal);
         Assert.Equal(1L, await ExecuteScalarAsync<long>(
             connection,
             "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'engagement' AND table_name = 'discussion_threads' AND column_name = 'edited_at'",
@@ -353,6 +363,15 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
         Assert.Equal(
             new[]
             {
+                nameof(Notification.Id),
+                nameof(Notification.UserId),
+                nameof(Notification.TargetAnnouncementId),
+                nameof(Notification.TargetAnnouncementVersion),
+            },
+            notification.GetKeys().Single(key => !key.IsPrimaryKey()).Properties.Select(property => property.Name));
+        Assert.Equal(
+            new[]
+            {
                 nameof(AnnouncementTarget.AnnouncementId),
                 nameof(AnnouncementTarget.UserId),
                 nameof(AnnouncementTarget.AnnouncementVersion),
@@ -360,6 +379,17 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             target.FindPrimaryKey()!.Properties.Select(property => property.Name));
         Assert.All(notification.GetForeignKeys(), foreignKey => Assert.Equal(DeleteBehavior.Restrict, foreignKey.DeleteBehavior));
         Assert.All(target.GetForeignKeys(), foreignKey => Assert.Equal(DeleteBehavior.Restrict, foreignKey.DeleteBehavior));
+        IForeignKey targetProjection = Assert.Single(target.GetForeignKeys(), foreignKey =>
+            foreignKey.GetConstraintName() == "fk_announcement_targets_notifications_projection");
+        Assert.Equal(
+            new[]
+            {
+                nameof(AnnouncementTarget.NotificationId),
+                nameof(AnnouncementTarget.UserId),
+                nameof(AnnouncementTarget.AnnouncementId),
+                nameof(AnnouncementTarget.AnnouncementVersion),
+            },
+            targetProjection.Properties.Select(property => property.Name));
     }
 
     [Fact]

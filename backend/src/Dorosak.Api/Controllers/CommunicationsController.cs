@@ -114,6 +114,7 @@ public sealed class CommunicationsController(ISender sender) : ControllerBase
     [PermissionPolicy(Permissions.ConversationReadOwn)]
     [ProducesResponseType<ApiResponse<ConversationOperationResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> LeaveConversation(
         Guid conversationId,
         CancellationToken cancellationToken)

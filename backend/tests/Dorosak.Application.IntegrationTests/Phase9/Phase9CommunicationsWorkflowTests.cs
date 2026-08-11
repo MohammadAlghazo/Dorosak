@@ -1,6 +1,7 @@
 using Dorosak.Application.Common.Exceptions;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Communications;
+using System.Text.Json;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Communications;
@@ -266,6 +267,23 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
         Assert.All(
             messageIdempotencyRecords,
             record => Assert.Equal(TimeSpan.FromHours(24), record.ExpiresAt - record.CreatedAt));
+        IdempotencyRecord conversationRecord = await dbContext.Set<IdempotencyRecord>().AsNoTracking().SingleAsync(
+            record => record.Operation == "communications.conversation-create.v1" &&
+                record.Key == conversationKey,
+            cancellationToken);
+        IdempotencyRecord messageRecord = await dbContext.Set<IdempotencyRecord>().AsNoTracking().SingleAsync(
+            record => record.Operation == "communications.message-create.v1" &&
+                record.Key == firstMessage.IdempotencyKey,
+            cancellationToken);
+        using JsonDocument conversationPayload = JsonDocument.Parse(conversationRecord.ResponsePayload);
+        Assert.All(
+            conversationPayload.RootElement.GetProperty("value").GetProperty("participants").EnumerateArray(),
+            participant => Assert.Equal(string.Empty, participant.GetProperty("displayName").GetString()));
+        Assert.DoesNotContain("phase9-conversation-creator", conversationRecord.ResponsePayload, StringComparison.Ordinal);
+        using JsonDocument messagePayload = JsonDocument.Parse(messageRecord.ResponsePayload);
+        Assert.Equal(string.Empty, messagePayload.RootElement.GetProperty("value").GetProperty("senderName").GetString());
+        Assert.Equal(string.Empty, messagePayload.RootElement.GetProperty("value").GetProperty("body").GetString());
+        Assert.DoesNotContain(firstMessage.Body, messageRecord.ResponsePayload, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -316,7 +334,6 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
                  {
                      editorId,
                      coInstructorId,
-                     reviewerId,
                      activeLearnerId,
                      completedLearnerId,
                  })
@@ -333,6 +350,7 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
                      revokedEnrollmentLearnerId,
                      revokedEntitlementLearnerId,
                      expiredEntitlementLearnerId,
+                     reviewerId,
                      inactiveReviewerId,
                      outsiderId,
                      adminId,
@@ -451,6 +469,335 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
     }
 
     [Fact]
+    public async Task ResyncCursorPinsWatermarkAcrossPagesAndNextRoundStartsAfterIt()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid creatorId = await CreateUserAsync("phase9-resync-creator", DorosakIdentityConstants.TeacherRole);
+        Guid participantId = await CreateUserAsync("phase9-resync-participant");
+        Guid courseId = await SeedConversationCourseAsync(creatorId, participantId, cancellationToken);
+        Result<ConversationResponse> conversation = await SendInNewScopeAsync(
+            CreateConversation(creatorId, participantId, courseId),
+            cancellationToken);
+
+        for (int index = 0; index < 3; index++)
+        {
+            Assert.True((await SendInNewScopeAsync(
+                new CreateMessageCommand(
+                    creatorId,
+                    conversation.Value.Id,
+                    Guid.CreateVersion7(),
+                    $"resync message {index}",
+                    Guid.CreateVersion7().ToString("N")),
+                cancellationToken)).IsSuccess);
+        }
+
+        Result<MessagePageResponse> first = await SendInNewScopeAsync(
+            new GetConversationMessagesQuery(creatorId, conversation.Value.Id, 1, null, 0),
+            cancellationToken);
+        Assert.Equal(3, first.Value.LatestSequence);
+        Assert.NotNull(first.Value.NextCursor);
+        Result<NotificationPageResponse> notificationFirst = await SendInNewScopeAsync(
+            new GetNotificationsQuery(participantId, 1, null, 0),
+            cancellationToken);
+        Assert.Equal(3, notificationFirst.Value.LatestSequence);
+        Assert.NotNull(notificationFirst.Value.NextCursor);
+
+        Assert.True((await SendInNewScopeAsync(
+            new CreateMessageCommand(
+                creatorId,
+                conversation.Value.Id,
+                Guid.CreateVersion7(),
+                "written between resync pages",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken)).IsSuccess);
+
+        Result<MessagePageResponse> second = await SendInNewScopeAsync(
+            new GetConversationMessagesQuery(creatorId, conversation.Value.Id, 1, first.Value.NextCursor, 0),
+            cancellationToken);
+        Result<MessagePageResponse> third = await SendInNewScopeAsync(
+            new GetConversationMessagesQuery(creatorId, conversation.Value.Id, 1, second.Value.NextCursor, 0),
+            cancellationToken);
+        Assert.Equal(new long[] { 2, 3 }, new[] { second.Value.Items[0].Sequence, third.Value.Items[0].Sequence });
+        Assert.DoesNotContain(second.Value.Items.Concat(third.Value.Items), item => item.Sequence == 4);
+
+        Result<NotificationPageResponse> notificationSecond = await SendInNewScopeAsync(
+            new GetNotificationsQuery(participantId, 1, notificationFirst.Value.NextCursor, 0),
+            cancellationToken);
+        Result<NotificationPageResponse> notificationThird = await SendInNewScopeAsync(
+            new GetNotificationsQuery(participantId, 1, notificationSecond.Value.NextCursor, 0),
+            cancellationToken);
+        Assert.Equal(
+            new long[] { 2, 3 },
+            new[] { notificationSecond.Value.Items[0].Sequence, notificationThird.Value.Items[0].Sequence });
+        Assert.DoesNotContain(
+            notificationSecond.Value.Items.Concat(notificationThird.Value.Items),
+            item => item.Sequence == 4);
+
+        Result<MessagePageResponse> nextRound = await SendInNewScopeAsync(
+            new GetConversationMessagesQuery(creatorId, conversation.Value.Id, 20, null, 3),
+            cancellationToken);
+        Assert.Equal(new long[] { 4 }, nextRound.Value.Items.Select(item => item.Sequence).ToArray());
+        Result<NotificationPageResponse> notificationNextRound = await SendInNewScopeAsync(
+            new GetNotificationsQuery(participantId, 20, null, 3),
+            cancellationToken);
+        Assert.Equal(new long[] { 4 }, notificationNextRound.Value.Items.Select(item => item.Sequence).ToArray());
+    }
+
+    [Fact]
+    public async Task AnnouncementVersionConflictPreventsStaleUpdateAndDelete()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid ownerId = await CreateUserAsync("phase9-announcement-version-owner", DorosakIdentityConstants.TeacherRole);
+        Guid courseId = await SeedConversationCourseAsync(ownerId, await CreateUserAsync("phase9-announcement-version-learner"), cancellationToken);
+        Result<AnnouncementResponse> created = await SendInNewScopeAsync(
+            new CreateAnnouncementCommand(
+                ownerId,
+                courseId,
+                "Versioned announcement",
+                "Versioned body",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Result<AnnouncementResponse> updated = await SendInNewScopeAsync(
+            new UpdateAnnouncementCommand(
+                ownerId,
+                courseId,
+                created.Value.Id,
+                "Version two",
+                "Version two body",
+                created.Value.Version,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+
+        Result<AnnouncementResponse> staleUpdate = await SendInNewScopeAsync(
+            new UpdateAnnouncementCommand(
+                ownerId,
+                courseId,
+                created.Value.Id,
+                "Stale",
+                "Stale body",
+                created.Value.Version,
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Result<AnnouncementOperationResponse> staleDelete = await SendInNewScopeAsync(
+            new DeleteAnnouncementCommand(ownerId, courseId, created.Value.Id, created.Value.Version),
+            cancellationToken);
+
+        Assert.True(updated.IsSuccess);
+        Assert.False(staleUpdate.IsSuccess);
+        Assert.Equal("ANNOUNCEMENT.VERSION_CONFLICT", staleUpdate.Failure.Code);
+        Assert.False(staleDelete.IsSuccess);
+        Assert.Equal("ANNOUNCEMENT.VERSION_CONFLICT", staleDelete.Failure.Code);
+    }
+
+    [Fact]
+    public async Task RevokedEntitlementRemovesConversationAccessAndMessageNotificationEligibility()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid ownerId = await CreateUserAsync("phase9-revoke-owner", DorosakIdentityConstants.TeacherRole);
+        Guid learnerId = await CreateUserAsync("phase9-revoke-learner");
+        Guid courseId = await SeedConversationCourseAsync(ownerId, learnerId, cancellationToken);
+        Result<ConversationResponse> conversation = await SendInNewScopeAsync(
+            CreateConversation(ownerId, learnerId, courseId),
+            cancellationToken);
+        Assert.True((await SendInNewScopeAsync(
+            new CreateMessageCommand(
+                ownerId,
+                conversation.Value.Id,
+                Guid.CreateVersion7(),
+                "owner message before revoke",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken)).IsSuccess);
+        Result<NotificationPageResponse> beforeRevoke = await SendInNewScopeAsync(
+            new GetNotificationsQuery(learnerId, 20, null, 0),
+            cancellationToken);
+        NotificationResponse notificationBeforeRevoke = Assert.Single(beforeRevoke.Value.Items);
+
+        await using (AsyncServiceScope revokeScope = fixture.Services.CreateAsyncScope())
+        {
+            DorosakDbContext dbContext = revokeScope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+            Entitlement entitlement = await dbContext.Set<Entitlement>().SingleAsync(
+                item => item.UserId == learnerId && item.CourseId == courseId,
+                cancellationToken);
+            entitlement.Revoke(DateTimeOffset.UtcNow);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        ResourceNotFoundException deniedRead = await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            SendInNewScopeAsync(
+                new GetConversationMessagesQuery(learnerId, conversation.Value.Id, 20, null),
+                cancellationToken));
+        ResourceNotFoundException deniedSend = await Assert.ThrowsAsync<ResourceNotFoundException>(() =>
+            SendInNewScopeAsync(
+                new CreateMessageCommand(
+                    learnerId,
+                    conversation.Value.Id,
+                    Guid.CreateVersion7(),
+                    "revoked learner message",
+                    Guid.CreateVersion7().ToString("N")),
+                cancellationToken));
+        Assert.Equal("CONVERSATION.NOT_FOUND", deniedRead.Code);
+        Assert.Equal("CONVERSATION.NOT_FOUND", deniedSend.Code);
+        Result<NotificationResponse> deniedNotificationRead = await SendInNewScopeAsync(
+            new MarkNotificationReadCommand(learnerId, notificationBeforeRevoke.Id),
+            cancellationToken);
+        Assert.False(deniedNotificationRead.IsSuccess);
+        Assert.Equal("NOTIFICATION.NOT_FOUND", deniedNotificationRead.Failure.Code);
+
+        Result<MessageResponse> ownerMessage = await SendInNewScopeAsync(
+            new CreateMessageCommand(
+                ownerId,
+                conversation.Value.Id,
+                Guid.CreateVersion7(),
+                "owner message after revoke",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        Assert.True(ownerMessage.IsSuccess);
+        Result<NotificationPageResponse> notifications = await SendInNewScopeAsync(
+            new GetNotificationsQuery(learnerId, 20, null, 0),
+            cancellationToken);
+        Assert.Empty(notifications.Value.Items);
+        Result<NotificationUnreadCountResponse> unread = await SendInNewScopeAsync(
+            new GetNotificationUnreadCountQuery(learnerId),
+            cancellationToken);
+        Assert.Equal(0, unread.Value.Count);
+    }
+
+    [Fact]
+    public async Task AnnouncementAudienceLocksEligibilityUntilFanoutCommits()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid ownerId = await CreateUserAsync("phase9-announcement-lock-owner", DorosakIdentityConstants.TeacherRole);
+        Guid learnerId = await CreateUserAsync("phase9-announcement-lock-learner");
+        Guid courseId = await SeedConversationCourseAsync(ownerId, learnerId, cancellationToken);
+
+        await using var gateConnection = new NpgsqlConnection(fixture.DatabaseConnection);
+        await gateConnection.OpenAsync(cancellationToken);
+        await using NpgsqlTransaction gateTransaction = await gateConnection.BeginTransactionAsync(cancellationToken);
+        await using (var gateCommand = new NpgsqlCommand(
+                         "SELECT pg_advisory_xact_lock(hashtextextended(@identity, 0))",
+                         gateConnection,
+                         gateTransaction))
+        {
+            gateCommand.Parameters.AddWithValue("identity", $"notification-sequence:{learnerId:D}");
+            await gateCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var observerConnection = new NpgsqlConnection(fixture.DatabaseConnection);
+        await observerConnection.OpenAsync(cancellationToken);
+        long baselineWaiters = await CountAdvisoryWaitersAsync(observerConnection, cancellationToken);
+        Task<Result<AnnouncementResponse>> createTask = SendInNewScopeAsync(
+            new CreateAnnouncementCommand(
+                ownerId,
+                courseId,
+                "Locked audience",
+                "Eligibility remains valid through commit.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+        bool gateReleased = false;
+        try
+        {
+            await WaitForAdvisoryWaitersAsync(observerConnection, baselineWaiters + 1, cancellationToken);
+
+            await using var revokeConnection = new NpgsqlConnection(fixture.DatabaseConnection);
+            await revokeConnection.OpenAsync(cancellationToken);
+            await using var revokeCommand = new NpgsqlCommand(
+                """
+                UPDATE learning.entitlements
+                SET status = 'Revoked', revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = @user_id AND course_id = @course_id
+                """,
+                revokeConnection);
+            revokeCommand.Parameters.AddWithValue("user_id", learnerId);
+            revokeCommand.Parameters.AddWithValue("course_id", courseId);
+            Task<int> revokeTask = revokeCommand.ExecuteNonQueryAsync(cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            Assert.False(revokeTask.IsCompleted);
+
+            await gateTransaction.CommitAsync(cancellationToken);
+            gateReleased = true;
+            Result<AnnouncementResponse> created = await createTask;
+            Assert.True(created.IsSuccess);
+            Assert.Equal(1, created.Value.TargetCount);
+            Assert.Equal(1, await revokeTask);
+        }
+        finally
+        {
+            if (!gateReleased)
+            {
+                await gateTransaction.RollbackAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AnnouncementAudienceRejectsMoreThanBetaRecipientLimitBeforeFanout()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Guid ownerId = await CreateUserAsync("phase9-announcement-limit-owner", DorosakIdentityConstants.TeacherRole);
+        Guid courseId;
+        await using (AsyncServiceScope seedScope = fixture.Services.CreateAsyncScope())
+        {
+            DorosakDbContext dbContext = seedScope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            Course course = Course.Create(ownerId, "en", now);
+            CourseDraft draft = CourseDraft.Create(course.Id, "Beginner", now);
+            CourseRelease release = CourseRelease.Create(
+                course.Id,
+                draft.Id,
+                draft.Version,
+                1,
+                "en",
+                new string('c', 64),
+                ownerId,
+                now);
+            dbContext.Set<Course>().Add(course);
+            dbContext.Set<CourseDraft>().Add(draft);
+            dbContext.Set<CourseRelease>().Add(release);
+            for (int index = 0; index < 1001; index++)
+            {
+                ApplicationUser user = ApplicationUser.Create(
+                    $"announcement-limit-{index}",
+                    $"announcement-limit-{index}-{Guid.CreateVersion7():N}@example.test",
+                    now);
+                Entitlement entitlement = Entitlement.GrantFree(user.Id, course.Id, now);
+                Enrollment enrollment = Enrollment.Create(
+                    user.Id,
+                    course.Id,
+                    release.Id,
+                    entitlement.Id,
+                    now);
+                dbContext.Users.Add(user);
+                dbContext.Set<Entitlement>().Add(entitlement);
+                dbContext.Set<Enrollment>().Add(enrollment);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            courseId = course.Id;
+        }
+
+        Result<AnnouncementResponse> result = await SendInNewScopeAsync(
+            new CreateAnnouncementCommand(
+                ownerId,
+                courseId,
+                "Too broad",
+                "This fanout must not begin.",
+                Guid.CreateVersion7().ToString("N")),
+            cancellationToken);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("ANNOUNCEMENT.AUDIENCE_LIMIT_EXCEEDED", result.Failure.Code);
+        await using AsyncServiceScope verificationScope = fixture.Services.CreateAsyncScope();
+        DorosakDbContext verificationContext = verificationScope.ServiceProvider.GetRequiredService<DorosakDbContext>();
+        Assert.False(await verificationContext.Set<Announcement>().AnyAsync(
+            announcement => announcement.CourseId == courseId,
+            cancellationToken));
+        Assert.False(await verificationContext.Set<AnnouncementTarget>().AnyAsync(
+            target => verificationContext.Set<Announcement>()
+                .Any(announcement => announcement.Id == target.AnnouncementId && announcement.CourseId == courseId),
+            cancellationToken));
+    }
+
+    [Fact]
     public async Task AnnouncementsAuthorizeCourseManagersAndTargetOnlyEntitledLearners()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -501,6 +848,7 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
             created.Value.Id,
             "Revised course announcement",
             "The revised projection is delivered only to learners who remain entitled.",
+            created.Value.Version,
             Guid.CreateVersion7().ToString("N"));
         Result<AnnouncementResponse> updated = await SendInNewScopeAsync(update, cancellationToken);
         Result<AnnouncementResponse> updateReplay = await SendInNewScopeAsync(update, cancellationToken);
@@ -567,7 +915,7 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
         Assert.Equal(2, readAll.Value.ThroughSequence);
 
         Result<AnnouncementOperationResponse> deleted = await SendInNewScopeAsync(
-            new DeleteAnnouncementCommand(coInstructorId, courseId, created.Value.Id),
+            new DeleteAnnouncementCommand(coInstructorId, courseId, created.Value.Id, updated.Value.Version),
             cancellationToken);
         Assert.True(deleted.Value.Completed);
         Result<AnnouncementResponse> hiddenAfterDelete = await SendInNewScopeAsync(
@@ -613,6 +961,25 @@ public sealed class Phase9CommunicationsWorkflowTests(InfrastructureFixture fixt
             "currently entitled learners",
             message.Payload,
             StringComparison.OrdinalIgnoreCase));
+        IdempotencyRecord createRecord = await dbContext.Set<IdempotencyRecord>().AsNoTracking().SingleAsync(
+            record => record.Operation == "communications.announcement-create.v1" &&
+                record.Key == create.IdempotencyKey,
+            cancellationToken);
+        IdempotencyRecord updateRecord = await dbContext.Set<IdempotencyRecord>().AsNoTracking().SingleAsync(
+            record => record.Operation == "communications.announcement-update.v1" &&
+                record.Key == update.IdempotencyKey,
+            cancellationToken);
+        using JsonDocument createPayload = JsonDocument.Parse(createRecord.ResponsePayload);
+        JsonElement createValue = createPayload.RootElement.GetProperty("value");
+        Assert.Equal(string.Empty, createValue.GetProperty("title").GetString());
+        Assert.Equal(string.Empty, createValue.GetProperty("body").GetString());
+        Assert.Equal(0L, createValue.GetProperty("targetCount").GetInt64());
+        Assert.DoesNotContain(create.Title, createRecord.ResponsePayload, StringComparison.Ordinal);
+        using JsonDocument updatePayload = JsonDocument.Parse(updateRecord.ResponsePayload);
+        JsonElement updateValue = updatePayload.RootElement.GetProperty("value");
+        Assert.Equal(string.Empty, updateValue.GetProperty("title").GetString());
+        Assert.Equal(string.Empty, updateValue.GetProperty("body").GetString());
+        Assert.DoesNotContain(update.Body, updateRecord.ResponsePayload, StringComparison.Ordinal);
     }
 
     private async Task<Guid> SeedConversationCourseAsync(

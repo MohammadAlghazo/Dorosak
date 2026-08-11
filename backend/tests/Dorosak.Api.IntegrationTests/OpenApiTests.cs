@@ -71,6 +71,37 @@ public sealed class OpenApiTests(ApiFixture fixture)
         JsonElement leaveConversation = participation.GetProperty("delete");
         Assert.True(leaveConversation.GetProperty("responses").TryGetProperty("200", out _));
         Assert.True(leaveConversation.GetProperty("responses").TryGetProperty("404", out _));
+        Assert.True(leaveConversation.GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/instructor/courses/{courseId}/announcements",
+            out JsonElement announcements));
+        JsonElement listAnnouncements = announcements.GetProperty("get");
+        Assert.True(listAnnouncements.GetProperty("responses").TryGetProperty("404", out _));
+        Assert.True(listAnnouncements.GetProperty("responses").TryGetProperty("422", out _));
+        JsonElement createAnnouncement = announcements.GetProperty("post");
+        Assert.True(FindHeader(createAnnouncement, "Idempotency-Key").GetProperty("required").GetBoolean());
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/instructor/courses/{courseId}/announcements/{announcementId}",
+            out JsonElement announcement));
+        JsonElement updateAnnouncement = announcement.GetProperty("put");
+        JsonElement updateAnnouncementSchema = ResolveRequestSchema(document.RootElement, updateAnnouncement);
+        Assert.Contains(
+            updateAnnouncementSchema.GetProperty("required").EnumerateArray(),
+            property => string.Equals(property.GetString(), "expectedVersion", StringComparison.Ordinal));
+        Assert.True(updateAnnouncement.GetProperty("responses").TryGetProperty("409", out _));
+        JsonElement deleteAnnouncement = announcement.GetProperty("delete");
+        JsonElement expectedVersion = FindParameter(deleteAnnouncement, "expectedVersion");
+        Assert.True(expectedVersion.GetProperty("required").GetBoolean());
+        Assert.True(deleteAnnouncement.GetProperty("responses").TryGetProperty("404", out _));
+        Assert.True(deleteAnnouncement.GetProperty("responses").TryGetProperty("409", out _));
+        Assert.True(deleteAnnouncement.GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/me/notifications", out JsonElement notifications));
+        Assert.True(notifications.GetProperty("get").GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/me/notifications/{notificationId}/read",
+            out JsonElement notificationRead));
+        Assert.True(notificationRead.GetProperty("put").GetProperty("responses").TryGetProperty("404", out _));
+        Assert.True(notificationRead.GetProperty("put").GetProperty("responses").TryGetProperty("422", out _));
 
         Assert.Equal(HttpStatusCode.OK, uiResponse.StatusCode);
         string csp = uiResponse.Headers.GetValues("Content-Security-Policy").Single();
@@ -84,6 +115,14 @@ public sealed class OpenApiTests(ApiFixture fixture)
             parameter.GetProperty("name").GetString(),
                 name,
                 StringComparison.OrdinalIgnoreCase));
+
+    private static JsonElement FindParameter(JsonElement operation, string name) => operation
+        .GetProperty("parameters")
+        .EnumerateArray()
+        .Single(parameter => string.Equals(
+            parameter.GetProperty("name").GetString(),
+            name,
+            StringComparison.OrdinalIgnoreCase));
 
     private static JsonElement ResolveRequestSchema(JsonElement document, JsonElement operation)
     {

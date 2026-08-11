@@ -23,6 +23,7 @@ public sealed class NotificationsController(ISender sender) : ControllerBase
     [HttpGet]
     [PermissionPolicy(Permissions.NotificationReadOwn)]
     [ProducesResponseType<ApiResponse<NotificationPageResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Get(
         [FromQuery] int limit = 20,
         [FromQuery] string? cursor = null,
@@ -39,6 +40,7 @@ public sealed class NotificationsController(ISender sender) : ControllerBase
     [HttpGet("unread-count")]
     [PermissionPolicy(Permissions.NotificationReadOwn)]
     [ProducesResponseType<ApiResponse<NotificationUnreadCountResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> GetUnreadCount(CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId)) return Unauthorized();
@@ -52,6 +54,7 @@ public sealed class NotificationsController(ISender sender) : ControllerBase
     [PermissionPolicy(Permissions.NotificationReadOwn)]
     [ProducesResponseType<ApiResponse<NotificationResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> MarkRead(Guid notificationId, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId)) return Unauthorized();
@@ -64,6 +67,7 @@ public sealed class NotificationsController(ISender sender) : ControllerBase
     [HttpPost("read-all")]
     [PermissionPolicy(Permissions.NotificationReadOwn)]
     [ProducesResponseType<ApiResponse<NotificationsReadResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId)) return Unauthorized();

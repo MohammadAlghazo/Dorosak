@@ -117,16 +117,30 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
             table.HasCheckConstraint("ck_notifications_read_state", "is_read = (read_at IS NOT NULL)");
             table.HasCheckConstraint(
                 "ck_notifications_target_projection",
-                "(message_id IS NOT NULL AND announcement_id IS NULL AND announcement_version IS NULL AND title IS NULL AND body IS NULL) OR " +
-                "(message_id IS NULL AND announcement_id IS NOT NULL AND announcement_version > 0 AND " +
+                "(message_id IS NOT NULL AND announcement_id IS NULL AND announcement_version IS NULL AND " +
+                "target_announcement_id = '00000000-0000-0000-0000-000000000000'::uuid AND target_announcement_version = 0 AND " +
+                "title IS NULL AND body IS NULL) OR " +
+                "(message_id IS NULL AND announcement_id IS NOT NULL AND announcement_version IS NOT NULL AND " +
+                "target_announcement_id = announcement_id AND target_announcement_version = announcement_version AND " +
+                "announcement_version > 0 AND title IS NOT NULL AND body IS NOT NULL AND " +
                 "char_length(btrim(title)) BETWEEN 1 AND 200 AND char_length(btrim(body)) BETWEEN 1 AND 10000)");
         });
         builder.HasKey(notification => notification.Id).HasName("pk_notifications");
         builder.Property(notification => notification.Id).ValueGeneratedNever();
         builder.Property(notification => notification.Title).HasMaxLength(Announcement.MaximumTitleLength);
         builder.Property(notification => notification.Body).HasMaxLength(Announcement.MaximumBodyLength);
-        builder.HasAlternateKey(notification => new { notification.Id, notification.UserId })
-            .HasName("ak_notifications_id_user_id");
+        builder.Property(notification => notification.TargetAnnouncementId)
+            .HasColumnName("target_announcement_id");
+        builder.Property(notification => notification.TargetAnnouncementVersion)
+            .HasColumnName("target_announcement_version");
+        builder.HasAlternateKey(notification => new
+        {
+            notification.Id,
+            notification.UserId,
+            notification.TargetAnnouncementId,
+            notification.TargetAnnouncementVersion,
+        })
+            .HasName("ak_notifications_id_user_announcement_version");
         builder.HasIndex(notification => new { notification.UserId, notification.Sequence })
             .IsUnique()
             .HasDatabaseName("uq_notifications_user_sequence");
@@ -218,9 +232,21 @@ internal sealed class AnnouncementTargetConfiguration : IEntityTypeConfiguration
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("fk_announcement_targets_users_user_id");
         builder.HasOne<Notification>().WithMany()
-            .HasForeignKey(target => new { target.NotificationId, target.UserId })
-            .HasPrincipalKey(notification => new { notification.Id, notification.UserId })
+            .HasForeignKey(target => new
+            {
+                target.NotificationId,
+                target.UserId,
+                target.AnnouncementId,
+                target.AnnouncementVersion,
+            })
+            .HasPrincipalKey(notification => new
+            {
+                notification.Id,
+                notification.UserId,
+                notification.TargetAnnouncementId,
+                notification.TargetAnnouncementVersion,
+            })
             .OnDelete(DeleteBehavior.Restrict)
-            .HasConstraintName("fk_announcement_targets_notifications_notification_user");
+            .HasConstraintName("fk_announcement_targets_notifications_projection");
     }
 }

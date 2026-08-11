@@ -40,7 +40,7 @@ public sealed class CommunicationsEndpointTests(ApiFixture fixture)
             dbContext.Set<CourseInstructor>().Add(CourseInstructor.Create(
                 course.Id,
                 participant.UserId,
-                CourseCollaboratorRole.Reviewer,
+                CourseCollaboratorRole.CoInstructor,
                 DateTimeOffset.UtcNow));
             await dbContext.SaveChangesAsync(cancellationToken);
             courseId = course.Id;
@@ -271,17 +271,48 @@ public sealed class CommunicationsEndpointTests(ApiFixture fixture)
             $"{path}/{announcement.Id:D}",
             owner.AccessToken);
         update.Headers.Add("Idempotency-Key", Guid.CreateVersion7().ToString("N"));
-        update.Content = JsonContent.Create(new { title = "Revised notice", body = "Revised bounded body." });
+        update.Content = JsonContent.Create(new
+        {
+            title = "Revised notice",
+            body = "Revised bounded body.",
+            expectedVersion = announcement.Version,
+        });
         using HttpResponseMessage updateResponse = await fixture.Client.SendAsync(update, cancellationToken);
-        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.True(
+            updateResponse.StatusCode == HttpStatusCode.OK,
+            await updateResponse.Content.ReadAsStringAsync(cancellationToken));
         Assert.True(updateResponse.Headers.CacheControl?.NoStore);
         ApiResponse<AnnouncementResponse>? updated = await updateResponse.Content
             .ReadFromJsonAsync<ApiResponse<AnnouncementResponse>>(cancellationToken);
         Assert.Equal(2, Assert.IsType<ApiResponse<AnnouncementResponse>>(updated).Data.Version);
 
-        using HttpRequestMessage delete = Authorized(
+        using HttpRequestMessage staleUpdate = Authorized(
+            HttpMethod.Put,
+            $"{path}/{announcement.Id:D}",
+            owner.AccessToken);
+        staleUpdate.Headers.Add("Idempotency-Key", Guid.CreateVersion7().ToString("N"));
+        staleUpdate.Content = JsonContent.Create(new
+        {
+            title = "Stale notice",
+            body = "Stale bounded body.",
+            expectedVersion = announcement.Version,
+        });
+        using HttpResponseMessage staleUpdateResponse = await fixture.Client.SendAsync(staleUpdate, cancellationToken);
+        Assert.Equal(HttpStatusCode.Conflict, staleUpdateResponse.StatusCode);
+        Assert.Equal("ANNOUNCEMENT.VERSION_CONFLICT", await ReadProblemCodeAsync(staleUpdateResponse, cancellationToken));
+
+        using HttpRequestMessage missingDeleteVersion = Authorized(
             HttpMethod.Delete,
             $"{path}/{announcement.Id:D}",
+            owner.AccessToken);
+        using HttpResponseMessage missingDeleteVersionResponse = await fixture.Client.SendAsync(
+            missingDeleteVersion,
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, missingDeleteVersionResponse.StatusCode);
+
+        using HttpRequestMessage delete = Authorized(
+            HttpMethod.Delete,
+            $"{path}/{announcement.Id:D}?expectedVersion={Assert.IsType<ApiResponse<AnnouncementResponse>>(updated).Data.Version}",
             owner.AccessToken);
         using HttpResponseMessage deleteResponse = await fixture.Client.SendAsync(delete, cancellationToken);
         Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);

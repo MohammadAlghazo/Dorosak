@@ -56,6 +56,8 @@ public sealed class Notification
         Guid? messageId,
         Guid? announcementId,
         long? announcementVersion,
+        Guid targetAnnouncementId,
+        long targetAnnouncementVersion,
         string? title,
         string? body,
         DateTimeOffset createdAt)
@@ -66,6 +68,8 @@ public sealed class Notification
         MessageId = messageId;
         AnnouncementId = announcementId;
         AnnouncementVersion = announcementVersion;
+        TargetAnnouncementId = targetAnnouncementId;
+        TargetAnnouncementVersion = targetAnnouncementVersion;
         Title = title;
         Body = body;
         CreatedAt = createdAt;
@@ -82,6 +86,10 @@ public sealed class Notification
     public Guid? AnnouncementId { get; private set; }
 
     public long? AnnouncementVersion { get; private set; }
+
+    public Guid TargetAnnouncementId { get; private set; }
+
+    public long TargetAnnouncementVersion { get; private set; }
 
     public string? Title { get; private set; }
 
@@ -108,6 +116,8 @@ public sealed class Notification
             messageId,
             null,
             null,
+            Guid.Empty,
+            0,
             null,
             null,
             now);
@@ -146,6 +156,8 @@ public sealed class Notification
             userId,
             sequence,
             null,
+            announcementId,
+            announcementVersion,
             announcementId,
             announcementVersion,
             normalizedTitle,

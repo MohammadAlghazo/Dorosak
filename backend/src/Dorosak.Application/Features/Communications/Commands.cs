@@ -106,13 +106,14 @@ public sealed record UpdateAnnouncementCommand(
     Guid AnnouncementId,
     string Title,
     string Body,
+    long ExpectedVersion,
     string IdempotencyKey) : IIdempotentCommand<AnnouncementResponse>, IAnnouncementAuthorizedRequest
 {
     public string IdempotencyOperation => "communications.announcement-update.v1";
 
     public string IdempotencyScope => $"user:{UserId:D}";
 
-    public object IdempotencyPayload => new { CourseId, AnnouncementId, Title, Body };
+    public object IdempotencyPayload => new { CourseId, AnnouncementId, Title, Body, ExpectedVersion };
 
     public int ResponseSchemaVersion => 1;
 
@@ -122,4 +123,5 @@ public sealed record UpdateAnnouncementCommand(
 public sealed record DeleteAnnouncementCommand(
     Guid UserId,
     Guid CourseId,
-    Guid AnnouncementId) : ITransactionalCommand<AnnouncementOperationResponse>, IAnnouncementAuthorizedRequest;
+    Guid AnnouncementId,
+    long ExpectedVersion) : ITransactionalCommand<AnnouncementOperationResponse>, IAnnouncementAuthorizedRequest;

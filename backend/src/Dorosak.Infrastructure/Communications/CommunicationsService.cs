@@ -22,6 +22,8 @@ internal sealed class CommunicationsService(
     TimeProvider timeProvider,
     CatalogCursorCodec cursorCodec) : ICommunicationsService, IConversationAccessReader, IAnnouncementAccessReader
 {
+    private const int AnnouncementRecipientLimit = 1000;
+
     public async Task<Result<ConversationPageResponse>> GetConversationsAsync(
         GetConversationsQuery request,
         CancellationToken cancellationToken)
@@ -44,11 +46,36 @@ internal sealed class CommunicationsService(
             return Result.Success(new ConversationPageResponse([], null, false));
         }
 
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        bool canManageAny = await HasPermissionAsync(request.UserId, Permissions.CourseManageAny, cancellationToken);
         IQueryable<Conversation> query =
             from conversation in dbContext.Conversations.AsNoTracking()
             join participant in dbContext.ConversationParticipants.AsNoTracking()
                 on conversation.Id equals participant.ConversationId
-            where participant.UserId == request.UserId && participant.LeftAt == null
+            where participant.UserId == request.UserId &&
+                participant.LeftAt == null &&
+                dbContext.Courses.Any(course =>
+                    course.Id == conversation.CourseId && course.DeletedAt == null) &&
+                (canManageAny ||
+                    dbContext.Courses.Any(course =>
+                        course.Id == conversation.CourseId &&
+                        course.OwnerUserId == request.UserId) ||
+                    dbContext.CourseInstructors.Any(instructor =>
+                        instructor.CourseId == conversation.CourseId &&
+                        instructor.UserId == request.UserId &&
+                        (instructor.Role == CourseCollaboratorRole.Editor ||
+                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
+                    dbContext.Enrollments.Any(enrollment =>
+                        enrollment.UserId == request.UserId &&
+                        enrollment.CourseId == conversation.CourseId &&
+                        (enrollment.Status == EnrollmentStatus.Active ||
+                            enrollment.Status == EnrollmentStatus.Completed) &&
+                        dbContext.Entitlements.Any(entitlement =>
+                            entitlement.Id == enrollment.EntitlementId &&
+                            entitlement.UserId == enrollment.UserId &&
+                            entitlement.CourseId == enrollment.CourseId &&
+                            entitlement.Status == EntitlementStatus.Active &&
+                            (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now))))
             select conversation;
         if (afterUpdatedAt is { } timestamp && afterId is { } id)
         {
@@ -110,7 +137,10 @@ internal sealed class CommunicationsService(
                         course.DeletedAt == null &&
                         course.OwnerUserId == user.Id) ||
                     dbContext.CourseInstructors.Any(instructor =>
-                        instructor.CourseId == request.CourseId && instructor.UserId == user.Id) ||
+                        instructor.CourseId == request.CourseId &&
+                        instructor.UserId == user.Id &&
+                        (instructor.Role == CourseCollaboratorRole.Editor ||
+                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
                     dbContext.Enrollments.Any(enrollment =>
                         enrollment.UserId == user.Id &&
                         enrollment.CourseId == request.CourseId &&
@@ -167,7 +197,7 @@ internal sealed class CommunicationsService(
             return NotFound<MessagePageResponse>();
         }
 
-        long latestSequence = await dbContext.Conversations.AsNoTracking()
+        long currentLatestSequence = await dbContext.Conversations.AsNoTracking()
             .Where(conversation => conversation.Id == request.ConversationId)
             .Select(conversation => conversation.LastSequence)
             .SingleAsync(cancellationToken);
@@ -189,15 +219,21 @@ internal sealed class CommunicationsService(
         IQueryable<CommunicationMessage> query = dbContext.Messages.AsNoTracking()
             .Where(message => message.ConversationId == request.ConversationId);
         List<CommunicationMessage> messages;
+        long latestSequence = currentLatestSequence;
         if (resync)
         {
-            if (!TryReadSequenceCursor(afterKey, request.AfterSequence!.Value, out long sequence))
+            if (!TryReadResyncCursor(
+                    afterKey,
+                    request.AfterSequence!.Value,
+                    currentLatestSequence,
+                    out long sequence,
+                    out latestSequence))
             {
                 return CursorInvalid<MessagePageResponse>();
             }
 
             messages = await query
-                .Where(message => message.Sequence > sequence)
+                .Where(message => message.Sequence > sequence && message.Sequence <= latestSequence)
                 .OrderBy(message => message.Sequence)
                 .Take(request.Limit + 1)
                 .ToListAsync(cancellationToken);
@@ -228,7 +264,7 @@ internal sealed class CommunicationsService(
                     canonicalQuery,
                     null,
                     null,
-                    page[^1].Sequence.ToString(CultureInfo.InvariantCulture))
+                    CreateResyncCursorKey(page[^1].Sequence, latestSequence))
                 : cursorCodec.Create("conversation-messages", canonicalQuery, page[^1].CreatedAt, page[^1].Id)
             : null;
         return Result.Success(new MessagePageResponse(responses, nextCursor, hasMore, latestSequence));
@@ -248,6 +284,14 @@ internal sealed class CommunicationsService(
             dbContext.Users.Any(user => user.Id == request.UserId && user.IsActive),
             cancellationToken);
         if (conversation is null)
+        {
+            return NotFound<MessageResponse>();
+        }
+        if (!await HasCurrentCourseAccessAsync(
+                request.UserId,
+                conversation.CourseId,
+                includeManageAny: true,
+                cancellationToken))
         {
             return NotFound<MessageResponse>();
         }
@@ -289,7 +333,7 @@ internal sealed class CommunicationsService(
         }
 
         dbContext.Messages.Add(message);
-        Guid[] recipientIds = await dbContext.ConversationParticipants.AsNoTracking()
+        Guid[] participantRecipientIds = await dbContext.ConversationParticipants.AsNoTracking()
             .Where(participant => participant.ConversationId == message.ConversationId &&
                 participant.UserId != message.SenderUserId &&
                 participant.LeftAt == null &&
@@ -297,6 +341,11 @@ internal sealed class CommunicationsService(
             .OrderBy(participant => participant.UserId)
             .Select(participant => participant.UserId)
             .ToArrayAsync(cancellationToken);
+        Guid[] recipientIds = await GetCurrentCourseAccessUserIdsAsync(
+            participantRecipientIds,
+            conversation.CourseId,
+            now,
+            cancellationToken);
         await AddMessageNotificationsAsync(
             message,
             recipientIds,
@@ -332,6 +381,18 @@ internal sealed class CommunicationsService(
         {
             return NotFound<ConversationOperationResponse>();
         }
+        Guid courseId = await dbContext.Conversations.AsNoTracking()
+            .Where(conversation => conversation.Id == request.ConversationId)
+            .Select(conversation => conversation.CourseId)
+            .SingleAsync(cancellationToken);
+        if (!await HasCurrentCourseAccessAsync(
+                request.UserId,
+                courseId,
+                includeManageAny: true,
+                cancellationToken))
+        {
+            return NotFound<ConversationOperationResponse>();
+        }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
         try
@@ -356,6 +417,14 @@ internal sealed class CommunicationsService(
         CancellationToken cancellationToken)
     {
         bool resync = request.AfterSequence.HasValue;
+        bool canManageAny = await HasPermissionAsync(
+            request.UserId,
+            Permissions.CourseManageAny,
+            cancellationToken);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        long currentLatestSequence = resync
+            ? await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken)
+            : 0;
         string canonicalQuery = resync
             ? $"notifications|{request.UserId:D}|sequence-asc|after:{request.AfterSequence}|{request.Limit}"
             : $"notifications|{request.UserId:D}|sequence-desc|{request.Limit}";
@@ -370,18 +439,26 @@ internal sealed class CommunicationsService(
             return CursorInvalid<NotificationPageResponse>();
         }
 
-        IQueryable<Notification> query = dbContext.Notifications.AsNoTracking()
-            .Where(notification => notification.UserId == request.UserId);
+        IQueryable<Notification> query = GetAuthorizedNotificationQuery(
+            request.UserId,
+            canManageAny,
+            now);
         List<Notification> notifications;
+        long latestSequence = currentLatestSequence;
         if (resync)
         {
-            if (!TryReadSequenceCursor(afterKey, request.AfterSequence!.Value, out long sequence))
+            if (!TryReadResyncCursor(
+                    afterKey,
+                    request.AfterSequence!.Value,
+                    currentLatestSequence,
+                    out long sequence,
+                    out latestSequence))
             {
                 return CursorInvalid<NotificationPageResponse>();
             }
 
             notifications = await query
-                .Where(notification => notification.Sequence > sequence)
+                .Where(notification => notification.Sequence > sequence && notification.Sequence <= latestSequence)
                 .OrderBy(notification => notification.Sequence)
                 .Take(request.Limit + 1)
                 .ToListAsync(cancellationToken);
@@ -412,11 +489,19 @@ internal sealed class CommunicationsService(
                 canonicalQuery,
                 null,
                 null,
-                page[^1].Sequence.ToString(CultureInfo.InvariantCulture))
+                resync
+                    ? CreateResyncCursorKey(page[^1].Sequence, latestSequence)
+                    : page[^1].Sequence.ToString(CultureInfo.InvariantCulture))
             : null;
-        (long latestSequence, long unreadCount) = await GetNotificationSummaryAsync(
+        long unreadCount = await GetUnreadNotificationCountAsync(
             request.UserId,
+            canManageAny,
+            now,
             cancellationToken);
+        if (!resync)
+        {
+            latestSequence = await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken);
+        }
         return Result.Success(new NotificationPageResponse(
             responses,
             nextCursor,
@@ -429,8 +514,16 @@ internal sealed class CommunicationsService(
         GetNotificationUnreadCountQuery request,
         CancellationToken cancellationToken)
     {
-        (long latestSequence, long unreadCount) = await GetNotificationSummaryAsync(
+        bool canManageAny = await HasPermissionAsync(
             request.UserId,
+            Permissions.CourseManageAny,
+            cancellationToken);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        long latestSequence = await GetLatestNotificationSequenceAsync(request.UserId, cancellationToken);
+        long unreadCount = await GetUnreadNotificationCountAsync(
+            request.UserId,
+            canManageAny,
+            now,
             cancellationToken);
         return Result.Success(new NotificationUnreadCountResponse(unreadCount, latestSequence));
     }
@@ -439,9 +532,18 @@ internal sealed class CommunicationsService(
         MarkNotificationReadCommand request,
         CancellationToken cancellationToken)
     {
-        Notification? notification = await dbContext.Notifications.SingleOrDefaultAsync(
-            candidate => candidate.Id == request.NotificationId && candidate.UserId == request.UserId,
+        bool canManageAny = await HasPermissionAsync(
+            request.UserId,
+            Permissions.CourseManageAny,
             cancellationToken);
+        Notification? notification = await GetAuthorizedNotificationQuery(
+                request.UserId,
+                canManageAny,
+                timeProvider.GetUtcNow())
+            .AsTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == request.NotificationId,
+                cancellationToken);
         if (notification is null)
         {
             return NotificationNotFound<NotificationResponse>();
@@ -461,7 +563,14 @@ internal sealed class CommunicationsService(
             .Select(sequence => sequence.LastSequence)
             .SingleOrDefaultAsync(cancellationToken);
         DateTimeOffset now = timeProvider.GetUtcNow();
-        int updatedCount = await dbContext.Notifications
+        bool canManageAny = await HasPermissionAsync(
+            request.UserId,
+            Permissions.CourseManageAny,
+            cancellationToken);
+        int updatedCount = await GetAuthorizedNotificationQuery(
+                request.UserId,
+                canManageAny,
+                now)
             .Where(notification => notification.UserId == request.UserId &&
                 !notification.IsRead &&
                 notification.Sequence <= throughSequence)
@@ -520,14 +629,22 @@ internal sealed class CommunicationsService(
         CreateAnnouncementCommand request,
         CancellationToken cancellationToken)
     {
-        if (!await dbContext.Courses.AsNoTracking().AnyAsync(
-                course => course.Id == request.CourseId && course.DeletedAt == null,
-                cancellationToken))
+        if (!await LockCourseAsync(request.CourseId, cancellationToken) ||
+            !await CanManageCourseAsync(request.UserId, request.CourseId, cancellationToken))
         {
             return AnnouncementNotFound<AnnouncementResponse>();
         }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
+        Guid[] recipientIds = await GetEligibleAnnouncementRecipientIdsAsync(
+            request.CourseId,
+            now,
+            cancellationToken);
+        if (recipientIds.Length > AnnouncementRecipientLimit)
+        {
+            return AnnouncementAudienceLimitExceeded<AnnouncementResponse>();
+        }
+
         Announcement announcement;
         try
         {
@@ -539,10 +656,6 @@ internal sealed class CommunicationsService(
         }
 
         dbContext.Announcements.Add(announcement);
-        Guid[] recipientIds = await GetEligibleAnnouncementRecipientIdsAsync(
-            announcement.CourseId,
-            now,
-            cancellationToken);
         await AddAnnouncementNotificationsAsync(
             announcement,
             recipientIds,
@@ -568,7 +681,11 @@ internal sealed class CommunicationsService(
         UpdateAnnouncementCommand request,
         CancellationToken cancellationToken)
     {
-        await LockAnnouncementAsync(request.AnnouncementId, cancellationToken);
+        if (!await LockCourseAsync(request.CourseId, cancellationToken) ||
+            !await CanManageCourseAsync(request.UserId, request.CourseId, cancellationToken))
+        {
+            return AnnouncementNotFound<AnnouncementResponse>();
+        }
         Announcement? announcement = await dbContext.Announcements.SingleOrDefaultAsync(
             candidate => candidate.Id == request.AnnouncementId &&
                 candidate.CourseId == request.CourseId &&
@@ -578,8 +695,26 @@ internal sealed class CommunicationsService(
         {
             return AnnouncementNotFound<AnnouncementResponse>();
         }
+        if (announcement.Version != request.ExpectedVersion)
+        {
+            return AnnouncementVersionConflict<AnnouncementResponse>();
+        }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
+        bool contentWillChange =
+            !string.Equals(announcement.Title, request.Title.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(announcement.Body, request.Body.Trim(), StringComparison.Ordinal);
+        Guid[] recipientIds = contentWillChange
+            ? await GetEligibleAnnouncementRecipientIdsAsync(
+                announcement.CourseId,
+                now,
+                cancellationToken)
+            : [];
+        if (recipientIds.Length > AnnouncementRecipientLimit)
+        {
+            return AnnouncementAudienceLimitExceeded<AnnouncementResponse>();
+        }
+
         bool changed;
         try
         {
@@ -593,10 +728,6 @@ internal sealed class CommunicationsService(
         long targetCount;
         if (changed)
         {
-            Guid[] recipientIds = await GetEligibleAnnouncementRecipientIdsAsync(
-                announcement.CourseId,
-                now,
-                cancellationToken);
             await AddAnnouncementNotificationsAsync(
                 announcement,
                 recipientIds,
@@ -632,13 +763,21 @@ internal sealed class CommunicationsService(
         DeleteAnnouncementCommand request,
         CancellationToken cancellationToken)
     {
-        await LockAnnouncementAsync(request.AnnouncementId, cancellationToken);
+        if (!await LockCourseAsync(request.CourseId, cancellationToken) ||
+            !await CanManageCourseAsync(request.UserId, request.CourseId, cancellationToken))
+        {
+            return AnnouncementNotFound<AnnouncementOperationResponse>();
+        }
         Announcement? announcement = await dbContext.Announcements.SingleOrDefaultAsync(
             candidate => candidate.Id == request.AnnouncementId && candidate.CourseId == request.CourseId,
             cancellationToken);
         if (announcement is null)
         {
             return AnnouncementNotFound<AnnouncementOperationResponse>();
+        }
+        if (announcement.Version != request.ExpectedVersion)
+        {
+            return AnnouncementVersionConflict<AnnouncementOperationResponse>();
         }
 
         DateTimeOffset now = timeProvider.GetUtcNow();
@@ -716,16 +855,26 @@ internal sealed class CommunicationsService(
         return await FindAnnouncementAsync(courseId, announcementId, cancellationToken);
     }
 
-    public Task<bool> CanAccessAsync(
+    public async Task<bool> CanAccessAsync(
         Guid userId,
         Guid conversationId,
-        CancellationToken cancellationToken) =>
-        dbContext.ConversationParticipants.AsNoTracking().AnyAsync(participant =>
-            participant.ConversationId == conversationId &&
-            participant.UserId == userId &&
-            participant.LeftAt == null &&
-            dbContext.Users.Any(user => user.Id == userId && user.IsActive),
+        CancellationToken cancellationToken)
+    {
+        Guid? courseId = await (
+            from participant in dbContext.ConversationParticipants.AsNoTracking()
+            join conversation in dbContext.Conversations.AsNoTracking()
+                on participant.ConversationId equals conversation.Id
+            where participant.ConversationId == conversationId &&
+                participant.UserId == userId &&
+                participant.LeftAt == null &&
+                dbContext.Users.Any(user => user.Id == userId && user.IsActive)
+            select (Guid?)conversation.CourseId).SingleOrDefaultAsync(cancellationToken);
+        return courseId is { } id && await HasCurrentCourseAccessAsync(
+            userId,
+            id,
+            includeManageAny: true,
             cancellationToken);
+    }
 
     public async Task<bool> CanManageCourseAsync(
         Guid userId,
@@ -733,7 +882,9 @@ internal sealed class CommunicationsService(
         CancellationToken cancellationToken)
     {
         bool courseExists = await dbContext.Courses.AsNoTracking().AnyAsync(
-            course => course.Id == courseId && course.DeletedAt == null,
+            course => course.Id == courseId &&
+                course.DeletedAt == null &&
+                dbContext.Users.Any(user => user.Id == userId && user.IsActive),
             cancellationToken);
         if (!courseExists)
         {
@@ -1069,23 +1220,109 @@ internal sealed class CommunicationsService(
         Guid courseId,
         DateTimeOffset now,
         CancellationToken cancellationToken) =>
-        await (
-            from enrollment in dbContext.Enrollments.AsNoTracking()
-            join entitlement in dbContext.Entitlements.AsNoTracking()
-                on enrollment.EntitlementId equals entitlement.Id
-            join user in dbContext.Users.AsNoTracking()
-                on enrollment.UserId equals user.Id
-            where enrollment.CourseId == courseId &&
-                user.IsActive &&
-                (enrollment.Status == EnrollmentStatus.Active || enrollment.Status == EnrollmentStatus.Completed) &&
-                entitlement.UserId == enrollment.UserId &&
-                entitlement.CourseId == enrollment.CourseId &&
-                entitlement.Status == EntitlementStatus.Active &&
-                (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)
-            select enrollment.UserId)
-        .Distinct()
-        .OrderBy(userId => userId)
-        .ToArrayAsync(cancellationToken);
+        await dbContext.Database.SqlQuery<Guid>(
+                $"""
+                SELECT enrollment.user_id AS "Value"
+                FROM learning.enrollments AS enrollment
+                INNER JOIN learning.entitlements AS entitlement
+                    ON entitlement.id = enrollment.entitlement_id
+                INNER JOIN identity.users AS recipient
+                    ON recipient.id = enrollment.user_id
+                WHERE enrollment.course_id = {courseId}
+                  AND enrollment.status IN ('Active', 'Completed')
+                  AND entitlement.user_id = enrollment.user_id
+                  AND entitlement.course_id = enrollment.course_id
+                  AND entitlement.status = 'Active'
+                  AND (entitlement.expires_at IS NULL OR entitlement.expires_at > {now})
+                  AND recipient.is_active
+                ORDER BY enrollment.user_id
+                LIMIT {AnnouncementRecipientLimit + 1}
+                FOR SHARE OF enrollment, entitlement
+                """)
+            .ToArrayAsync(cancellationToken);
+
+    private async Task<Guid[]> GetCurrentCourseAccessUserIdsAsync(
+        Guid[] userIds,
+        Guid courseId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Length == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.Users.AsNoTracking()
+            .Where(user => userIds.Contains(user.Id) && user.IsActive &&
+                dbContext.Courses.Any(course => course.Id == courseId && course.DeletedAt == null) &&
+                (dbContext.Courses.Any(course => course.Id == courseId && course.OwnerUserId == user.Id) ||
+                    dbContext.CourseInstructors.Any(instructor =>
+                        instructor.CourseId == courseId &&
+                        instructor.UserId == user.Id &&
+                        (instructor.Role == CourseCollaboratorRole.Editor ||
+                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
+                    dbContext.Enrollments.Any(enrollment =>
+                        enrollment.UserId == user.Id &&
+                        enrollment.CourseId == courseId &&
+                        (enrollment.Status == EnrollmentStatus.Active ||
+                            enrollment.Status == EnrollmentStatus.Completed) &&
+                        dbContext.Entitlements.Any(entitlement =>
+                            entitlement.Id == enrollment.EntitlementId &&
+                            entitlement.UserId == enrollment.UserId &&
+                            entitlement.CourseId == enrollment.CourseId &&
+                            entitlement.Status == EntitlementStatus.Active &&
+                            (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now))) ||
+                    dbContext.UserRoles.Any(role =>
+                        role.UserId == user.Id &&
+                        dbContext.RoleClaims.Any(claim =>
+                            claim.RoleId == role.RoleId &&
+                            claim.ClaimType == IdentityConstants.PermissionClaimType &&
+                            claim.ClaimValue == Permissions.CourseManageAny))))
+            .OrderBy(user => user.Id)
+            .Select(user => user.Id)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private async Task<bool> HasCurrentCourseAccessAsync(
+        Guid userId,
+        Guid courseId,
+        bool includeManageAny,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        bool hasCourseAccess = await dbContext.Users.AsNoTracking().AnyAsync(user =>
+            user.Id == userId &&
+            user.IsActive &&
+            dbContext.Courses.Any(course =>
+                course.Id == courseId &&
+                course.DeletedAt == null &&
+                (course.OwnerUserId == userId ||
+                    dbContext.CourseInstructors.Any(instructor =>
+                        instructor.CourseId == courseId &&
+                        instructor.UserId == userId &&
+                        (instructor.Role == CourseCollaboratorRole.Editor ||
+                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
+                    dbContext.Enrollments.Any(enrollment =>
+                        enrollment.UserId == userId &&
+                        enrollment.CourseId == courseId &&
+                        (enrollment.Status == EnrollmentStatus.Active ||
+                            enrollment.Status == EnrollmentStatus.Completed) &&
+                        dbContext.Entitlements.Any(entitlement =>
+                            entitlement.Id == enrollment.EntitlementId &&
+                            entitlement.UserId == enrollment.UserId &&
+                            entitlement.CourseId == enrollment.CourseId &&
+                            entitlement.Status == EntitlementStatus.Active &&
+                            (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now))))),
+            cancellationToken);
+        return hasCourseAccess || includeManageAny &&
+            await dbContext.Users.AsNoTracking().AnyAsync(
+                user => user.Id == userId && user.IsActive,
+                cancellationToken) &&
+            await dbContext.Courses.AsNoTracking().AnyAsync(
+                course => course.Id == courseId && course.DeletedAt == null,
+                cancellationToken) &&
+            await HasPermissionAsync(userId, Permissions.CourseManageAny, cancellationToken);
+    }
 
     private Task<long> GetAnnouncementTargetCountAsync(
         Guid announcementId,
@@ -1095,38 +1332,102 @@ internal sealed class CommunicationsService(
             target => target.AnnouncementId == announcementId && target.AnnouncementVersion == version,
             cancellationToken);
 
-    private async Task<(long LatestSequence, long UnreadCount)> GetNotificationSummaryAsync(
+    private IQueryable<Notification> GetAuthorizedNotificationQuery(
         Guid userId,
-        CancellationToken cancellationToken)
+        bool canManageAny,
+        DateTimeOffset now)
     {
-        long latestSequence = await dbContext.NotificationSequences.AsNoTracking()
+        IQueryable<Course> accessibleCourses = dbContext.Courses.AsNoTracking()
+            .Where(course => course.DeletedAt == null &&
+                (canManageAny ||
+                    course.OwnerUserId == userId ||
+                    dbContext.CourseInstructors.Any(instructor =>
+                        instructor.CourseId == course.Id &&
+                        instructor.UserId == userId &&
+                        (instructor.Role == CourseCollaboratorRole.Editor ||
+                            instructor.Role == CourseCollaboratorRole.CoInstructor)) ||
+                    dbContext.Enrollments.Any(enrollment =>
+                        enrollment.UserId == userId &&
+                        enrollment.CourseId == course.Id &&
+                        (enrollment.Status == EnrollmentStatus.Active ||
+                            enrollment.Status == EnrollmentStatus.Completed) &&
+                        dbContext.Entitlements.Any(entitlement =>
+                            entitlement.Id == enrollment.EntitlementId &&
+                            entitlement.UserId == enrollment.UserId &&
+                            entitlement.CourseId == enrollment.CourseId &&
+                            entitlement.Status == EntitlementStatus.Active &&
+                            (entitlement.ExpiresAt == null || entitlement.ExpiresAt > now)))));
+
+        return dbContext.Notifications.AsNoTracking()
+            .Where(notification =>
+                notification.UserId == userId &&
+                dbContext.Users.Any(user => user.Id == userId && user.IsActive) &&
+                ((notification.MessageId.HasValue &&
+                    dbContext.Messages.Any(message =>
+                        message.Id == notification.MessageId.Value &&
+                        dbContext.ConversationParticipants.Any(participant =>
+                            participant.ConversationId == message.ConversationId &&
+                            participant.UserId == userId &&
+                            participant.LeftAt == null) &&
+                        dbContext.Conversations.Any(conversation =>
+                            conversation.Id == message.ConversationId &&
+                            accessibleCourses.Any(course => course.Id == conversation.CourseId)))) ||
+                    (notification.AnnouncementId.HasValue &&
+                        dbContext.Announcements.Any(announcement =>
+                            announcement.Id == notification.AnnouncementId.Value &&
+                            accessibleCourses.Any(course => course.Id == announcement.CourseId)))));
+    }
+
+    private Task<long> GetLatestNotificationSequenceAsync(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        dbContext.NotificationSequences.AsNoTracking()
             .Where(sequence => sequence.UserId == userId)
             .Select(sequence => sequence.LastSequence)
             .SingleOrDefaultAsync(cancellationToken);
-        long unreadCount = await dbContext.Notifications.AsNoTracking()
-            .LongCountAsync(notification => notification.UserId == userId && !notification.IsRead, cancellationToken);
-        return (latestSequence, unreadCount);
-    }
+
+    private Task<long> GetUnreadNotificationCountAsync(
+        Guid userId,
+        bool canManageAny,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        GetAuthorizedNotificationQuery(userId, canManageAny, now)
+            .LongCountAsync(notification => !notification.IsRead, cancellationToken);
 
     private Task<int> LockNotificationSequenceAsync(Guid userId, CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({$"notification-sequence:{userId:D}"}, 0))",
             cancellationToken);
 
-    private Task<int> LockAnnouncementAsync(Guid announcementId, CancellationToken cancellationToken) =>
-        dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtextextended({$"announcement:{announcementId:D}"}, 0))",
-            cancellationToken);
+    private async Task<bool> LockCourseAsync(Guid courseId, CancellationToken cancellationToken) =>
+        await dbContext.Database.SqlQuery<int>(
+                $"SELECT 1 AS \"Value\" FROM catalog.courses WHERE id = {courseId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken) == 1;
 
-    private static bool TryReadSequenceCursor(string? value, long expected, out long sequence)
+    private static string CreateResyncCursorKey(long sequence, long watermark) =>
+        $"{sequence.ToString(CultureInfo.InvariantCulture)}:{watermark.ToString(CultureInfo.InvariantCulture)}";
+
+    private static bool TryReadResyncCursor(
+        string? value,
+        long expected,
+        long currentWatermark,
+        out long sequence,
+        out long watermark)
     {
-        if (!long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out sequence) || sequence < expected)
+        sequence = expected;
+        watermark = currentWatermark;
+        if (value is null)
         {
-            sequence = expected;
-            return value is null;
+            return true;
         }
 
-        return true;
+        string[] parts = value.Split(':', 2);
+        return parts.Length == 2 &&
+            long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out sequence) &&
+            long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out watermark) &&
+            sequence >= expected &&
+            watermark >= sequence &&
+            watermark <= currentWatermark;
     }
 
     private static bool TryReadDescendingSequenceCursor(string? value, out long? sequence)
@@ -1192,6 +1493,14 @@ internal sealed class CommunicationsService(
     private static Result<T> AnnouncementNotFound<T>() => Result.Failure<T>(ResultError.NotFound(
         "ANNOUNCEMENT.NOT_FOUND",
         "The announcement was not found or is not available to this account."));
+
+    private static Result<T> AnnouncementVersionConflict<T>() => Result.Failure<T>(ResultError.Conflict(
+        "ANNOUNCEMENT.VERSION_CONFLICT",
+        "The announcement was changed by another request."));
+
+    private static Result<T> AnnouncementAudienceLimitExceeded<T>() => Result.Failure<T>(ResultError.BusinessRule(
+        "ANNOUNCEMENT.AUDIENCE_LIMIT_EXCEEDED",
+        $"Announcement delivery is limited to {AnnouncementRecipientLimit} recipients during beta."));
 
     private static Result<T> CursorInvalid<T>() => Result.Failure<T>(ResultError.BusinessRule(
         "CURSOR.INVALID",

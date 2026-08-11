@@ -25,6 +25,8 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
     [HttpGet]
     [PermissionPolicy(Permissions.AnnouncementManageCourse)]
     [ProducesResponseType<ApiResponse<AnnouncementPageResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> GetAll(
         Guid courseId,
         [FromQuery] int limit = 20,
@@ -42,6 +44,7 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
     [PermissionPolicy(Permissions.AnnouncementManageCourse)]
     [ProducesResponseType<ApiResponse<AnnouncementResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Get(Guid courseId, Guid announcementId, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId)) return Unauthorized();
@@ -59,7 +62,7 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Create(
         Guid courseId,
-        AnnouncementRequest request,
+        CreateAnnouncementRequest request,
         [FromHeader(Name = "Idempotency-Key"), StringLength(200, MinimumLength = 1)] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -85,7 +88,7 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
     public async Task<IActionResult> Update(
         Guid courseId,
         Guid announcementId,
-        AnnouncementRequest request,
+        UpdateAnnouncementRequest request,
         [FromHeader(Name = "Idempotency-Key"), StringLength(200, MinimumLength = 1)] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
@@ -96,7 +99,14 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
         }
 
         Result<AnnouncementResponse> result = await sender.Send(
-            new UpdateAnnouncementCommand(userId, courseId, announcementId, request.Title, request.Body, key),
+            new UpdateAnnouncementCommand(
+                userId,
+                courseId,
+                announcementId,
+                request.Title,
+                request.Body,
+                request.ExpectedVersion,
+                key),
             cancellationToken);
         return this.ToActionResult(result);
     }
@@ -105,11 +115,17 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
     [PermissionPolicy(Permissions.AnnouncementManageCourse)]
     [ProducesResponseType<ApiResponse<AnnouncementOperationResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid courseId, Guid announcementId, CancellationToken cancellationToken)
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Delete(
+        Guid courseId,
+        Guid announcementId,
+        [FromQuery, Required] long expectedVersion,
+        CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out Guid userId)) return Unauthorized();
         Result<AnnouncementOperationResponse> result = await sender.Send(
-            new DeleteAnnouncementCommand(userId, courseId, announcementId),
+            new DeleteAnnouncementCommand(userId, courseId, announcementId, expectedVersion),
             cancellationToken);
         return this.ToActionResult(result);
     }
@@ -128,4 +144,16 @@ public sealed class AnnouncementsController(ISender sender) : ControllerBase
             "Idempotency-Key is required.")));
 }
 
-public sealed record AnnouncementRequest(string Title, string Body);
+public sealed record CreateAnnouncementRequest(string Title, string Body);
+
+public sealed record UpdateAnnouncementRequest
+{
+    [Required]
+    public required string Title { get; init; }
+
+    [Required]
+    public required string Body { get; init; }
+
+    [Required]
+    public required long ExpectedVersion { get; init; }
+}

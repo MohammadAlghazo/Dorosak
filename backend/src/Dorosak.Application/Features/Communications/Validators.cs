@@ -84,6 +84,7 @@ internal sealed class UpdateAnnouncementCommandValidator : AbstractValidator<Upd
         RuleFor(request => request.AnnouncementId).NotEmpty();
         RuleFor(request => request.Title).NotEmpty().MaximumLength(200);
         RuleFor(request => request.Body).NotEmpty().MaximumLength(10000);
+        RuleFor(request => request.ExpectedVersion).GreaterThanOrEqualTo(1);
         RuleFor(request => request.IdempotencyKey).NotEmpty().MaximumLength(200);
     }
 }
@@ -95,6 +96,7 @@ internal sealed class DeleteAnnouncementCommandValidator : AbstractValidator<Del
         RuleFor(request => request.UserId).NotEmpty();
         RuleFor(request => request.CourseId).NotEmpty();
         RuleFor(request => request.AnnouncementId).NotEmpty();
+        RuleFor(request => request.ExpectedVersion).GreaterThanOrEqualTo(1);
     }
 }
 

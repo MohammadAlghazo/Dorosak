@@ -114,6 +114,8 @@ public sealed class CommunicationTests
 
         Assert.Equal(ownerId, notification.UserId);
         Assert.Equal(1, notification.Sequence);
+        Assert.Equal(Guid.Empty, notification.TargetAnnouncementId);
+        Assert.Equal(0, notification.TargetAnnouncementVersion);
         Assert.Equal(2, sequence.Advance());
         Assert.True(notification.MarkRead(now.AddSeconds(1)));
         Assert.False(notification.MarkRead(now.AddSeconds(2)));
@@ -149,6 +151,8 @@ public sealed class CommunicationTests
         Assert.Equal("Course update", announcement.Title);
         Assert.Equal("Durable learner announcement.", announcement.Body);
         Assert.Equal(announcement.Version, notification.AnnouncementVersion);
+        Assert.Equal(announcement.Id, notification.TargetAnnouncementId);
+        Assert.Equal(announcement.Version, notification.TargetAnnouncementVersion);
         Assert.Equal(notification.UserId, target.UserId);
         Assert.True(announcement.Update("Course update revised", "Revised body.", now.AddMinutes(1)));
         Assert.Equal(2, announcement.Version);
