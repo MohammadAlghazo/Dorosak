@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param(
-    [switch]$Force
+    [switch]$Force,
+
+    [ValidateRange(1024, 65535)]
+    [int]$PostgresPort = 54329
 )
 
 Set-StrictMode -Version Latest
@@ -51,7 +54,7 @@ function New-PostgresConnectionString {
 
     $builder = [Data.Common.DbConnectionStringBuilder]::new()
     $builder["Host"] = "127.0.0.1"
-    $builder["Port"] = 5432
+    $builder["Port"] = $PostgresPort
     $builder["Database"] = "dorosak_dev"
     $builder["Username"] = $Username
     $builder["Password"] = $Password
@@ -82,7 +85,7 @@ $redisPassword = New-UrlSafeSecret
 
 $lines = @(
     "DOROSAK_POSTGRES_DATABASE=dorosak_dev",
-    "DOROSAK_POSTGRES_PORT=5432",
+    "DOROSAK_POSTGRES_PORT=$PostgresPort",
     "DOROSAK_POSTGRES_OWNER_PASSWORD=$ownerPassword",
     "DOROSAK_POSTGRES_MIGRATOR_PASSWORD=$migratorPassword",
     "DOROSAK_POSTGRES_APP_PASSWORD=$runtimePassword",

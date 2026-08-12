@@ -36,6 +36,7 @@ public static class DependencyInjection
         AddCommunicationsHandlers(services);
         AddEngagementHandlers(services);
         AddModerationHandlers(services);
+        AddAnalyticsHandlers(services);
         AddEngagementAuthorization(services);
         AddCommunicationsAuthorization(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
@@ -335,6 +336,12 @@ public static class DependencyInjection
             Common.Results.Result<Features.Moderation.ModerationCaseResponse>>,
             Features.Moderation.ApplyModerationActionReplayHandler>();
     }
+
+    private static void AddAnalyticsHandlers(IServiceCollection services) =>
+        services.AddTransient<MediatR.IRequestHandler<
+            Features.Analytics.GetAdminAnalyticsOverviewQuery,
+            Common.Results.Result<Features.Analytics.AdminAnalyticsOverviewResponse>>,
+            Features.Analytics.GetAdminAnalyticsOverviewQueryHandler>();
 
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>

@@ -76,6 +76,19 @@ import { LocaleService } from '../../core/i18n/locale.service';
             </p>
           </a>
         }
+        @if (session.hasPermission('Analytics.Read')) {
+          <a class="admin-action-card" [routerLink]="['analytics']">
+            <span>05</span>
+            <h2>{{ locale.locale() === 'ar' ? 'نبض المنصة' : 'Platform pulse' }}</h2>
+            <p>
+              {{
+                locale.locale() === 'ar'
+                  ? 'مؤشرات مجمعة وصحة طوابير الديمو.'
+                  : 'Aggregate indicators and demo queue health.'
+              }}
+            </p>
+          </a>
+        }
       </div>
     </section>
   `,

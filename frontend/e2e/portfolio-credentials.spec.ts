@@ -70,10 +70,8 @@ const expectNoHorizontalOverflow = async (page: Page): Promise<void> => {
       .map((element) => ({
         tag: element.tagName.toLowerCase(),
         className: element.className,
-        text: element.textContent?.trim().slice(0, 80) ?? '',
+        text: element.textContent.trim().slice(0, 80),
         href: element instanceof HTMLAnchorElement ? element.href : '',
-        parent: element.parentElement?.className ?? '',
-        viewportWidth,
         left: element.getBoundingClientRect().left,
         right: element.getBoundingClientRect().right,
       }))

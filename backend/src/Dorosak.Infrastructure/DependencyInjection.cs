@@ -5,6 +5,7 @@ using Dorosak.Application.Common.Persistence;
 using Dorosak.Application.Features.Media;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Caching;
+using Dorosak.Infrastructure.Analytics;
 using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Commerce;
 using Dorosak.Infrastructure.Communications;
@@ -60,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Engagement.IDiscussionAccessReader>(provider =>
             provider.GetRequiredService<EngagementService>());
         services.AddScoped<Application.Features.Moderation.IModerationService, ModerationService>();
+        services.AddScoped<Application.Features.Analytics.IAnalyticsService, AnalyticsService>();
         services.AddScoped<Phase6Service>();
         services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());

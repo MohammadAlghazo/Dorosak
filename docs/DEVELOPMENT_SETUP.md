@@ -7,7 +7,7 @@
 
 | Service | Local endpoint | Purpose |
 |---|---|---|
-| PostgreSQL | `127.0.0.1:5432` | قاعدة بيانات الديمو المحلية |
+| PostgreSQL | `127.0.0.1:54329` | قاعدة بيانات الديمو المحلية |
 | Redis | `127.0.0.1:6380` | cache, rate-limit، وتجارب SignalR |
 | MinIO API | `http://127.0.0.1:9100` | S3-compatible object storage |
 | MinIO Console | `http://127.0.0.1:9101` | إدارة التخزين المحلي |
@@ -29,6 +29,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-
 ينشئ الأمر `.env.local` بقيم عشوائية لخدمات الجهاز فقط. الملف مستبعد من Git، ولا يطبع secrets. على Windows
 تُقيد ACL تلقائيًا بالمستخدم الحالي و`SYSTEM` وAdministrators.
 
+إذا كان `.env.local` موجودًا من إعداد Neon القديم، أوقف containers ثم أنشئ العقد المحلي مرة واحدة:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-LocalEnvironment.ps1 -Force
+```
+
+المنفذ الافتراضي لـPostgreSQL هو `54329`. إذا كان محجوزًا، اختر منفذًا آخر أثناء الإنشاء، مثل
+`-PostgresPort 54330`؛ يولد السكربت env والاتصالين المتطابقين تلقائيًا.
+
 شغّل PostgreSQL المحلي ثم أنشئ schema roles وطبّق EF migrations:
 
 ```powershell
@@ -38,7 +47,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-
 يستخدم API حساب `dorosak_app` محدود الصلاحيات، بينما تستخدم EF migrations حساب `dorosak_migrator`. لا يستخدم التطبيق
 حساب `dorosak_owner`. يبقى `Initialize-NeonDatabase.ps1` متاحًا فقط إذا اختير Neon مستقبلًا.
 
-لا تستخدم `-Force` إلا عند تدوير credentials المحلية عمدًا. التدوير يتطلب إعادة إنشاء containers التي تعتمد عليها.
+بعد الانتقال الأول لا تستخدم `-Force` إلا عند تدوير credentials المحلية عمدًا. التدوير يتطلب إعادة إنشاء containers
+التي تعتمد عليها.
 
 ## تشغيل الخدمات
 

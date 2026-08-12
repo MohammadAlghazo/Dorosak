@@ -701,6 +701,21 @@ export const routes: Routes = [
               permission: 'Catalog.ManageTaxonomy',
             },
           },
+          {
+            path: 'analytics',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/analytics-page.component').then(
+                (module) => module.AnalyticsPageComponent,
+              ),
+            data: {
+              titleAr: 'نبض المنصة',
+              titleEn: 'Platform pulse',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Analytics.Read',
+            },
+          },
         ],
       },
       {

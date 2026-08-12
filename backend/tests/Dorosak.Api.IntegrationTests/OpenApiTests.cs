@@ -137,6 +137,13 @@ public sealed class OpenApiTests(ApiFixture fixture)
             out JsonElement certificateRevocation));
         Assert.True(FindHeader(certificateRevocation.GetProperty("post"), "X-Audit-Reason")
             .GetProperty("required").GetBoolean());
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/admin/analytics/overview",
+            out JsonElement analyticsOverview));
+        JsonElement getAnalyticsOverview = analyticsOverview.GetProperty("get");
+        Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("200", out _));
+        Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("401", out _));
+        Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("403", out _));
 
         Assert.Equal(HttpStatusCode.OK, uiResponse.StatusCode);
         string csp = uiResponse.Headers.GetValues("Content-Security-Policy").Single();

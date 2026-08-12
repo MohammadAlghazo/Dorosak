@@ -13,6 +13,8 @@ corresponding Arabic/English Angular workspaces.
 Phase 9 is locally implemented: course reviews, release-scoped discussions, authenticated reports, audited moderation,
 assessment audiences, secure PDF assignment attachments, conversations, notifications, announcements, and SignalR
 reconnect/resynchronization are available in the Arabic/English Angular workspaces.
+Phase 10 is also locally implemented: `100 DEMO` checkout, a no-billing demo subscription, automatic completion
+certificates, public verification, revocation, and printable Arabic/English certificate views.
 Processed profile/course images can optionally use Cloudinary after quarantine scanning and FFmpeg re-encoding; the adapter
 is disabled by default and no credentials are committed. New production video uploads are intentionally deferred until the
 storage/processing/CDN server is chosen; the provider-neutral local pipeline remains available for development and tests.

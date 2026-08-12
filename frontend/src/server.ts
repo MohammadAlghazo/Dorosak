@@ -6,6 +6,7 @@ import {
 } from '@angular/ssr/node';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
@@ -31,6 +32,8 @@ app.use((request, response, next) => {
     return;
   }
 
+  const cspNonce = randomBytes(18).toString('base64url');
+  response.locals['cspNonce'] = cspNonce;
   response.setHeader(
     'Content-Security-Policy',
     [
@@ -43,8 +46,8 @@ app.use((request, response, next) => {
       "img-src 'self' data:",
       "manifest-src 'self'",
       "object-src 'none'",
-      "script-src 'self'",
-      "style-src 'self'",
+      `script-src 'self' 'nonce-${cspNonce}'`,
+      `style-src 'self' 'nonce-${cspNonce}'`,
       "worker-src 'self'",
     ].join('; '),
   );
@@ -116,6 +119,11 @@ app.use(
 );
 
 app.use((request, response, next) => {
+  const cspNonce: unknown = response.locals['cspNonce'];
+  if (typeof cspNonce !== 'string') {
+    next(new Error('The CSP nonce is unavailable.'));
+    return;
+  }
   response.setHeader('Vary', 'Accept-Encoding');
   response.setHeader(
     'Cache-Control',
@@ -124,10 +132,13 @@ app.use((request, response, next) => {
       : 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   );
   angularApp
-    .handle(request)
+    .handle(request, { cspNonce })
     .then(async (angularResponse) => {
-      if (angularResponse) await writeResponseToNodeResponse(angularResponse, response);
-      else next();
+      if (!angularResponse) {
+        next();
+        return;
+      }
+      await writeResponseToNodeResponse(await applyCspNonce(angularResponse, cspNonce), response);
     })
     .catch(next);
 });
@@ -190,4 +201,22 @@ function isPrivateRoute(path: string): boolean {
     (/^\/(?:ar|en)\/certificates(?:\/|$)/u.test(path) &&
       !/^\/(?:ar|en)\/certificates\/verify(?:\/|$)/u.test(path))
   );
+}
+
+async function applyCspNonce(
+  response: globalThis.Response,
+  nonce: string,
+): Promise<globalThis.Response> {
+  if (!response.headers.get('content-type')?.startsWith('text/html')) return response;
+
+  const html = (await response.text())
+    .replace(/<drs-root\b(?![^>]*\bngcspnonce=)/iu, `<drs-root ngCspNonce="${nonce}"`)
+    .replace(/<(script|style)\b(?![^>]*\bnonce=)/giu, `<$1 nonce="${nonce}"`);
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+  return new globalThis.Response(html, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

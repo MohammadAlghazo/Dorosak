@@ -281,17 +281,18 @@ import { NotificationBadgeStore } from '../../features/communications/notificati
         inset-block-start: 0;
         inset-inline-end: 0;
       }
-      aside {
+      #workspace-navigation {
         position: fixed;
         inset-block: 68px 0;
         inset-inline-start: 0;
         z-index: var(--z-overlay);
         display: none;
-        inline-size: min(20rem, calc(100vw - 2rem));
+        inline-size: calc(100% - 2rem);
+        max-inline-size: 20rem;
         overflow-x: hidden;
         overflow-y: auto;
       }
-      aside.open {
+      #workspace-navigation.open {
         display: block;
       }
       nav,

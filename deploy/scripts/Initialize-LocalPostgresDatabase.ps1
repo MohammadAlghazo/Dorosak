@@ -122,6 +122,11 @@ try {
             throw "The local .NET tools could not be restored."
         }
 
+        & dotnet restore "Dorosak.slnx" --locked-mode
+        if ($LASTEXITCODE -ne 0) {
+            throw "The backend packages could not be restored in locked mode."
+        }
+
         & dotnet tool run dotnet-ef database update `
             --project "src/Dorosak.Infrastructure/Dorosak.Infrastructure.csproj" `
             --startup-project "src/Dorosak.Api/Dorosak.Api.csproj" `

@@ -37,6 +37,11 @@ import { LocaleService } from '../../core/i18n/locale.service';
               {{ locale.locale() === 'ar' ? 'التصنيف' : 'Taxonomy' }}
             </a>
           }
+          @if (session.hasPermission('Analytics.Read')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'analytics']">
+              {{ locale.locale() === 'ar' ? 'نبض المنصة' : 'Platform pulse' }}
+            </a>
+          }
           <span>{{
             locale.locale() === 'ar' ? 'مساحة جاهزة للتدقيق' : 'Audit-ready workspace'
           }}</span>

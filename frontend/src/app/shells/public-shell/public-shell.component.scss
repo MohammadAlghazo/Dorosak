@@ -108,6 +108,9 @@
 }
 
 @media (max-width: 760px) {
+  .site-header {
+    backdrop-filter: none;
+  }
   .header-inner {
     grid-template-columns: 1fr auto;
     min-block-size: 64px;

@@ -8,6 +8,13 @@ test('Arabic public route renders useful SSR HTML and hydrates accessibly', asyn
   const response = await request.get('/ar');
   expect(response.status()).toBe(200);
   const html = await response.text();
+  const csp = response.headers()['content-security-policy'] ?? '';
+  const nonceMatch = /'nonce-([^']+)'/u.exec(csp);
+  expect(nonceMatch).not.toBeNull();
+  const nonce = nonceMatch?.[1] ?? '';
+  expect(nonce).not.toBe('');
+  expect(html).toContain(`ngCspNonce="${nonce}"`);
+  expect(html).not.toMatch(/<(?:script|style)\b(?![^>]*\bnonce=)/iu);
   expect(html).toContain('مسارك الواضح');
   expect(html).toMatch(/<html[^>]+lang="ar"[^>]+dir="rtl"/u);
 
@@ -32,6 +39,38 @@ test('Arabic public route renders useful SSR HTML and hydrates accessibly', asyn
 
 test('locale and theme switches preserve the equivalent route', async ({ page }) => {
   await page.goto('/ar/courses');
+  const mobileLayout = await page.evaluate(() => {
+    const localeButton = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent.trim() === 'English',
+    );
+    const navigation = document.querySelector<HTMLElement>('.primary-navigation');
+    const searchLink = navigation?.querySelector<HTMLAnchorElement>('a:last-child');
+    const rectangle = (element: Element | null | undefined) => {
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      return { top: box.top, right: box.right, bottom: box.bottom, left: box.left };
+    };
+    return {
+      localeButton: rectangle(localeButton),
+      navigation: rectangle(navigation),
+      searchLink: rectangle(searchLink),
+      viewport: { width: innerWidth, height: innerHeight },
+    };
+  });
+  expect(mobileLayout.localeButton).not.toBeNull();
+  expect(mobileLayout.navigation).not.toBeNull();
+  expect(mobileLayout.searchLink).not.toBeNull();
+  if (!mobileLayout.localeButton || !mobileLayout.searchLink) {
+    throw new Error('The mobile public header controls are unavailable.');
+  }
+  const localeBox = mobileLayout.localeButton;
+  const searchBox = mobileLayout.searchLink;
+  const overlaps =
+    localeBox.left < searchBox.right &&
+    localeBox.right > searchBox.left &&
+    localeBox.top < searchBox.bottom &&
+    localeBox.bottom > searchBox.top;
+  expect(overlaps, JSON.stringify(mobileLayout)).toBe(false);
   await page.getByRole('button', { name: 'English' }).click();
 
   await expect(page).toHaveURL(/\/en\/courses$/u);

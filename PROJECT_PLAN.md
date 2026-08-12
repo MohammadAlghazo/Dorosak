@@ -4,11 +4,11 @@
 |---|---|
 | Document | `PROJECT_PLAN.md` |
 | Status | Approved architecture baseline |
-| Version | `1.7.0` |
-| Date | `2026-08-08` |
+| Version | `1.8.0` |
+| Date | `2026-08-12` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `10. Demo Commerce and Credentials` |
+| Current delivery phase | `11. Demo Admin, CMS, Analytics` in progress |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
 | Portfolio database | Local PostgreSQL 18; Neon or another managed PostgreSQL host is optional future work |
 
@@ -1945,6 +1945,7 @@ app/
 | `ADR-021` | Phase 9 engagement, realtime, and assignment attachment contracts | Accepted |
 | `ADR-022` | Portfolio demo commerce, subscriptions, and credentials | Accepted |
 | `ADR-023` | Local-first portfolio demo; cloud providers are optional future adapters | Accepted |
+| `ADR-024` | Phase 11 local admin dashboard, bounded CMS/settings, and safe audit projections | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -2453,3 +2454,41 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
   ولا تستخدم credentials خارجية.
 - local PostgreSQL هو checkpoint المطلوب؛ single-node SignalR مقصود للديمو.
 - Phase 10 تبدأ كـDemo commerce/subscription/certificate فقط وفق `ADR-022`; لا real payment أو cloud subscription.
+
+### 12. Phase 10 Completion Report (Local Portfolio Implementation Complete)
+
+#### Implemented
+
+- `DemoProvider` checkout remains fixed at `100 DEMO` credits and never accepts card, bank, billing, tax، أو provider data.
+- A single local `portfolio-demo` subscription can be activated, cancelled, and reactivated with authorization,
+  idempotency, audit records، وdatabase constraints; it has no renewal, invoice, proration، أو monetary value.
+- Confirmed course completion writes a durable outbox event. A worker issues exactly one immutable certificate with learner
+  and release-title snapshots, a random public verification code, public minimal-data verification، وaudited revocation.
+- Arabic/English Angular pages now list certificates, render a printable/save-as-PDF certificate, verify public codes,
+  and manage the demo subscription responsively. No server-side PDF vendor or QR provider is required.
+- PostgreSQL 18, Redis, MinIO, Mailpit، وClamAV are local Docker services. Azure, Neon, Cloudinary, Postmark، وpayment
+  providers are optional future adapters and are not portfolio completion gates.
+- The local setup now defaults to host port `54329`, restores locked backend packages on a fresh clone، bootstraps least-
+  privilege roles, applies every migration، and verifies the runtime role without using cloud credentials.
+- Angular SSR now applies a per-response CSP nonce to inline Angular scripts/styles and lazy component styles. Mobile
+  workspace navigation no longer creates horizontal overflow, and the public bottom navigation no longer overlaps locale
+  or theme controls.
+
+#### Verification
+
+- Backend Release build: `0 warnings`, `0 errors`; `dotnet format --verify-no-changes` passed.
+- Backend tests: `202 passed`, `3 skipped` only for optional live Compose MinIO/ClamAV tests.
+- Angular tests: `114/114`; ESLint, Prettier, production SSR build, PWA verification، وbundle budgets passed.
+- Playwright: `14/14` across desktop Chromium and mobile Chromium, including demo subscription, printable certificate,
+  public verification, CSP nonce, accessibility، وmobile overflow/interaction checks.
+- EF Core reports no pending model changes. NuGet and npm production vulnerability scans report no known vulnerabilities.
+- A detached fresh-clone smoke test created local PostgreSQL, restored locked packages, applied all migrations through
+  `20260812141430_Phase10DemoSubscriptionsCertificates`, and passed runtime-role verification. The temporary container,
+  volume، وworktree were removed afterward.
+
+#### Remaining Scope
+
+- Phase 11 is the next portfolio phase: focused Admin/CMS/analytics screens and small local reports only.
+- Phase 12 remains portfolio packaging: deterministic showcase data, simplified start command, clean-machine workflow,
+  screenshots، and final CV-facing documentation.
+- Real payments, cloud deployment, managed services، وpublic production launch remain outside the current definition of done.
