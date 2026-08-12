@@ -84,7 +84,7 @@ new course release is published.
 ### Media playback
 
 - Phase 8 uses short-lived fMP4 variant grants for the local/provider-neutral player and exposes quality selection. HLS objects,
-  poster, and captions are included in the manifest; multi-object CDN authorization remains Phase 12.
+  poster, and captions are included in the manifest; multi-object CDN authorization remains optional future launch work.
 - The player supports keyboard controls, captions, transcript, speed, quality, volume, Picture-in-Picture, reduced motion,
   no autoplay with sound, safe loading/error/offline states, and progress batching.
 

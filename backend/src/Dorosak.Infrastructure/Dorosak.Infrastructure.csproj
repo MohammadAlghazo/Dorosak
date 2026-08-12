@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Dorosak.Application.IntegrationTests" />
+    <InternalsVisibleTo Include="Dorosak.MediaWorker.UnitTests" />
   </ItemGroup>
 
 </Project>

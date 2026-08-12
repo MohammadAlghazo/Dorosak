@@ -7,6 +7,28 @@ x-logging: &default-logging
     max-size: 10m
 
 services:
+  postgres:
+    image: postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    environment:
+      POSTGRES_DB: ${DOROSAK_POSTGRES_DATABASE:-dorosak_dev}
+      POSTGRES_USER: dorosak_owner
+      POSTGRES_PASSWORD: ${DOROSAK_POSTGRES_OWNER_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
+    ports:
+      - "127.0.0.1:${DOROSAK_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username dorosak_owner --dbname $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 768m
+    cpus: 1
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
   redis:
     image: redis:8.10.0@sha256:39353c6a2f310da333374e1290c91805d15a85def073b5090f58e4ac646d284c
     command:
@@ -119,7 +141,7 @@ services:
       dockerfile: backend/src/Dorosak.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
+      ConnectionStrings__Database: "Host=postgres;Port=5432;Database=${DOROSAK_POSTGRES_DATABASE:-dorosak_dev};Username=dorosak_app;Password=${DOROSAK_POSTGRES_APP_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first};SSL Mode=Disable;Channel Binding=Disable;Include Error Detail=false;Timeout=15;Command Timeout=30;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=20;Connection Idle Lifetime=300;Keepalive=30"
       ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
       ConnectionStrings__RedisSecurity: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
       App__PublicUrl: ${DOROSAK_PUBLIC_URL:-http://localhost:4200}
@@ -133,10 +155,16 @@ services:
       Media__Storage__AccessKey: ${DOROSAK_MINIO_ROOT_USER:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__SecretKey: ${DOROSAK_MINIO_ROOT_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__CreateBucketIfMissing: "true"
+      Media__Cloudinary__Enabled: ${DOROSAK_CLOUDINARY_ENABLED:-false}
+      Media__Cloudinary__CloudName: ${DOROSAK_CLOUDINARY_CLOUD_NAME:-}
+      Media__Cloudinary__ApiKey: ${DOROSAK_CLOUDINARY_API_KEY:-}
+      Media__Cloudinary__ApiSecret: ${DOROSAK_CLOUDINARY_API_SECRET:-}
       HOME: /tmp
     ports:
       - "127.0.0.1:${DOROSAK_API_PORT:-5053}:8080"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -157,7 +185,7 @@ services:
       dockerfile: backend/src/Dorosak.Worker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Development
-      ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
+      ConnectionStrings__Database: "Host=postgres;Port=5432;Database=${DOROSAK_POSTGRES_DATABASE:-dorosak_dev};Username=dorosak_app;Password=${DOROSAK_POSTGRES_APP_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first};SSL Mode=Disable;Channel Binding=Disable;Include Error Detail=false;Timeout=15;Command Timeout=30;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=20;Connection Idle Lifetime=300;Keepalive=30"
       ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
       App__PublicUrl: ${DOROSAK_PUBLIC_URL:-http://localhost:4200}
       Email__SmtpHost: mailpit
@@ -168,6 +196,8 @@ services:
       OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
       HOME: /tmp
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       mailpit:
@@ -188,7 +218,7 @@ services:
       dockerfile: backend/src/Dorosak.MediaWorker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Development
-      ConnectionStrings__Database: ${ConnectionStrings__Database:?Run Initialize-NeonDatabase.ps1 first}
+      ConnectionStrings__Database: "Host=postgres;Port=5432;Database=${DOROSAK_POSTGRES_DATABASE:-dorosak_dev};Username=dorosak_app;Password=${DOROSAK_POSTGRES_APP_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first};SSL Mode=Disable;Channel Binding=Disable;Include Error Detail=false;Timeout=15;Command Timeout=30;Pooling=true;Minimum Pool Size=0;Maximum Pool Size=20;Connection Idle Lifetime=300;Keepalive=30"
       ConnectionStrings__Redis: redis:6379,password=${DOROSAK_REDIS_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first},abortConnect=false
       Media__Storage__Enabled: "true"
       Media__Storage__Endpoint: http://minio:9000
@@ -197,6 +227,10 @@ services:
       Media__Storage__AccessKey: ${DOROSAK_MINIO_ROOT_USER:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__SecretKey: ${DOROSAK_MINIO_ROOT_PASSWORD:?Run Initialize-LocalEnvironment.ps1 first}
       Media__Storage__CreateBucketIfMissing: "true"
+      Media__Cloudinary__Enabled: ${DOROSAK_CLOUDINARY_ENABLED:-false}
+      Media__Cloudinary__CloudName: ${DOROSAK_CLOUDINARY_CLOUD_NAME:-}
+      Media__Cloudinary__ApiKey: ${DOROSAK_CLOUDINARY_API_KEY:-}
+      Media__Cloudinary__ApiSecret: ${DOROSAK_CLOUDINARY_API_SECRET:-}
       Media__ClamAV__Host: clamav
       Media__ClamAV__Port: 3310
       Licensing__MediatRKey: ${DOROSAK_MEDIATR_LICENSE_KEY:-}
@@ -204,6 +238,8 @@ services:
       OpenTelemetry__Endpoint: ${DOROSAK_OTEL_ENDPOINT:-}
       HOME: /tmp
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -221,6 +257,7 @@ services:
     logging: *default-logging
 
 volumes:
+  postgres-data:
   redis-data:
   minio-data:
   mailpit-data:

@@ -6,7 +6,6 @@ $ErrorActionPreference = "Stop"
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $environmentPath = Join-Path $repositoryRoot ".env.local"
-$configurationPath = Join-Path $repositoryRoot "deploy\neon\development.json"
 
 if (-not (Test-Path -LiteralPath $environmentPath)) {
     throw ".env.local does not exist. Run Initialize-LocalEnvironment.ps1 first."
@@ -22,12 +21,6 @@ else {
 
 if (-not (Test-Path -LiteralPath $dockerPath)) {
     throw "Docker CLI was not found."
-}
-
-$configuration = Get-Content -LiteralPath $configurationPath -Raw | ConvertFrom-Json
-$postgresClientImage = [string]$configuration.postgresClientImage
-if ($postgresClientImage -notmatch "^postgres:18\.4-alpine@sha256:[a-f0-9]{64}$") {
-    throw "The PostgreSQL client image must be pinned by version and digest."
 }
 
 $composeArguments = @("compose", "--project-name", "dorosak", "--env-file", $environmentPath)
@@ -97,35 +90,6 @@ function Get-ContainerEnvironment {
     return $environment
 }
 
-function Test-NeonConnection {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$EnvironmentKey,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Label
-    )
-
-    $connectionString = Get-RequiredValue -Name $EnvironmentKey
-    $psqlScript = @(
-        'connection_string="$(base64 -d)";',
-        'case "$connection_string" in *\?*) separator="&" ;; *) separator="?" ;; esac;',
-        'psql "${connection_string}${separator}sslrootcert=system" --no-psqlrc',
-        '-Atc "SELECT current_database(), current_user; SHOW server_version;"'
-    ) -join " "
-    $encodedScript = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($psqlScript))
-    $encodedConnectionString = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($connectionString))
-
-    $result = $encodedConnectionString | & $dockerPath run --rm -i $postgresClientImage `
-        sh -c "printf '%s' '$encodedScript' | base64 -d > /tmp/test-neon.sh; sh /tmp/test-neon.sh"
-
-    if ($LASTEXITCODE -ne 0 -or $result[0] -ne "dorosak_dev|dorosak_owner") {
-        throw "$Label Neon connection test failed."
-    }
-
-    Write-Host "$Label Neon connection passed ($($result[1]))."
-}
-
 Push-Location $repositoryRoot
 try {
     & $dockerPath @composeArguments config --quiet
@@ -133,7 +97,7 @@ try {
         throw "Docker Compose validation failed."
     }
 
-    $services = @("redis", "minio", "mailpit", "clamav")
+    $services = @("postgres", "redis", "minio", "mailpit", "clamav")
     $containerIds = @{}
     foreach ($service in $services) {
         $containerId = (& $dockerPath @composeArguments ps --quiet $service).Trim()
@@ -149,8 +113,12 @@ try {
         }
     }
 
+    $postgresEnvironment = Get-ContainerEnvironment -ContainerId $containerIds["postgres"]
     $redisEnvironment = Get-ContainerEnvironment -ContainerId $containerIds["redis"]
     $minioEnvironment = Get-ContainerEnvironment -ContainerId $containerIds["minio"]
+    if ($postgresEnvironment["POSTGRES_PASSWORD"] -cne (Get-RequiredValue -Name "DOROSAK_POSTGRES_OWNER_PASSWORD")) {
+        throw "PostgreSQL is running with credentials that do not match .env.local."
+    }
     if ($redisEnvironment["REDISCLI_AUTH"] -cne (Get-RequiredValue -Name "DOROSAK_REDIS_PASSWORD")) {
         throw "Redis is running with credentials that do not match .env.local."
     }
@@ -203,8 +171,14 @@ try {
     }
     Write-Host "ClamAV EICAR detection test passed."
 
-    Test-NeonConnection -EnvironmentKey "DOROSAK_NEON_OWNER_DIRECT_URL" -Label "Direct owner"
-    Test-NeonConnection -EnvironmentKey "DOROSAK_NEON_OWNER_POOLED_URL" -Label "Pooled owner"
+    $database = Get-RequiredValue -Name "DOROSAK_POSTGRES_DATABASE"
+    $runtimePassword = Get-RequiredValue -Name "DOROSAK_POSTGRES_APP_PASSWORD"
+    $databaseResult = (& $dockerPath @composeArguments exec -T postgres sh -eu -c `
+        "PGPASSWORD='$runtimePassword' psql --host localhost --username dorosak_app --dbname '$database' --no-psqlrc -qAt -v ON_ERROR_STOP=1 -c 'SELECT current_database() || ''|'' || current_user || ''|'' || (to_regclass(''operations.schema_compatibility'') IS NOT NULL);'").Trim()
+    if ($LASTEXITCODE -ne 0 -or $databaseResult -ne "$database|dorosak_app|true") {
+        throw "Local PostgreSQL runtime connection test failed. Run Initialize-LocalPostgresDatabase.ps1 first."
+    }
+    Write-Host "Local PostgreSQL runtime connection passed."
 
     Write-Host "All development infrastructure checks passed."
 }

@@ -116,6 +116,27 @@ public sealed class OpenApiTests(ApiFixture fixture)
             "/api/v1/me/notifications/read-all",
             out JsonElement readAll));
         Assert.True(readAll.GetProperty("post").GetProperty("responses").TryGetProperty("422", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/me/subscription", out JsonElement subscription));
+        Assert.True(subscription.TryGetProperty("get", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/subscriptions", out JsonElement activateSubscription));
+        Assert.True(FindHeader(activateSubscription.GetProperty("post"), "Idempotency-Key")
+            .GetProperty("required").GetBoolean());
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/subscriptions/{subscriptionId}/cancel",
+            out JsonElement cancelSubscription));
+        Assert.True(FindHeader(cancelSubscription.GetProperty("post"), "Idempotency-Key")
+            .GetProperty("required").GetBoolean());
+        Assert.True(paths.TryGetProperty("/api/v1/me/certificates", out JsonElement certificates));
+        Assert.True(certificates.TryGetProperty("get", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/certificates/verify/{verificationCode}",
+            out JsonElement certificateVerification));
+        Assert.True(certificateVerification.TryGetProperty("get", out _));
+        Assert.True(paths.TryGetProperty(
+            "/api/v1/admin/certificates/{certificateId}/revoke",
+            out JsonElement certificateRevocation));
+        Assert.True(FindHeader(certificateRevocation.GetProperty("post"), "X-Audit-Reason")
+            .GetProperty("required").GetBoolean());
 
         Assert.Equal(HttpStatusCode.OK, uiResponse.StatusCode);
         string csp = uiResponse.Headers.GetValues("Content-Security-Policy").Single();

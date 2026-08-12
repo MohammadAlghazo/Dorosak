@@ -35,6 +35,8 @@ export class CommunicationsRealtimeService {
   private connection: HubConnection | null = null;
   private activeUserId: string | null = null;
   private transitionVersion = 0;
+  private retryAttempt = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly events$ = this.eventSource.asObservable();
   readonly resync$ = this.resyncSource.asObservable();
@@ -47,14 +49,12 @@ export class CommunicationsRealtimeService {
       this.disconnect();
     });
     effect(() => {
-      const userId = this.session.isAuthenticated()
-        ? (this.session.identity()?.userId ?? null)
-        : null;
-      const targetUserId = this.connectivity.isOnline() ? userId : null;
-      void this.transitionTo(targetUserId);
+      void this.transitionTo(this.currentTargetUserId());
     });
     this.destroyRef.onDestroy(() => {
       this.transitionVersion++;
+      this.cancelRetryTimer();
+      this.retryAttempt = 0;
       const connection = this.connection;
       this.connection = null;
       this.activeUserId = null;
@@ -70,26 +70,26 @@ export class CommunicationsRealtimeService {
   }
 
   private async transitionTo(userId: string | null): Promise<void> {
+    const isSameUser = userId !== null && userId === this.activeUserId;
     if (
-      userId !== null &&
-      userId === this.activeUserId &&
-      this.connection !== null &&
-      this.connection.state !== HubConnectionState.Disconnected
+      isSameUser &&
+      (this.retryTimer !== null ||
+        (this.connection !== null && this.connection.state !== HubConnectionState.Disconnected))
     ) {
       return;
     }
 
     const version = ++this.transitionVersion;
+    this.cancelRetryTimer();
+    if (!isSameUser) this.retryAttempt = 0;
     const previous = this.connection;
     this.connection = null;
     this.activeUserId = null;
     this.recentEventIds.clear();
+    this.connectionStatus.set(userId === null ? 'disconnected' : 'connecting');
     if (previous) await stopConnection(previous);
     if (version !== this.transitionVersion) return;
-    if (userId === null) {
-      this.connectionStatus.set('disconnected');
-      return;
-    }
+    if (userId === null) return;
 
     const connection = new HubConnectionBuilder()
       .withUrl(hubPath, {
@@ -100,7 +100,7 @@ export class CommunicationsRealtimeService {
       .build();
 
     connection.on('communicationEvent', (candidate: unknown) => {
-      if (connection !== this.connection) return;
+      if (connection !== this.connection || this.currentTargetUserId() !== userId) return;
       const event = parseCommunicationEvent(candidate);
       if (event === null || this.recentEventIds.has(event.eventId)) return;
       if (this.recentEventIds.size >= 256) {
@@ -111,34 +111,109 @@ export class CommunicationsRealtimeService {
       this.eventSource.next(event);
     });
     connection.onreconnecting(() => {
-      if (connection === this.connection) this.connectionStatus.set('reconnecting');
+      if (connection !== this.connection) return;
+      const targetUserId = this.currentTargetUserId();
+      if (targetUserId !== userId) {
+        void this.transitionTo(targetUserId);
+        return;
+      }
+      this.connectionStatus.set('reconnecting');
     });
     connection.onreconnected(() => {
       if (connection !== this.connection) return;
+      const targetUserId = this.currentTargetUserId();
+      if (targetUserId !== userId) {
+        void this.transitionTo(targetUserId);
+        return;
+      }
+      this.resetRetryState();
       this.connectionStatus.set('connected');
       this.resyncSource.next();
     });
     connection.onclose(() => {
-      if (connection === this.connection) this.connectionStatus.set('disconnected');
+      if (connection !== this.connection) return;
+      const targetUserId = this.currentTargetUserId();
+      if (targetUserId === userId) {
+        this.connectionStatus.set('disconnected');
+        this.scheduleRetry(userId, connection);
+      } else {
+        void this.transitionTo(targetUserId);
+      }
     });
 
     this.connection = connection;
     this.activeUserId = userId;
-    this.connectionStatus.set('connecting');
     try {
       await connection.start();
       if (version !== this.transitionVersion || connection !== this.connection) {
         await stopConnection(connection);
         return;
       }
+      const targetUserId = this.currentTargetUserId();
+      if (targetUserId !== userId) {
+        void this.transitionTo(targetUserId);
+        return;
+      }
+      this.resetRetryState();
       this.connectionStatus.set('connected');
     } catch {
       if (version === this.transitionVersion && connection === this.connection) {
-        this.connectionStatus.set('error');
+        const targetUserId = this.currentTargetUserId();
+        if (targetUserId === userId) {
+          this.connectionStatus.set('error');
+          this.scheduleRetry(userId, connection);
+        } else {
+          void this.transitionTo(targetUserId);
+        }
       }
     }
   }
+
+  private currentTargetUserId(): string | null {
+    if (!this.connectivity.isOnline() || !this.session.isAuthenticated()) return null;
+    return this.session.identity()?.userId ?? null;
+  }
+
+  private scheduleRetry(userId: string, connection: HubConnection): void {
+    if (
+      this.retryTimer !== null ||
+      connection !== this.connection ||
+      this.currentTargetUserId() !== userId
+    ) {
+      return;
+    }
+
+    const delay = reconnectDelay(this.retryAttempt++);
+    const version = this.transitionVersion;
+    const timer = setTimeout(() => {
+      if (this.retryTimer !== timer) return;
+      this.retryTimer = null;
+      if (
+        version !== this.transitionVersion ||
+        connection !== this.connection ||
+        this.currentTargetUserId() !== userId
+      ) {
+        return;
+      }
+      void this.transitionTo(userId);
+    }, delay);
+    this.retryTimer = timer;
+  }
+
+  private resetRetryState(): void {
+    this.cancelRetryTimer();
+    this.retryAttempt = 0;
+  }
+
+  private cancelRetryTimer(): void {
+    if (this.retryTimer === null) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
 }
+
+const reconnectDelay = (attempt: number): number =>
+  reconnectDelays[Math.min(attempt, reconnectDelays.length - 1)] ?? 30_000;
 
 const boundedReconnectPolicy: IRetryPolicy = {
   nextRetryDelayInMilliseconds(context: RetryContext): number | null {

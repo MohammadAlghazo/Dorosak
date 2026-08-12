@@ -1,5 +1,6 @@
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Commerce;
+using Dorosak.Application.Features.Credentials;
 using Dorosak.Application.Features.Engagement;
 using Dorosak.Application.Features.Learning;
 using Dorosak.Application.Features.Phase6;
@@ -195,6 +196,41 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         Assert.True(completed.IsSuccess);
         Assert.True(completed.Value.IsCompleted);
         Assert.Equal(completed.Value, replayed.Value);
+
+        await using (AsyncServiceScope certificateScope = fixture.Services.CreateAsyncScope())
+        {
+            ISender certificateSender = certificateScope.ServiceProvider.GetRequiredService<ISender>();
+            Result<IReadOnlyList<CertificateResponse>> beforeIssuance = await certificateSender.Send(
+                new GetMyCertificatesQuery(learnerId), cancellationToken);
+            Assert.True(beforeIssuance.IsSuccess);
+            Assert.Empty(beforeIssuance.Value);
+
+            ICertificateIssuanceDispatcher dispatcher = certificateScope.ServiceProvider
+                .GetRequiredService<ICertificateIssuanceDispatcher>();
+            while (await dispatcher.DispatchPendingAsync(cancellationToken) > 0)
+            {
+            }
+
+            Result<IReadOnlyList<CertificateResponse>> issued = await certificateSender.Send(
+                new GetMyCertificatesQuery(learnerId), cancellationToken);
+            CertificateResponse certificate = Assert.Single(issued.Value);
+            Assert.Equal("Release Pinned Learning", certificate.CourseTitle);
+            Assert.Equal("phase8-learner", certificate.LearnerName);
+            Assert.Equal("Active", certificate.Status);
+
+            Result<PublicCertificateResponse> verified = await certificateSender.Send(
+                new VerifyCertificateQuery(certificate.VerificationCode), cancellationToken);
+            Assert.True(verified.IsSuccess);
+            Assert.Equal(certificate.LearnerName, verified.Value.LearnerName);
+            Assert.Equal(certificate.CourseTitle, verified.Value.CourseTitle);
+
+            Result<CertificateResponse> replayedIssuance = await certificateSender.Send(
+                new IssueCertificateFromCompletionCommand(enrolled.Id), cancellationToken);
+            Assert.True(replayedIssuance.IsSuccess);
+            Assert.Equal(certificate.Id, replayedIssuance.Value.Id);
+            Assert.Single((await certificateSender.Send(
+                new GetMyCertificatesQuery(learnerId), cancellationToken)).Value);
+        }
 
         Result<CourseReleaseResponse> unpublished = await sender.Send(
             new UnpublishCourseCommand(

@@ -46,4 +46,31 @@ describe('CommerceApiClient', () => {
     });
     await expect(promise).resolves.toMatchObject({ paymentStatus: 'Succeeded', currency: 'DEMO' });
   });
+
+  it('activates and cancels the local demo subscription without billing data', async () => {
+    const activatePromise = firstValueFrom(client.activateDemoSubscription());
+    const activateRequest = http.expectOne('subscriptions');
+    expect(activateRequest.request.method).toBe('POST');
+    expect(activateRequest.request.body).toEqual({});
+    expect(activateRequest.request.headers.get('Idempotency-Key')).toBeTruthy();
+    activateRequest.flush({ data: subscription('Active') });
+    const activated = await activatePromise;
+
+    const cancelPromise = firstValueFrom(client.cancelDemoSubscription(activated.id));
+    const cancelRequest = http.expectOne('subscriptions/subscription-1/cancel');
+    expect(cancelRequest.request.method).toBe('POST');
+    expect(cancelRequest.request.body).toEqual({});
+    cancelRequest.flush({ data: subscription('Cancelled') });
+
+    await expect(cancelPromise).resolves.toMatchObject({ status: 'Cancelled' });
+  });
+});
+
+const subscription = (status: 'Active' | 'Cancelled') => ({
+  id: 'subscription-1',
+  planCode: 'portfolio-demo',
+  status,
+  activatedAt: '2026-08-12T00:00:00Z',
+  updatedAt: '2026-08-12T00:00:00Z',
+  cancelledAt: status === 'Cancelled' ? '2026-08-12T00:00:00Z' : null,
 });

@@ -4,6 +4,7 @@ using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Learning;
 using Dorosak.Domain.Operations;
 using Dorosak.Infrastructure.Identity;
+using Dorosak.Infrastructure.Operations;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -18,7 +19,10 @@ internal sealed class CommunicationsRealtimeDispatcher(
     TimeProvider timeProvider,
     ILogger<CommunicationsRealtimeDispatcher> logger) : ICommunicationsRealtimeDispatcher
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        RespectRequiredConstructorParameters = true,
+    };
 
     private static readonly Action<ILogger, Guid, string, Exception?> PublishFailed =
         LoggerMessage.Define<Guid, string>(
@@ -39,16 +43,66 @@ internal sealed class CommunicationsRealtimeDispatcher(
 
             try
             {
+                if (claimed.Message.SchemaVersion != CommunicationsRealtimeEvents.SchemaVersion)
+                {
+                    if (await OutboxLease.TerminateAsync(
+                            dbContext,
+                            claimed.Message.Id,
+                            claimed.LockToken,
+                            timeProvider.GetUtcNow(),
+                            "REALTIME.DEAD_LETTER.SCHEMA_INVALID",
+                            logger,
+                            cancellationToken))
+                    {
+                        processed++;
+                    }
+
+                    continue;
+                }
+
                 await PublishAsync(claimed.Message, cancellationToken);
-                await CompleteAsync(claimed, cancellationToken);
-                processed++;
+                if (await CompleteAsync(claimed, cancellationToken))
+                {
+                    processed++;
+                }
+            }
+            catch (JsonException)
+            {
+                if (await OutboxLease.TerminateAsync(
+                        dbContext,
+                        claimed.Message.Id,
+                        claimed.LockToken,
+                        timeProvider.GetUtcNow(),
+                        "REALTIME.DEAD_LETTER.PAYLOAD_INVALID",
+                        logger,
+                        cancellationToken))
+                {
+                    processed++;
+                }
             }
             catch (Exception exception) when (
                 exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 string errorCode = exception.GetType().Name;
-                PublishFailed(logger, claimed.Message.Id, errorCode, exception);
-                await ReleaseAsync(claimed, errorCode, cancellationToken);
+                PublishFailed(logger, claimed.Message.Id, errorCode, null);
+                if (claimed.AttemptCount >= OutboxLease.MaximumAttempts)
+                {
+                    if (await OutboxLease.TerminateAsync(
+                            dbContext,
+                            claimed.Message.Id,
+                            claimed.LockToken,
+                            timeProvider.GetUtcNow(),
+                            "REALTIME.DEAD_LETTER.MAX_RETRIES",
+                            logger,
+                            cancellationToken))
+                    {
+                        processed++;
+                    }
+                }
+                else
+                {
+                    await ReleaseAsync(claimed, errorCode, cancellationToken);
+                }
             }
         }
 
@@ -71,7 +125,6 @@ internal sealed class CommunicationsRealtimeDispatcher(
                 WHERE processed_at IS NULL
                   AND available_at <= now()
                   AND (locked_until IS NULL OR locked_until <= now())
-                  AND schema_version = 1
                   AND event_type IN (
                       'communication.conversation-created',
                       'communication.message-created',
@@ -99,16 +152,13 @@ internal sealed class CommunicationsRealtimeDispatcher(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new ClaimedMessage(message, lockToken);
+        int attemptCount = message.AttemptCount;
+        dbContext.Entry(message).State = EntityState.Detached;
+        return new ClaimedMessage(message, lockToken, attemptCount);
     }
 
     private Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
-        if (message.SchemaVersion != CommunicationsRealtimeEvents.SchemaVersion)
-        {
-            throw new InvalidOperationException("The communications realtime schema version is unsupported.");
-        }
-
         return message.EventType switch
         {
             CommunicationsRealtimeEvents.ConversationCreated =>
@@ -470,33 +520,74 @@ internal sealed class CommunicationsRealtimeDispatcher(
     }
 
     private static TPayload ReadPayload<TPayload>(OutboxMessage message)
-        where TPayload : class =>
-        JsonSerializer.Deserialize<TPayload>(message.Payload, JsonOptions)
-        ?? throw new InvalidOperationException("The communications realtime payload is invalid.");
-
-    private async Task CompleteAsync(ClaimedMessage claimed, CancellationToken cancellationToken)
+        where TPayload : class
     {
-        OutboxMessage message = await dbContext.OutboxMessages.SingleAsync(
-            candidate => candidate.Id == claimed.Message.Id,
-            cancellationToken);
-        message.MarkProcessed(timeProvider.GetUtcNow(), claimed.LockToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        TPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<TPayload>(message.Payload, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            throw new JsonException("The communications realtime payload is invalid.");
+        }
+
+        if (payload is null || !IsValidPayload(payload))
+        {
+            throw new JsonException("The communications realtime payload is invalid.");
+        }
+
+        return payload;
     }
 
-    private async Task ReleaseAsync(
+    private static bool IsValidPayload<TPayload>(TPayload payload)
+        where TPayload : class => payload switch
+        {
+            ConversationCreatedRealtimePayload value =>
+                value.ConversationId != Guid.Empty && value.CreatedByUserId != Guid.Empty && value.CourseId != Guid.Empty,
+            MessageCreatedRealtimePayload value =>
+                value.MessageId != Guid.Empty && value.ConversationId != Guid.Empty &&
+                value.SenderUserId != Guid.Empty && value.Sequence > 0,
+            ConversationLeftRealtimePayload value =>
+                value.ConversationId != Guid.Empty && value.UserId != Guid.Empty,
+            AnnouncementCreatedRealtimePayload value =>
+                value.AnnouncementId != Guid.Empty && value.CourseId != Guid.Empty &&
+                value.CreatedByUserId != Guid.Empty && value.Version > 0 && value.TargetCount >= 0,
+            AnnouncementUpdatedRealtimePayload value =>
+                value.AnnouncementId != Guid.Empty && value.CourseId != Guid.Empty &&
+                value.UpdatedByUserId != Guid.Empty && value.Version > 1 && value.TargetCount >= 0,
+            AnnouncementDeletedRealtimePayload value =>
+                value.AnnouncementId != Guid.Empty && value.CourseId != Guid.Empty &&
+                value.DeletedByUserId != Guid.Empty && value.Version > 0,
+            _ => false,
+        };
+
+    private Task<bool> CompleteAsync(ClaimedMessage claimed, CancellationToken cancellationToken) =>
+        OutboxLease.CompleteAsync(
+            dbContext,
+            claimed.Message.Id,
+            claimed.LockToken,
+            timeProvider.GetUtcNow(),
+            logger,
+            cancellationToken);
+
+    private Task<bool> ReleaseAsync(
         ClaimedMessage claimed,
         string errorCode,
         CancellationToken cancellationToken)
     {
-        OutboxMessage message = await dbContext.OutboxMessages.SingleAsync(
-            candidate => candidate.Id == claimed.Message.Id,
+        TimeSpan retryDelay = OutboxLease.GetRetryDelay(claimed.AttemptCount);
+        return OutboxLease.ReleaseAsync(
+            dbContext,
+            claimed.Message.Id,
+            claimed.LockToken,
+            timeProvider.GetUtcNow().Add(retryDelay),
+            errorCode,
+            logger,
             cancellationToken);
-        TimeSpan retryDelay = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(message.AttemptCount, 8))));
-        message.ReleaseAfterFailure(timeProvider.GetUtcNow(), claimed.LockToken, errorCode, retryDelay);
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private sealed record ClaimedMessage(OutboxMessage Message, Guid LockToken);
+    private sealed record ClaimedMessage(OutboxMessage Message, Guid LockToken, int AttemptCount);
 
     private sealed record ConversationSource(Guid Id, Guid CourseId, Guid CreatedByUserId);
 

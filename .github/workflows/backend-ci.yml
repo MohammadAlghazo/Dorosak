@@ -72,6 +72,8 @@ jobs:
       - name: Validate Compose application profile
         env:
           ConnectionStrings__Database: Host=127.0.0.1;Database=dorosak_ci;Username=dorosak_ci;Password=dorosak_ci
+          DOROSAK_POSTGRES_OWNER_PASSWORD: dorosak-ci-postgres-owner
+          DOROSAK_POSTGRES_APP_PASSWORD: dorosak-ci-postgres-app
           DOROSAK_MINIO_ROOT_PASSWORD: dorosak-ci-minio
           DOROSAK_REDIS_PASSWORD: dorosak-ci-redis
         run: docker compose --env-file deploy/env/.env.example --profile app config --quiet

@@ -32,6 +32,7 @@ public static class DependencyInjection
         AddMediaHandlers(services);
         AddLearningHandlers(services);
         AddCommerceHandlers(services);
+        AddCredentialsHandlers(services);
         AddCommunicationsHandlers(services);
         AddEngagementHandlers(services);
         AddModerationHandlers(services);
@@ -178,6 +179,26 @@ public static class DependencyInjection
     private static void AddCommerceHandlers(IServiceCollection services)
     {
         AddCommerceHandler<Features.Commerce.CreateDemoCheckoutCommand, Features.Commerce.DemoCheckoutResponse>(services);
+        AddCommerceHandler<Features.Commerce.GetDemoSubscriptionQuery,
+            Features.Commerce.DemoSubscriptionStateResponse>(services);
+        AddCommerceHandler<Features.Commerce.ActivateDemoSubscriptionCommand,
+            Features.Commerce.DemoSubscriptionResponse>(services);
+        AddCommerceHandler<Features.Commerce.CancelDemoSubscriptionCommand,
+            Features.Commerce.DemoSubscriptionResponse>(services);
+    }
+
+    private static void AddCredentialsHandlers(IServiceCollection services)
+    {
+        AddCredentialsHandler<Features.Credentials.GetMyCertificatesQuery,
+            IReadOnlyList<Features.Credentials.CertificateResponse>>(services);
+        AddCredentialsHandler<Features.Credentials.GetMyCertificateQuery,
+            Features.Credentials.CertificateResponse>(services);
+        AddCredentialsHandler<Features.Credentials.VerifyCertificateQuery,
+            Features.Credentials.PublicCertificateResponse>(services);
+        AddCredentialsHandler<Features.Credentials.IssueCertificateFromCompletionCommand,
+            Features.Credentials.CertificateResponse>(services);
+        AddCredentialsHandler<Features.Credentials.RevokeCertificateCommand,
+            Features.Credentials.CertificateResponse>(services);
     }
 
     private static void AddCommunicationsHandlers(IServiceCollection services)
@@ -350,6 +371,12 @@ public static class DependencyInjection
         where TResponse : notnull =>
         services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
             Features.Commerce.CommerceHandler<TRequest, TResponse>>();
+
+    private static void AddCredentialsHandler<TRequest, TResponse>(IServiceCollection services)
+        where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>
+        where TResponse : notnull =>
+        services.AddTransient<MediatR.IRequestHandler<TRequest, Common.Results.Result<TResponse>>,
+            Features.Credentials.CredentialsHandler<TRequest, TResponse>>();
 
     private static void AddCommunicationsHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>

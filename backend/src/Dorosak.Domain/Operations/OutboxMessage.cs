@@ -46,6 +46,9 @@ public sealed class OutboxMessage
 
     public Guid? LockToken { get; private set; }
 
+    /// <summary>
+    /// A value means handling is final, either successfully consumed or terminally dead-lettered.
+    /// </summary>
     public DateTimeOffset? ProcessedAt { get; private set; }
 
     public string? LastErrorCode { get; private set; }

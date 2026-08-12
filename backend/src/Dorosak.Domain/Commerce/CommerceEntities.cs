@@ -15,6 +15,12 @@ public enum DemoPaymentStatus
     Failed,
 }
 
+public enum DemoSubscriptionStatus
+{
+    Active,
+    Cancelled,
+}
+
 public sealed class DemoOrder
 {
     private DemoOrder()
@@ -157,5 +163,68 @@ public sealed class DemoPayment
         }
 
         return new DemoPayment(Guid.CreateVersion7(), orderId, amountCredits, status, now);
+    }
+}
+
+public sealed class DemoSubscription
+{
+    public const string DemoPlanCode = "portfolio-demo";
+
+    private DemoSubscription()
+    {
+    }
+
+    private DemoSubscription(Guid id, Guid userId, DateTimeOffset now)
+    {
+        Id = id;
+        UserId = userId;
+        PlanCode = DemoPlanCode;
+        Status = DemoSubscriptionStatus.Active;
+        ActivatedAt = now;
+        UpdatedAt = now;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid UserId { get; private set; }
+
+    public string PlanCode { get; private set; } = string.Empty;
+
+    public DemoSubscriptionStatus Status { get; private set; }
+
+    public DateTimeOffset ActivatedAt { get; private set; }
+
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    public DateTimeOffset? CancelledAt { get; private set; }
+
+    public static DemoSubscription Create(Guid userId, DateTimeOffset now)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("A demo subscription user is required.", nameof(userId));
+        }
+
+        return new DemoSubscription(Guid.CreateVersion7(), userId, now);
+    }
+
+    public void Activate(DateTimeOffset now)
+    {
+        Status = DemoSubscriptionStatus.Active;
+        ActivatedAt = now;
+        CancelledAt = null;
+        UpdatedAt = now;
+    }
+
+    public void Cancel(DateTimeOffset now)
+    {
+        if (Status == DemoSubscriptionStatus.Cancelled)
+        {
+            return;
+        }
+
+        Status = DemoSubscriptionStatus.Cancelled;
+        CancelledAt = now;
+        UpdatedAt = now;
     }
 }

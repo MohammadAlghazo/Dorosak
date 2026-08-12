@@ -16,7 +16,7 @@ Phase 8 consumes only Ready media when creating immutable course releases.
 ### Providers and boundaries
 
 - Application code depends on `IObjectStorage`, not a provider SDK. Phase 7 ships an S3-compatible adapter for local MinIO
-  and tests. The Azure Blob adapter, CDN signing, replication, and production credentials are Phase 12 deployment work.
+  and tests. Azure Blob, CDN signing, replication, and provider credentials are optional future public-launch work.
   The production extension point is a new Infrastructure implementation of `IObjectStorage`; domain/application contracts,
   object-key generation, database metadata, API handlers, and MediaWorker orchestration remain unchanged.
 - The API issues upload sessions and signed URLs. `Dorosak.MediaWorker` exclusively scans and processes uploaded objects.
@@ -125,8 +125,8 @@ Phase 8 consumes only Ready media when creating immutable course releases.
 
 - Phase 7 can operate locally with MinIO/ClamAV while retaining a provider-neutral production boundary.
 - Drafts may reference media, but Phase 8 remains responsible for immutable release activation.
-- Azure Blob/CDN implementation and provider disaster-recovery controls remain explicit Phase 12 work, not hidden Phase 7
-  assumptions.
+- Azure Blob/CDN implementation and provider disaster-recovery controls remain explicit optional launch work, not hidden
+  Phase 7 assumptions or portfolio gates.
 
 ### Phase 7 implementation boundaries
 
@@ -139,4 +139,4 @@ Phase 8 consumes only Ready media when creating immutable course releases.
   malformed, over-limit, and lenient-only documents remain quarantined and are rejected.
 - Assignment-submission upload creation is owned by the Phase 9 concrete assignment/submission contract and reuses the same
   quarantine, checksum, ClamAV, and ready-only delivery pipeline. Azure Blob/CDN signing, CDN-aware HLS authorization,
-  replication, and production provider disaster recovery remain Phase 12 work.
+  replication, and provider disaster recovery remain optional future launch work.

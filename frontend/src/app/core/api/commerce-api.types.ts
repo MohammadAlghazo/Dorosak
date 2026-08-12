@@ -8,3 +8,16 @@ export interface DemoCheckout {
   amountCredits: number;
   currency: 'DEMO';
 }
+
+export interface DemoSubscription {
+  id: string;
+  planCode: 'portfolio-demo';
+  status: 'Active' | 'Cancelled';
+  activatedAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+}
+
+export interface DemoSubscriptionState {
+  subscription: DemoSubscription | null;
+}

@@ -58,6 +58,13 @@ public static class DependencyInjection
                     options.FailureDelay <= TimeSpan.FromMinutes(5),
                 "Communications realtime failure delay must be between one second and five minutes.")
             .Validate(
+                options => options.SessionValidationInterval >= TimeSpan.FromSeconds(5) &&
+                    options.SessionValidationInterval <= TimeSpan.FromSeconds(60),
+                "Communications session validation interval must be between five and 60 seconds.")
+            .Validate(
+                options => !options.DispatcherEnabled || options.Redis.Enabled || options.SingleNodeMode,
+                "Communications realtime dispatching requires Redis or explicit single-node mode.")
+            .Validate(
                 options => !string.IsNullOrWhiteSpace(options.Redis.ConnectionStringName),
                 "Communications realtime Redis connection-string name is required.")
             .Validate(
@@ -80,6 +87,10 @@ public static class DependencyInjection
         }
 
         services.AddSingleton<IUserIdProvider, SubjectUserIdProvider>();
+        services.AddSingleton<CommunicationsConnectionRegistry>();
+        services.AddSingleton<CommunicationsSessionValidationWorker>();
+        services.AddHostedService(provider =>
+            provider.GetRequiredService<CommunicationsSessionValidationWorker>());
         services.AddSingleton<ICommunicationsRealtimePublisher, SignalRCommunicationsRealtimePublisher>();
         services.AddCommunicationsRealtimeDispatching();
         if (realtimeOptions.DispatcherEnabled)
@@ -118,7 +129,11 @@ public static class DependencyInjection
                     {
                         string accessToken = context.Request.Query["access_token"].ToString();
                         if (!string.IsNullOrWhiteSpace(accessToken) &&
-                            context.HttpContext.Request.Path.StartsWithSegments(CommunicationsHub.Path))
+                            HttpMethods.IsGet(context.Request.Method) &&
+                            string.Equals(
+                                context.Request.Path.Value,
+                                CommunicationsHub.Path,
+                                StringComparison.OrdinalIgnoreCase))
                         {
                             context.Token = accessToken;
                         }

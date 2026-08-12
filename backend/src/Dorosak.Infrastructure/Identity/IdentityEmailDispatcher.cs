@@ -3,6 +3,7 @@ using System.Net.Mail;
 using System.Text;
 using System.Text.Json;
 using Dorosak.Domain.Operations;
+using Dorosak.Infrastructure.Operations;
 using Dorosak.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,10 @@ internal sealed class IdentityEmailDispatcher(
     private const string VerificationEmailEvent = "identity.email-verification-requested";
     private const string PasswordResetEmailEvent = "identity.password-reset-requested";
     private const string EmailChangeEvent = "identity.email-change-requested";
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        RespectRequiredConstructorParameters = true,
+    };
 
     private static readonly Action<ILogger, Guid, string, Exception?> DeliveryFailed =
         LoggerMessage.Define<Guid, string>(
@@ -47,15 +51,66 @@ internal sealed class IdentityEmailDispatcher(
 
             try
             {
+                if (claimed.Message.SchemaVersion != 1)
+                {
+                    if (await OutboxLease.TerminateAsync(
+                            dbContext,
+                            claimed.Message.Id,
+                            claimed.LockToken,
+                            timeProvider.GetUtcNow(),
+                            "EMAIL.DEAD_LETTER.SCHEMA_INVALID",
+                            logger,
+                            cancellationToken))
+                    {
+                        processed++;
+                    }
+
+                    continue;
+                }
+
                 await DeliverAsync(claimed.Message, cancellationToken);
-                await CompleteAsync(claimed, cancellationToken);
-                processed++;
+                if (await CompleteAsync(claimed, cancellationToken))
+                {
+                    processed++;
+                }
             }
-            catch (Exception exception) when (exception is HttpRequestException or SmtpException or InvalidOperationException)
+            catch (JsonException)
+            {
+                if (await OutboxLease.TerminateAsync(
+                        dbContext,
+                        claimed.Message.Id,
+                        claimed.LockToken,
+                        timeProvider.GetUtcNow(),
+                        "EMAIL.DEAD_LETTER.PAYLOAD_INVALID",
+                        logger,
+                        cancellationToken))
+                {
+                    processed++;
+                }
+            }
+            catch (Exception exception) when (
+                exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 string errorCode = exception.GetType().Name;
-                DeliveryFailed(logger, claimed.Message.Id, errorCode, exception);
-                await ReleaseAsync(claimed, errorCode, cancellationToken);
+                DeliveryFailed(logger, claimed.Message.Id, errorCode, null);
+                if (claimed.AttemptCount >= OutboxLease.MaximumAttempts)
+                {
+                    if (await OutboxLease.TerminateAsync(
+                            dbContext,
+                            claimed.Message.Id,
+                            claimed.LockToken,
+                            timeProvider.GetUtcNow(),
+                            "EMAIL.DEAD_LETTER.MAX_RETRIES",
+                            logger,
+                            cancellationToken))
+                    {
+                        processed++;
+                    }
+                }
+                else
+                {
+                    await ReleaseAsync(claimed, errorCode, cancellationToken);
+                }
             }
         }
 
@@ -99,15 +154,29 @@ internal sealed class IdentityEmailDispatcher(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new ClaimedMessage(message, lockToken);
+        int attemptCount = message.AttemptCount;
+        dbContext.Entry(message).State = EntityState.Detached;
+        return new ClaimedMessage(message, lockToken, attemptCount);
     }
 
     private async Task DeliverAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
-        IdentityEmailRequested payload = JsonSerializer.Deserialize<IdentityEmailRequested>(
-            message.Payload,
-            JsonOptions)
-            ?? throw new InvalidOperationException("Identity email payload is invalid.");
+        IdentityEmailRequested payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<IdentityEmailRequested>(message.Payload, JsonOptions)
+                ?? throw new JsonException("Identity email payload is invalid.");
+        }
+        catch (JsonException)
+        {
+            throw new JsonException("Identity email payload is invalid.");
+        }
+
+        if (payload.UserId == Guid.Empty || string.IsNullOrWhiteSpace(payload.Locale))
+        {
+            throw new JsonException("Identity email payload is invalid.");
+        }
+
         ApplicationUser? user = await userManager.FindByIdAsync(payload.UserId.ToString("D"));
         if (user?.Email is null || !user.IsActive)
         {
@@ -187,26 +256,32 @@ internal sealed class IdentityEmailDispatcher(
         return $"{baseUrl}/{locale}/auth/{page}?userId={userId:D}&token={WebUtility.UrlEncode(token)}";
     }
 
-    private async Task CompleteAsync(ClaimedMessage claimed, CancellationToken cancellationToken)
-    {
-        OutboxMessage message = await dbContext.OutboxMessages.SingleAsync(
-            candidate => candidate.Id == claimed.Message.Id,
+    private Task<bool> CompleteAsync(ClaimedMessage claimed, CancellationToken cancellationToken) =>
+        OutboxLease.CompleteAsync(
+            dbContext,
+            claimed.Message.Id,
+            claimed.LockToken,
+            timeProvider.GetUtcNow(),
+            logger,
             cancellationToken);
-        message.MarkProcessed(timeProvider.GetUtcNow(), claimed.LockToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
 
-    private async Task ReleaseAsync(ClaimedMessage claimed, string errorCode, CancellationToken cancellationToken)
+    private Task<bool> ReleaseAsync(
+        ClaimedMessage claimed,
+        string errorCode,
+        CancellationToken cancellationToken)
     {
-        OutboxMessage message = await dbContext.OutboxMessages.SingleAsync(
-            candidate => candidate.Id == claimed.Message.Id,
+        TimeSpan retryDelay = OutboxLease.GetRetryDelay(claimed.AttemptCount);
+        return OutboxLease.ReleaseAsync(
+            dbContext,
+            claimed.Message.Id,
+            claimed.LockToken,
+            timeProvider.GetUtcNow().Add(retryDelay),
+            errorCode,
+            logger,
             cancellationToken);
-        TimeSpan retryDelay = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(message.AttemptCount, 8))));
-        message.ReleaseAfterFailure(timeProvider.GetUtcNow(), claimed.LockToken, errorCode, retryDelay);
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private sealed record IdentityEmailRequested(Guid UserId, string Locale);
 
-    private sealed record ClaimedMessage(OutboxMessage Message, Guid LockToken);
+    private sealed record ClaimedMessage(OutboxMessage Message, Guid LockToken, int AttemptCount);
 }

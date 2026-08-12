@@ -304,6 +304,32 @@ public interface IMediaAccessReader
     Task<bool> CanAccessUploadSessionAsync(Guid uploadSessionId, Guid userId, CancellationToken cancellationToken);
 }
 
+public sealed record ProcessedImageUploadRequest(
+    Guid AssetId,
+    Guid VariantId,
+    string ContentType,
+    Stream Content,
+    long ContentLength);
+
+public interface IProcessedImageStore
+{
+    bool CanStore(MediaProcessingInput input, MediaVariantFile variant);
+
+    Task<ObjectStoragePutResult> PutAsync(
+        ProcessedImageUploadRequest request,
+        CancellationToken cancellationToken);
+
+    Task<Uri> CreateDownloadUrlAsync(
+        string objectKey,
+        string? versionId,
+        string fileName,
+        string contentType,
+        TimeSpan lifetime,
+        CancellationToken cancellationToken);
+
+    Task DeleteAsync(string objectKey, string? versionId, CancellationToken cancellationToken);
+}
+
 public interface IObjectStorage
 {
     string Provider { get; }
@@ -351,7 +377,13 @@ public sealed record ObjectStorageUploadRequest(
 
 public sealed record ObjectStorageMultipartUpload(string UploadId, string? VersionId);
 
-public sealed record ObjectStoragePutResult(string ETag, string? VersionId, long Bytes, string Provider = "", string Container = "");
+public sealed record ObjectStoragePutResult(
+    string ETag,
+    string? VersionId,
+    long Bytes,
+    string Provider = "",
+    string Container = "",
+    string ObjectKey = "");
 
 public sealed record ObjectStoragePart(int PartNumber, string ETag);
 

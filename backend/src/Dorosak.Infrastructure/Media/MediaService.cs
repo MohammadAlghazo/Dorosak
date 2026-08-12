@@ -18,6 +18,7 @@ namespace Dorosak.Infrastructure.Media;
 internal sealed class MediaService(
     DorosakDbContext dbContext,
     IObjectStorage objectStorage,
+    IProcessedImageStore processedImageStore,
     IOptions<MediaOptions> mediaOptions,
     IOptions<MediaStorageOptions> storageOptions,
     TimeProvider timeProvider) : IMediaService
@@ -764,12 +765,36 @@ internal sealed class MediaService(
         Uri url;
         try
         {
-            url = await objectStorage.CreateDownloadUrlAsync(
-                variant.ObjectKey,
-                request.DownloadFileName ?? asset.FileName,
-                variant.ContentType,
-                TimeSpan.FromMinutes(_storageOptions.DownloadUrlMinutes),
-                cancellationToken);
+            TimeSpan lifetime = TimeSpan.FromMinutes(_storageOptions.DownloadUrlMinutes);
+            if (string.Equals(
+                    variant.StorageProvider,
+                    CloudinaryProcessedImageStore.ProviderName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                url = await processedImageStore.CreateDownloadUrlAsync(
+                    variant.ObjectKey,
+                    variant.VersionId,
+                    request.DownloadFileName ?? asset.FileName,
+                    variant.ContentType,
+                    lifetime,
+                    cancellationToken);
+            }
+            else if (string.Equals(variant.StorageProvider, objectStorage.Provider, StringComparison.OrdinalIgnoreCase))
+            {
+                url = await objectStorage.CreateDownloadUrlAsync(
+                    variant.ObjectKey,
+                    request.DownloadFileName ?? asset.FileName,
+                    variant.ContentType,
+                    lifetime,
+                    cancellationToken);
+            }
+            else
+            {
+                return Result.Failure<DownloadGrantResponse>(ResultError.ServiceUnavailable(
+                    "MEDIA.STORAGE_PROVIDER_UNAVAILABLE",
+                    "The media storage provider is temporarily unavailable.",
+                    TimeSpan.FromMinutes(1)));
+            }
         }
         catch (StorageUnavailableException)
         {

@@ -11,6 +11,9 @@ internal sealed class CommerceHandler<TRequest, TResponse>(ICommerceService serv
     public Task<Result<TResponse>> Handle(TRequest request, CancellationToken cancellationToken) => request switch
     {
         CreateDemoCheckoutCommand command => Cast(service.CreateDemoCheckoutAsync(command, cancellationToken)),
+        GetDemoSubscriptionQuery query => Cast(service.GetDemoSubscriptionAsync(query, cancellationToken)),
+        ActivateDemoSubscriptionCommand command => Cast(service.ActivateDemoSubscriptionAsync(command, cancellationToken)),
+        CancelDemoSubscriptionCommand command => Cast(service.CancelDemoSubscriptionAsync(command, cancellationToken)),
         _ => throw new InvalidOperationException($"Unsupported commerce request {typeof(TRequest).Name}."),
     };
 

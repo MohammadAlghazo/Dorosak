@@ -99,6 +99,11 @@ import { NotificationBadgeStore } from '../../features/communications/notificati
               }
             </a>
           }
+          @if (session.hasPermission('Certificate.ReadOwn')) {
+            <a [routerLink]="['/', locale.locale(), 'certificates']" (click)="closeNavigation()">{{
+              locale.locale() === 'ar' ? 'الشهادات' : 'Certificates'
+            }}</a>
+          }
           <a
             [routerLink]="['/', locale.locale(), 'settings', 'security']"
             (click)="closeNavigation()"
@@ -114,6 +119,13 @@ import { NotificationBadgeStore } from '../../features/communications/notificati
             (click)="closeNavigation()"
             >{{ locale.locale() === 'ar' ? 'طلب التدريس' : 'Teacher application' }}</a
           >
+          @if (session.hasPermission('Subscription.ManageOwn')) {
+            <a
+              [routerLink]="['/', locale.locale(), 'settings', 'subscription']"
+              (click)="closeNavigation()"
+              >{{ locale.locale() === 'ar' ? 'الاشتراك التجريبي' : 'Demo subscription' }}</a
+            >
+          }
           @if (
             session.hasAnyPermission([
               'TeacherApplication.ReviewAny',
@@ -274,12 +286,18 @@ import { NotificationBadgeStore } from '../../features/communications/notificati
         inset-block: 68px 0;
         inset-inline-start: 0;
         z-index: var(--z-overlay);
-        inline-size: min(20rem, 88vw);
-        transform: translateX(calc((100% + 1rem) * var(--offcanvas-sign)));
-        transition: transform var(--motion-normal);
+        display: none;
+        inline-size: min(20rem, calc(100vw - 2rem));
+        overflow-x: hidden;
+        overflow-y: auto;
       }
       aside.open {
-        transform: translateX(0);
+        display: block;
+      }
+      nav,
+      nav a {
+        min-inline-size: 0;
+        max-inline-size: 100%;
       }
       .backdrop {
         position: fixed;

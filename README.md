@@ -1,6 +1,6 @@
 # Dorosak
 
-Dorosak is an Arabic-first educational platform for students, instructors, and platform administrators.
+Dorosak is an Arabic-first educational platform and portfolio demo for students, instructors, and platform administrators.
 
 ## Project Status
 
@@ -10,14 +10,15 @@ releases, release-backed discovery, demo checkout and entitlement-backed enrollm
 notes/bookmarks, quizzes with
 duration/deadline enforcement and append-only grading revisions, text assignments, protected delivery grants, and the
 corresponding Arabic/English Angular workspaces.
-Phase 9 is now in progress: engagement/realtime foundations, assessment audiences, and secure PDF assignment attachments
-are being added. Course reviews, release-scoped lesson discussions with comments and likes, authenticated reports, and
-audited moderation cases/actions are available; communications, notifications, announcements, and realtime resynchronization
-remain open. New production video
-uploads are intentionally deferred until the storage/processing/CDN server is chosen;
-the provider-neutral local media pipeline remains available for development and tests.
+Phase 9 is locally implemented: course reviews, release-scoped discussions, authenticated reports, audited moderation,
+assessment audiences, secure PDF assignment attachments, conversations, notifications, announcements, and SignalR
+reconnect/resynchronization are available in the Arabic/English Angular workspaces.
+Processed profile/course images can optionally use Cloudinary after quarantine scanning and FFmpeg re-encoding; the adapter
+is disabled by default and no credentials are committed. New production video uploads are intentionally deferred until the
+storage/processing/CDN server is chosen; the provider-neutral local pipeline remains available for development and tests.
 A fake checkout using `100 DEMO` credits is available for product testing and never accepts card or bank details. Real
-payment-provider integration and production Azure/CDN deployment remain deferred.
+payment-provider integration, cloud deployment, and public launch are optional future work and are not required to complete
+the portfolio demo.
 
 ## Architecture
 
@@ -26,8 +27,8 @@ delivery, and operational decisions.
 
 ## Development Setup
 
-Follow [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) to configure Neon access and start the local
-Redis, MinIO, Mailpit, and ClamAV services.
+Follow [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md) to start local PostgreSQL, Redis, MinIO, Mailpit, and ClamAV.
+No Azure, Neon, Cloudinary, email-provider, or payment-provider account is required.
 
 The backend solution is located at `backend/Dorosak.slnx`. Restore, build, and test it from the repository root:
 
@@ -41,10 +42,9 @@ dotnet test .\backend\Dorosak.slnx --no-build --no-restore
 
 - .NET 10 LTS and ASP.NET Core 10
 - Angular 21.2 LTS with SSR, hydration, and PWA support
-- Neon PostgreSQL
-- Redis-compatible managed services
+- PostgreSQL 18 locally; Neon remains an optional future host
+- Redis locally; a managed service remains an optional future adapter
 - Docker and Docker Compose
-- Azure Container Apps reference deployment
 - GitHub Actions CI/CD
 
 ## Repository Rules

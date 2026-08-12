@@ -1,13 +1,13 @@
 # Development Setup
 
-هذا الدليل يشغّل البنية التطويرية المحلية لـDorosak. قاعدة البيانات ليست محلية؛ التطبيق يتصل مباشرة بمشروع
-`Dorosak Dev` على Neon PostgreSQL.
+هذا الدليل يشغّل Portfolio Demo كاملًا على الجهاز. لا يحتاج Azure أو Neon أو Cloudinary أو بوابة دفع أو مزود بريد.
+يحتاج التشغيل الأول إلى الإنترنت لتنزيل Docker images وحزم .NET/npm وتحديث تعريفات ClamAV فقط.
 
 ## الخدمات
 
 | Service | Local endpoint | Purpose |
 |---|---|---|
-| Neon PostgreSQL | Remote, encrypted | مصدر الحقيقة وقاعدة التطوير |
+| PostgreSQL | `127.0.0.1:5432` | قاعدة بيانات الديمو المحلية |
 | Redis | `127.0.0.1:6380` | cache, rate-limit، وتجارب SignalR |
 | MinIO API | `http://127.0.0.1:9100` | S3-compatible object storage |
 | MinIO Console | `http://127.0.0.1:9101` | إدارة التخزين المحلي |
@@ -26,18 +26,17 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-LocalEnvironment.ps1
 ```
 
-ينشئ الأمر `.env.local` بقيم عشوائية واتصالي Neon pooled/direct. الملف مستبعد من Git، ولا يطبع secrets. على Windows
+ينشئ الأمر `.env.local` بقيم عشوائية لخدمات الجهاز فقط. الملف مستبعد من Git، ولا يطبع secrets. على Windows
 تُقيد ACL تلقائيًا بالمستخدم الحالي و`SYSTEM` وAdministrators.
 
-اتصالا Neon للمالك مخصصان لاختبارات البنية وتهيئة الصلاحيات فقط. أنشئ schema roles واتصالي migrator/runtime المحدودين:
+شغّل PostgreSQL المحلي ثم أنشئ schema roles وطبّق EF migrations:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-NeonDatabase.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Initialize-LocalPostgresDatabase.ps1
 ```
 
-يطبق السكربت EF migrations المطلوبة بعد تثبيت الصلاحيات. يستخدم API حساب `dorosak_app` محدود الصلاحيات، بينما
-تستخدم EF migrations حساب `dorosak_migrator` الذي يستطيع التحول إلى `dorosak_schema_owner`. لا يستخدم التطبيق
-حساب المالك.
+يستخدم API حساب `dorosak_app` محدود الصلاحيات، بينما تستخدم EF migrations حساب `dorosak_migrator`. لا يستخدم التطبيق
+حساب `dorosak_owner`. يبقى `Initialize-NeonDatabase.ps1` متاحًا فقط إذا اختير Neon مستقبلًا.
 
 لا تستخدم `-Force` إلا عند تدوير credentials المحلية عمدًا. التدوير يتطلب إعادة إنشاء containers التي تعتمد عليها.
 
@@ -92,6 +91,13 @@ docker compose --project-name dorosak --env-file .env.local down
 بعد ذلك شغّل Worker مرة واحدة. يتوقف Worker تلقائيًا بعد إنشاء Admin أو اكتشاف Admin موجود. احذف جميع مفاتيح
 `AdminBootstrap` فورًا، ثم غيّر كلمة المرور المؤقتة من واجهة الأمان. لا يطبع Worker كلمة المرور أو TOTP secret.
 
+## Cloudinary الاختياري للصور
+
+يبقى `Media:Cloudinary:Enabled` معطلًا افتراضيًا، وتبقى originals وquarantine وmultipart في MinIO/S3. عند تفعيله بعد
+تدوير credentials، مرر `CloudName` و`ApiKey` و`ApiSecret` إلى API وMediaWorker من configuration/environment فقط؛
+لا تضع القيم في `appsettings` أو ملفات Git. لا يرفع المتصفح إلى Cloudinary مباشرة، ولا يُستخدم هذا المسار للفيديو أو
+`video-poster` أو المستندات أو captions.
+
 ## التشخيص
 
 ```powershell
@@ -99,7 +105,7 @@ docker compose --project-name dorosak --env-file .env.local ps
 docker compose --project-name dorosak --env-file .env.local logs --tail 100 redis minio mailpit clamav
 ```
 
-لتشغيل الفحص السلوكي الكامل، بما فيه Redis read/write وEICAR وNeon direct/pooled:
+لتشغيل الفحص السلوكي الكامل، بما فيه PostgreSQL وRedis read/write وEICAR:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\Test-DevelopmentInfrastructure.ps1

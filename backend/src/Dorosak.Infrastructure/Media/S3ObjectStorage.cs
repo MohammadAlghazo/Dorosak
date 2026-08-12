@@ -82,7 +82,13 @@ internal sealed class S3ObjectStorage : IObjectStorage, IDisposable
                 AutoCloseStream = false,
                 AutoResetStreamPosition = false,
             }, cancellationToken);
-            return new ObjectStoragePutResult(response.ETag, response.VersionId, request.ContentLength, Provider, _options.Bucket);
+            return new ObjectStoragePutResult(
+                response.ETag,
+                response.VersionId,
+                request.ContentLength,
+                Provider,
+                _options.Bucket,
+                request.ObjectKey);
         }
         catch (UploadContentLengthException)
         {

@@ -34,7 +34,7 @@ marks it `Ready`.
 - Download grants recheck submission ownership, course-grader scope, assignment version, enrollment status, and asset
   readiness on every request. Quarantine object keys and signed URLs are never logged, cached, or returned.
 - Phase 9 supports PDF and the configured safe document/image types only. Archives, executable formats, HTML/SVG, and
-  password-protected documents remain rejected. Azure Blob/CDN provider work remains Phase 12.
+  password-protected documents remain rejected. Azure Blob/CDN provider work remains optional future launch work.
 
 ### Assessment audience
 
@@ -51,7 +51,7 @@ marks it `Ready`.
 
 - Source-video processing remains a tested local/provider-neutral capability from Phase 7. The instructor UI does not offer
   new source-video uploads in this phase. Production video storage, encoding capacity, CDN delivery, quotas, and provider
-  credentials remain disabled until the hosting/server decision in Phase 12.
+  credentials remain disabled until a future hosting/server decision.
 
 ### Engagement and communications
 

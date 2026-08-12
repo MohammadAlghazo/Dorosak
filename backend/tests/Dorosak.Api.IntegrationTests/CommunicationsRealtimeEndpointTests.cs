@@ -19,7 +19,7 @@ namespace Dorosak.Api.IntegrationTests;
 public sealed class CommunicationsRealtimeEndpointTests(ApiFixture fixture)
 {
     [Fact]
-    public async Task HubNegotiateRequiresAuthenticationAndAcceptsQueryTokenOnlyOnHubPath()
+    public async Task HubNegotiateRequiresAuthorizationHeaderAndQueryTokenIsTransportOnly()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         const string negotiatePath = "/hubs/communications/negotiate?negotiateVersion=1";
@@ -34,13 +34,7 @@ public sealed class CommunicationsRealtimeEndpointTests(ApiFixture fixture)
             $"{negotiatePath}&access_token={Uri.EscapeDataString(accessToken)}",
             null,
             cancellationToken);
-        Assert.Equal(HttpStatusCode.OK, queryAuthenticated.StatusCode);
-        using (JsonDocument document = JsonDocument.Parse(
-                   await queryAuthenticated.Content.ReadAsStringAsync(cancellationToken)))
-        {
-            Assert.True(document.RootElement.TryGetProperty("connectionToken", out _));
-            Assert.NotEmpty(document.RootElement.GetProperty("availableTransports").EnumerateArray());
-        }
+        Assert.Equal(HttpStatusCode.Unauthorized, queryAuthenticated.StatusCode);
 
         using var headerRequest = new HttpRequestMessage(HttpMethod.Post, negotiatePath);
         headerRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -48,6 +42,23 @@ public sealed class CommunicationsRealtimeEndpointTests(ApiFixture fixture)
             headerRequest,
             cancellationToken);
         Assert.Equal(HttpStatusCode.OK, headerAuthenticated.StatusCode);
+        using (JsonDocument document = JsonDocument.Parse(
+                   await headerAuthenticated.Content.ReadAsStringAsync(cancellationToken)))
+        {
+            Assert.True(document.RootElement.TryGetProperty("connectionToken", out _));
+            Assert.NotEmpty(document.RootElement.GetProperty("availableTransports").EnumerateArray());
+        }
+
+        using HttpResponseMessage queryTransport = await fixture.Client.GetAsync(
+            $"{CommunicationsHub.Path}?access_token={Uri.EscapeDataString(accessToken)}",
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.BadRequest, queryTransport.StatusCode);
+
+        using HttpResponseMessage queryPostTransport = await fixture.Client.PostAsync(
+            $"{CommunicationsHub.Path}?access_token={Uri.EscapeDataString(accessToken)}",
+            null,
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, queryPostTransport.StatusCode);
 
         using HttpResponseMessage irrelevantRoute = await fixture.Client.GetAsync(
             $"/api/v1/conversations?access_token={Uri.EscapeDataString(accessToken)}",
@@ -58,16 +69,22 @@ public sealed class CommunicationsRealtimeEndpointTests(ApiFixture fixture)
     [Fact]
     public void HubExposesNoClientInvokableMethodsAndRealtimeDefaultsAreSafe()
     {
-        Assert.DoesNotContain(
-            typeof(CommunicationsHub).GetMethods(System.Reflection.BindingFlags.Instance |
+        string[] declaredMethods = typeof(CommunicationsHub)
+            .GetMethods(System.Reflection.BindingFlags.Instance |
                 System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.DeclaredOnly),
-            method => !method.IsSpecialName);
+                System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(["OnConnectedAsync", "OnDisconnectedAsync"], declaredMethods);
 
         CommunicationsRealtimeOptions options = fixture.Factory.Services
             .GetRequiredService<IOptions<CommunicationsRealtimeOptions>>()
             .Value;
         Assert.False(options.DispatcherEnabled);
+        Assert.False(options.SingleNodeMode);
+        Assert.Equal(TimeSpan.FromSeconds(10), options.SessionValidationInterval);
         Assert.False(options.Redis.Enabled);
         Assert.Equal("RedisRealtime", options.Redis.ConnectionStringName);
         Assert.Equal("dorosak", options.Redis.ChannelPrefixRoot);
@@ -83,6 +100,21 @@ public sealed class CommunicationsRealtimeEndpointTests(ApiFixture fixture)
         Exception exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
         Assert.Contains(
             "Communications realtime Redis connection string is required",
+            exception.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EnablingDispatcherWithoutRedisOrExplicitSingleNodeModeFailsConfigurationValidation()
+    {
+        using WebApplicationFactory<Program> factory = fixture.Factory.WithWebHostBuilder(builder => builder
+            .UseSetting("CommunicationsRealtime:DispatcherEnabled", "true")
+            .UseSetting("CommunicationsRealtime:SingleNodeMode", "false")
+            .UseSetting("CommunicationsRealtime:Redis:Enabled", "false"));
+
+        Exception exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        Assert.Contains(
+            "Communications realtime dispatching requires Redis or explicit single-node mode",
             exception.ToString(),
             StringComparison.Ordinal);
     }

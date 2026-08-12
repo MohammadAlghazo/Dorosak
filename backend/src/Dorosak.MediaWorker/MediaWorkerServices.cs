@@ -57,6 +57,165 @@ public static class MediaWorkerTelemetry
     public static readonly Counter<long> CleanupSessions = Meter.CreateCounter<long>("dorosak.media.cleanup.sessions");
 }
 
+internal sealed record MediaVariantUploadBatch(
+    IReadOnlyDictionary<string, ObjectStoragePutResult> Uploads,
+    IReadOnlyList<ObjectStoragePutResult> ProcessedImages,
+    IReadOnlyList<ObjectStoragePutResult> ObjectStorageObjects);
+
+internal static class MediaVariantStorageRouter
+{
+    internal static async Task<MediaVariantUploadBatch> StoreAsync(
+        MediaProcessingInput input,
+        IReadOnlyList<MediaVariantFile> variants,
+        IObjectStorage objectStorage,
+        IProcessedImageStore processedImageStore,
+        CancellationToken cancellationToken)
+    {
+        var uploads = new Dictionary<string, ObjectStoragePutResult>(StringComparer.Ordinal);
+        var processedImages = new List<ObjectStoragePutResult>();
+        var objectStorageObjects = new List<ObjectStoragePutResult>();
+        try
+        {
+            foreach (MediaVariantFile variant in variants)
+            {
+                await using FileStream stream = File.OpenRead(variant.FilePath);
+                ObjectStoragePutResult upload;
+                if (ShouldUseProcessedImageStore(input, variant, processedImageStore))
+                {
+                    upload = await processedImageStore.PutAsync(
+                        new ProcessedImageUploadRequest(
+                            input.AssetId,
+                            variant.VariantId,
+                            variant.ContentType,
+                            stream,
+                            stream.Length),
+                        cancellationToken);
+                    processedImages.Add(upload);
+                }
+                else
+                {
+                    upload = await objectStorage.PutObjectAsync(
+                        new ObjectStorageUploadRequest(
+                            variant.ObjectKey,
+                            variant.ContentType,
+                            stream,
+                        stream.Length),
+                        cancellationToken);
+                    objectStorageObjects.Add(upload);
+                }
+                uploads.Add(variant.Kind, upload);
+            }
+        }
+        catch
+        {
+            await RollbackAsync(
+                objectStorage,
+                processedImageStore,
+                processedImages,
+                objectStorageObjects,
+                CancellationToken.None);
+            throw;
+        }
+
+        return new MediaVariantUploadBatch(uploads, processedImages, objectStorageObjects);
+    }
+
+    internal static bool ShouldUseProcessedImageStore(
+        MediaProcessingInput input,
+        MediaVariantFile variant,
+        IProcessedImageStore processedImageStore) =>
+        input.Purpose is MediaPurpose.ProfileImage or MediaPurpose.CourseImage &&
+        variant.Kind.StartsWith("image-", StringComparison.Ordinal) &&
+        variant.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
+        processedImageStore.CanStore(input, variant);
+
+    internal static async Task DeleteProcessedImagesAsync(
+        IProcessedImageStore processedImageStore,
+        IReadOnlyList<ObjectStoragePutResult> uploads,
+        CancellationToken cancellationToken)
+    {
+        StorageUnavailableException? failure = null;
+        for (int index = uploads.Count - 1; index >= 0; index--)
+        {
+            ObjectStoragePutResult upload = uploads[index];
+            try
+            {
+                await processedImageStore.DeleteAsync(upload.ObjectKey, upload.VersionId, cancellationToken);
+            }
+            catch (StorageUnavailableException exception)
+            {
+                failure ??= exception;
+            }
+        }
+        if (failure is not null)
+        {
+            throw new StorageUnavailableException("Processed image rollback could not be completed.", failure);
+        }
+    }
+
+    internal static async Task DeleteObjectStorageObjectsAsync(
+        IObjectStorage objectStorage,
+        IReadOnlyList<ObjectStoragePutResult> uploads,
+        CancellationToken cancellationToken)
+    {
+        StorageUnavailableException? failure = null;
+        for (int index = uploads.Count - 1; index >= 0; index--)
+        {
+            ObjectStoragePutResult upload = uploads[index];
+            if (string.IsNullOrWhiteSpace(upload.ObjectKey))
+            {
+                continue;
+            }
+
+            try
+            {
+                await objectStorage.DeleteObjectAsync(upload.ObjectKey, cancellationToken);
+            }
+            catch (StorageUnavailableException exception)
+            {
+                failure ??= exception;
+            }
+        }
+
+        if (failure is not null)
+        {
+            throw new StorageUnavailableException("Object storage rollback could not be completed.", failure);
+        }
+    }
+
+    internal static async Task RollbackAsync(
+        IObjectStorage objectStorage,
+        IProcessedImageStore processedImageStore,
+        IReadOnlyList<ObjectStoragePutResult> processedImages,
+        IReadOnlyList<ObjectStoragePutResult> objectStorageObjects,
+        CancellationToken cancellationToken)
+    {
+        StorageUnavailableException? failure = null;
+        try
+        {
+            await DeleteProcessedImagesAsync(processedImageStore, processedImages, cancellationToken);
+        }
+        catch (StorageUnavailableException exception)
+        {
+            failure = exception;
+        }
+
+        try
+        {
+            await DeleteObjectStorageObjectsAsync(objectStorage, objectStorageObjects, cancellationToken);
+        }
+        catch (StorageUnavailableException exception)
+        {
+            failure ??= exception;
+        }
+
+        if (failure is not null)
+        {
+            throw new StorageUnavailableException("Media variant rollback could not be completed.", failure);
+        }
+    }
+}
+
 internal static partial class MediaContainerSmoke
 {
     public static async Task RunAsync(IServiceProvider services, CancellationToken cancellationToken)
@@ -542,11 +701,19 @@ internal sealed class FfmpegMediaProcessor(IOptions<MediaOptions> options, Media
 
     private async Task<MediaVariantFile> EncodeImageAsync(Guid assetId, string source, string output, int width, string format, string contentType, IReadOnlyList<string> encoderArguments, CancellationToken cancellationToken)
     {
-        Guid variantId = Guid.CreateVersion7();
+        string kind = $"image-{format}-{width}";
+        Guid variantId = CreateDeterministicImageVariantId(assetId, kind);
         string file = Path.Combine(output, $"image-{width}.{format}");
         await processes.RunAsync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-nostdin", "-i", source, "-vf", $"scale={width}:-2:flags=lanczos", "-frames:v", "1", "-map_metadata", "-1", .. encoderArguments, "-y", file], cancellationToken);
         MediaProbe probe = await ProbeAsync(file, cancellationToken);
-        return await CreateVariantAsync(variantId, $"image-{format}-{width}", file, contentType, MediaObjectKeys.Ready(_options.Environment, assetId, variantId, Path.GetFileName(file)), probe.Width, probe.Height, null, cancellationToken);
+        return await CreateVariantAsync(variantId, kind, file, contentType, MediaObjectKeys.Ready(_options.Environment, assetId, variantId, Path.GetFileName(file)), probe.Width, probe.Height, null, cancellationToken);
+    }
+
+    internal static Guid CreateDeterministicImageVariantId(Guid assetId, string kind)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(kind);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{assetId:D}:{kind}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     private static async Task<MediaVariantFile> CreateVariantAsync(Guid variantId, string kind, string filePath, string contentType, string objectKey, int? width, int? height, decimal? durationSeconds, CancellationToken cancellationToken)
@@ -615,6 +782,7 @@ internal sealed partial class MediaProcessingWorker(
             IMediaJobStore jobs = scope.ServiceProvider.GetRequiredService<IMediaJobStore>();
             IMediaProcessingStore store = scope.ServiceProvider.GetRequiredService<IMediaProcessingStore>();
             IObjectStorage storage = scope.ServiceProvider.GetRequiredService<IObjectStorage>();
+            IProcessedImageStore processedImageStore = scope.ServiceProvider.GetRequiredService<IProcessedImageStore>();
             IMalwareScanner scanner = scope.ServiceProvider.GetRequiredService<IMalwareScanner>();
             IMediaContentValidator validator = scope.ServiceProvider.GetRequiredService<IMediaContentValidator>();
             IMediaProcessor processor = scope.ServiceProvider.GetRequiredService<IMediaProcessor>();
@@ -637,6 +805,7 @@ internal sealed partial class MediaProcessingWorker(
             }
             string source = Path.Combine(tempDirectory, "source.bin");
             string output = Path.Combine(tempDirectory, "output");
+            MediaVariantUploadBatch? uploadBatch = null;
             try
             {
                 if (work.ExistingState == MediaAssetState.Uploaded.ToString())
@@ -684,17 +853,36 @@ internal sealed partial class MediaProcessingWorker(
                 }
                 await store.MarkProcessingAsync(work.Input.AssetId, cancellationToken);
                 MediaProcessingResult processed = await processor.ProcessAsync(work.Input, source, output, cancellationToken);
-                Dictionary<string, ObjectStoragePutResult> uploads = new(StringComparer.Ordinal);
-                foreach (MediaVariantFile variant in processed.Variants)
-                {
-                    await using FileStream stream = File.OpenRead(variant.FilePath);
-                    uploads[variant.Kind] = await storage.PutObjectAsync(
-                        new ObjectStorageUploadRequest(variant.ObjectKey, variant.ContentType, stream, stream.Length),
-                        cancellationToken);
-                }
-                await store.MarkReadyAsync(work.Input.AssetId, new FileInfo(source).Length, hash, processed.Variants, uploads, timeProvider.GetUtcNow(), cancellationToken);
+                uploadBatch = await MediaVariantStorageRouter.StoreAsync(
+                    work.Input,
+                    processed.Variants,
+                    storage,
+                    processedImageStore,
+                    cancellationToken);
+                await store.MarkReadyAsync(
+                    work.Input.AssetId,
+                    new FileInfo(source).Length,
+                    hash,
+                    processed.Variants,
+                    uploadBatch.Uploads,
+                    timeProvider.GetUtcNow(),
+                    cancellationToken);
+                uploadBatch = null;
                 await jobs.CompleteAsync(claim, timeProvider.GetUtcNow(), cancellationToken);
                 MediaWorkerTelemetry.JobsCompleted.Add(1);
+            }
+            catch
+            {
+                if (uploadBatch is not null)
+                {
+                    await MediaVariantStorageRouter.RollbackAsync(
+                        storage,
+                        processedImageStore,
+                        uploadBatch.ProcessedImages,
+                        uploadBatch.ObjectStorageObjects,
+                        CancellationToken.None);
+                }
+                throw;
             }
             finally
             {

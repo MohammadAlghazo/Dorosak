@@ -4,13 +4,13 @@
 |---|---|
 | Document | `PROJECT_PLAN.md` |
 | Status | Approved architecture baseline |
-| Version | `1.6.0` |
+| Version | `1.7.0` |
 | Date | `2026-08-08` |
 | Product | `Dorosak` |
 | Architecture style | `Clean Architecture` + `Modular Monolith` + feature-based vertical slices |
-| Current delivery phase | `9. Engagement, Realtime, and Assignment Attachments` (in progress) |
+| Current delivery phase | `10. Demo Commerce and Credentials` |
 | Primary language | Arabic-first with full `RTL`; English is supported with `LTR` |
-| Production database | Neon PostgreSQL |
+| Portfolio database | Local PostgreSQL 18; Neon or another managed PostgreSQL host is optional future work |
 
 ## 1. Document Authority
 
@@ -52,6 +52,10 @@
 
 المنتج المستهدف ليس نسخة شكلية من `Udemy` أو `Coursera`. الهدف هو تقديم تجربة تعلم موثوقة، سريعة، قابلة للوصول، وآمنة، مع بنية تشغيل تستطيع النمو من إطلاق أولي صغير إلى ملايين الحسابات من دون إعادة كتابة جوهر النظام.
 
+> Portfolio scope decision (`2026-08-12`): النسخة الحالية Demo للسيرة الذاتية وليست إطلاقًا عامًا. تعريف اكتمالها لا يتطلب
+> Azure أو Neon أو Cloudinary أو Postmark أو Stripe أو domain مدفوع. تعمل محليًا بخدمات Docker مجانية، بينما تبقى حدود
+> Infrastructure قابلة لاستبدال adapters مستقبلًا إذا تقرر الإطلاق الحقيقي.
+
 ### 2.1 Product Principles
 
 - `Learning first`: الوصول إلى الدرس التالي والتقدم الفعلي أهم من المؤشرات الاستعراضية.
@@ -86,13 +90,13 @@
 - المراجعات والتقييمات والمناقشات والتعليقات والردود والإعجابات والتقارير والإشراف.
 - الرسائل والإشعارات والإعلانات والدردشة الفورية ومؤشرات الكتابة.
 - الشهادات العامة القابلة للتحقق.
-- بنية التجارة: المنتجات والأسعار والكوبونات والطلبات والمدفوعات والاسترداد والاشتراكات والاستحقاقات.
+- تجارة Demo: credits غير نقدية، طلبات ومدفوعات محاكاة، اشتراك محلي بسيط، واستحقاقات؛ real-money flows مستقبلية.
 - لوحات الطالب والمدرس والمشرف والتحليلات والتقارير وسجل التدقيق.
 - صفحات `CMS`: About, Contact, FAQ, Privacy Policy, Terms.
 - `SSR`, hydration, PWA، ووضع Offline محدود وآمن.
-- Docker وGitHub Actions وبيئات Dev/Staging/Production وخطة نشر ومراقبة ونسخ احتياطي.
+- Docker Compose محلي وGitHub Actions وتهيئة adapters قابلة للنشر مستقبلًا من دون اشتراك سحابي حالي.
 
-### 3.2 Explicit Non-Goals for the Initial Production Release
+### 3.2 Explicit Non-Goals for the Portfolio Demo
 
 هذه الحدود قرارات هندسية وليست عناصر منسية:
 
@@ -103,7 +107,9 @@
 - لا يوجد `GraphQL` أو `OData`; الواجهة العامة `REST` موثقة عبر OpenAPI.
 - لا يوجد محرك `Elasticsearch/OpenSearch` عند الإطلاق؛ يبدأ البحث بـPostgreSQL ثم ينتقل عند تحقق شروط قياس محددة.
 - لا يوجد `Kubernetes` عند الإطلاق؛ منصة حاويات مدارة أقل تعقيدًا وأكثر ملاءمة لحجم الفريق الأولي.
-- لا تخزن بيانات بطاقات الدفع. يستخدم `Hosted Checkout/Tokenization` لتقليل نطاق `PCI DSS`.
+- لا يوجد دفع حقيقي أو بطاقات أو بنك أو ضرائب أو refunds/disputes/payouts؛ `DEMO` credits لا تملك قيمة مالية.
+- لا توجد Azure resources أو staging/production accounts أو domains أو paid monitoring/email/storage providers.
+- لا يحتاج اكتمال الديمو إلى multi-replica SignalR أو CDN أو managed Redis أو disaster-recovery cloud drills.
 - لا تقدم المنصة ضمانًا يمنع تسجيل الشاشة؛ حماية الوسائط تعتمد على الاستحقاق والروابط الموقعة، ويمكن إضافة `DRM` لاحقًا إذا فرضه نموذج العمل.
 
 ## 4. Roles
@@ -218,34 +224,26 @@
 
 ### 5.9 Commerce
 
-> Temporary local decision (`2026-08-09`): real provider checkout is postponed. The current product uses a clearly labeled
+> Portfolio decision (`2026-08-12`): real provider checkout is outside the demo scope. The product uses a clearly labeled
 > `DemoProvider` with `100 DEMO` credits, no monetary value, and explicit success/failure simulation. It stores durable demo
 > orders/payments and grants learning entitlement only on simulated success. PAN, CVV, bank details, and real payment tokens
 > are never requested or stored. This adapter must be replaced before accepting real money.
 
-- فصل `Product`, `SalesOffer`, `Order`, `Payment`, `Subscription`, و`Entitlement`.
-- السعر والعملة والخصم والضريبة تحفظ snapshot داخل الطلب.
-- كوبونات بوقت ونطاق وحد استخدام وقواعد أهلية واضحة.
-- `Hosted Checkout` من مزود الدفع، والتحقق من webhook قبل منح الوصول.
-- idempotency لكل checkout/payment/webhook/refund.
-- حالات دفع واسترداد واشتراك مستقلة، ولا يعتمد النجاح على redirect المتصفح.
-- `CheckoutSession` تثبت quote محدودة الصلاحية، و`RefundRequest` تفصل طلب المستخدم عن refund المؤكدة من provider.
-- invoice/tax snapshots تحفظ وفق market وMerchant of Record policy، ولا يعاد حساب التاريخ المالي من price الحالية.
-- disputes وchargebacks لها workflow مستقلة تؤثر في entitlement والledger وفق policy ولا تحذف order.
-- double-entry ledger يسجل capture, refund, fee, tax, teacher earning, reserve، وpayout بقيود immutable ومتوازنة.
-- commission rate وteacher share تحفظ snapshot لكل order item؛ payout لا يبدأ قبل settlement hold وKYC/provider onboarding.
-- reference marketplace payout هو `Stripe Connect` مع adapter مستقل، ويظل teacher payout معطلًا حتى اعتماد Merchant of Record والضرائب والبلدان المدعومة.
-- reconciliation job يومية تقارن payments/refunds/disputes/payouts المحلية بتقرير provider، وتنتج run قابلًا للتدقيق وتنبيهًا لأي mismatch.
-- تفعيل الدفع العام يكون عبر `Feature Flag` بعد إعداد حساب التاجر والتحقق القانوني. البنية المرجعية تستخدم `Stripe Checkout`; إن لم يكن متاحًا في بلد الشركة، يستبدل adapter فقط بقرار ADR قبل مرحلة Commerce.
-- لا تخزن المنصة PAN أو CVV أو بيانات اعتماد دفع خام.
+- يحتفظ الديمو بـ`DemoOrder`, `DemoPayment`, `DemoSubscription`, و`Entitlement` كسجلات محلية واضحة.
+- checkout يحاكي النجاح أو الفشل بـ`100 DEMO` credits ويمنح الوصول فقط عند النجاح.
+- الاشتراك خطة محلية واحدة قابلة للتفعيل والإلغاء، بلا recurring billing أو invoices أو proration أو webhook.
+- لا توجد coupons, tax, refund, dispute, chargeback, payout, KYC، أو financial ledger في نطاق الديمو.
+- تبقى idempotency, audit, authorization، وفصل provider adapter موجودة لإظهار الحدود الهندسية الصحيحة.
+- لا تطلب المنصة PAN أو CVV أو billing address أو bank details أو payment token في أي شاشة أو API.
+- الدفع الحقيقي يتطلب ADR جديدًا وقرارًا قانونيًا ومزود hosted checkout، ولا يعد جزءًا مؤجلًا يمنع إكمال المشروع الحالي.
 
 ### 5.10 Certificates
 
 - إصدار شهادة بعد `CourseCompletion` مؤكد.
-- الشهادة immutable وتحمل رقمًا عامًا غير متسلسل ورمز QR إلى صفحة تحقق.
+- الشهادة immutable وتحمل رمز تحقق عامًا عشوائيًا غير متسلسل.
 - صفحة التحقق العامة تعرض الحد الأدنى: اسم المتعلم وفق موافقته، المقرر، تاريخ الإصدار، والحالة.
 - الإبطال يسجل كحالة وحدث، ولا يحذف الشهادة.
-- PDF ينشأ في background job ويحفظ كملف خاص قابل للتنزيل برابط موقّع.
+- صفحة HTML قابلة للطباعة/الحفظ PDF من المتصفح تكفي للديمو؛ PDF server-side وQR والتوقيع الرقمي adapters مستقبلية.
 
 ### 5.11 Administration, CMS, and Analytics
 
@@ -313,7 +311,7 @@
 |---|---|---|
 | Backend runtime | `.NET 10 LTS`, `C# 14`, `ASP.NET Core 10` | أحدث LTS مستقر؛ لا يستخدم STS أعلى لمجرد الرقم |
 | ORM | `EF Core 10` + `Npgsql` | PostgreSQL-native provider، migrations وcompiled models عند إثبات فائدتها |
-| Database | `PostgreSQL 18` on Neon | يستخدم إذا كان `GA` في Neon؛ الخيار الوحيد البديل هو PostgreSQL 17 عند عدم دعم 18 |
+| Database | `PostgreSQL 18` | Docker محلي للديمو؛ Neon أو managed PostgreSQL آخر adapter استضافة مستقبلي |
 | CQRS mediator | `MediatR` latest stable | لتنظيم use cases فقط؛ تعتمد الرخصة المناسبة قبل الإنتاج |
 | Validation | `FluentValidation` latest stable | Application validation؛ database constraints تبقى الحارس النهائي |
 | Mapping | `AutoMapper` latest stable | Read projections والخرائط الآمنة فقط؛ تعتمد الرخصة المناسبة |
@@ -335,13 +333,13 @@
 | Icons | `Lucide Angular` | imports محددة قابلة لـtree shaking |
 | PWA | Angular Service Worker + IndexedDB application layer | shell/assets عبر SW، والبيانات offline عبر سياسة صريحة |
 | Media | `FFmpeg`, `ffprobe`, `libvips`, `ClamAV` | تعمل داخل workers معزولة ومحدودة الموارد |
-| Object storage | Azure Blob Storage في reference deployment | private containers وsigned access وCDN |
-| Email | Postmark في reference deployment | HTTPS API, SPF, DKIM, DMARC, webhook validation |
-| Production compute | Azure Container Apps | Web SSR, API, workers, jobs، ودعم revisions/traffic splitting |
-| Edge | Azure Front Door Premium + WAF | TLS, CDN, routing, DDoS/WAF، ونطاق تطبيق واحد |
-| Secrets | Azure Key Vault | runtime injection وGitHub OIDC بلا أسرار طويلة العمر |
-| Container registry | Azure Container Registry | immutable image digests, scanning, signing |
-| Infrastructure as Code | Azure Bicep | كل إعداد دائم يعاد إنشاؤه من المستودع |
+| Object storage | MinIO/S3-compatible local adapter | Azure Blob أو مزود آخر اختيار مستقبلي فقط |
+| Email | Mailpit local SMTP | مزود transactional email اختيار مستقبلي فقط |
+| Demo compute | Docker Compose + local processes | لا cloud account مطلوب؛ OCI images تحفظ قابلية النقل |
+| Edge | localhost same-origin proxy | CDN/WAF/domain/TLS تدخل فقط عند قرار إطلاق عام |
+| Secrets | `.env.local` مستبعد ومقيد ACL | managed secret vault اختيار مستقبلي |
+| Container registry | local images / GitHub build artifacts | registry مدفوع غير مطلوب للديمو |
+| Infrastructure as Code | Docker Compose and configuration contracts | cloud IaC يكتب بعد اختيار provider فعلًا |
 | CI/CD | GitHub Actions | build each workload once, promote one immutable release manifest of image digests |
 
 ### 7.1 License Policy
@@ -481,14 +479,14 @@
 | CQRS | Logical command/query separation | Event Sourcing | ينظم التعقيد من دون تكلفة إعادة بناء الحالة وإدارة event history الدائمة |
 | Public API | REST + OpenAPI 3.1 | GraphQL/OData | authorization, caching, pagination، والعقود أسهل في الضبط والاختبار لهذا المنتج |
 | Browser auth | JWT in memory + rotating HttpOnly refresh cookie | tokens in localStorage أو cookie JWT طويلة | يقلل أثر token theft ويحافظ على JWT requirement وإلغاء الجلسات |
-| Web topology | Same public origin through Front Door | permanent cross-origin Web/API | يقلل CORS, CSRF, cookie، وSSR complexity، مع إبقاء workloads منفصلة داخليًا |
+| Web topology | Same origin through local proxy; edge adapter later | permanent cross-origin Web/API | يقلل CORS, CSRF, cookie، وSSR complexity بلا ربط Front Door |
 | Search | PostgreSQL FTS + pg_trgm first | OpenSearch from launch | حجم تشغيل أقل واتساق أسهل؛ الانتقال يبقى ممكنًا عبر projection |
 | Files | direct multipart upload to quarantine storage | تمرير الفيديو كاملًا عبر API أو تخزينه في DB | يمنع استهلاك API memory/bandwidth ويعزل المحتوى غير الموثوق |
 | Jobs | Hangfire + transactional outbox | fire-and-forget أو message broker مبكر | durable retries وdashboard مناسب داخل monolith، مع منع ضياع العمل بعد commit |
 | Realtime | SignalR as best-effort notification channel | SignalR as source of truth | reconnect لا يسبب فقد business state، والعميل يستطيع REST resync |
 | Angular rendering | SSR public pages, CSR protected workspaces | SSR لكل البيانات أو CSR كامل | SEO وأداء عام جيدان بلا خطر cache/SSR leakage للبيانات الشخصية |
 | Frontend state | Signals + RxJS route-scoped state | Global NgRx store from launch | يقلل boilerplate والتسرب بين features؛ يمكن إضافة store مركزي بقرار مثبت لاحقًا |
-| Production compute | Azure Container Apps | Kubernetes | يوفر revisions, jobs, autoscaling، وWebSockets مع عبء تشغيلي مناسب لفريق البداية |
+| Portfolio compute | Docker Compose locally | cloud platform now | يعرض workloads وحدودها بلا اشتراك أو provider lock-in |
 | Tenancy | Single marketplace | speculative TenantId everywhere | لا يوجد requirement تعاقدي للعزل؛ يمنع تعقيد كل query/index/cache مسبقًا |
 
 ## 9. Planned Folder Structure
@@ -1649,7 +1647,7 @@ app/
 
 ## 23. Docker Strategy
 
-### 23.1 Production Images
+### 23.1 Portable Images
 
 - multi-stage builds، وruntime image لا تحتوي SDK أو source أو tests.
 - base images مثبتة major/patch وdigest؛ لا تستخدم tag `latest`.
@@ -1665,18 +1663,15 @@ app/
 - `backend/src/Dorosak.Api/Dockerfile`: production multi-stage API image.
 - `backend/src/Dorosak.Worker/Dockerfile`: production background worker image.
 - `backend/src/Dorosak.MediaWorker/Dockerfile`: production isolated media image with pinned native tools.
-- `frontend/Dockerfile`: production Angular SSR Node image.
-- `deploy/docker/Dockerfile.backend.dev`: development image مع SDK وhot reload فقط.
-- `deploy/docker/Dockerfile.frontend.dev`: development Node image مع Angular dev server فقط.
-- development Dockerfiles لا تنشر إلى Production registry، وproduction Dockerfiles لا تحتوي development certificates أو tools.
-- API/Worker production وbackend development Dockerfiles تنشأ في phase 3، وFrontend files في phase 4، وMediaWorker file في phase 7؛ phase 12 لا تنشئها لأول مرة بل تشددها وتفحصها وتوقعها وتنشرها.
+- frontend يعمل محليًا عبر Angular dev server، ويبنى SSR production artifact ضمن verification.
+- API/Worker/MediaWorker images تحفظ قابلية النقل إلى أي مزود مستقبلًا، ولا يلزم نشرها إلى registry للديمو.
 
 ### 23.2 Docker Compose
 
-- Docker Compose للتطوير وCI فقط، وليس Production deployment.
-- default local application يتصل مباشرة بـNeon Dev branch؛ لا يعتمد على SQL Server أو local PostgreSQL.
-- خدمات Local: Redis, MinIO-compatible storage, Mailpit, ClamAV، وOpenTelemetry Collector عند الحاجة.
-- PostgreSQL container يستخدم فقط في hermetic integration tests/CI وبنفس major المستهدف، ولا يغير design الموجه إلى Neon.
+- Docker Compose هو runtime الرسمي للـPortfolio Demo، وليس ادعاء Production deployment.
+- default local application يستخدم PostgreSQL 18 محليًا ولا يحتاج Neon أو أي cloud account.
+- خدمات Local: PostgreSQL, Redis, MinIO-compatible storage, Mailpit, ClamAV، وOpenTelemetry Collector عند الحاجة.
+- managed PostgreSQL وRedis وobject storage يمكن استبدالها لاحقًا عبر configuration/adapters دون تغيير Domain.
 - ports ترتبط بـlocalhost، والخدمات الداخلية على isolated network.
 - named volumes وhealth checks وresource limits.
 - migrations خدمة one-shot صريحة، وليست جزءًا من startup.
@@ -1684,65 +1679,51 @@ app/
 
 ## 24. Deployment Strategy
 
-### 24.1 Reference Production Topology
+### 24.1 Portfolio Demo Topology
 
 المسار العام:
 
-`DNS -> Azure Front Door Premium/WAF -> Dorosak.Web or Dorosak.Api -> Neon pooled endpoint`
+`Browser -> Angular local server/proxy -> Dorosak.Api -> local PostgreSQL`
 
 المسارات المساندة:
 
-- Front Door يوجه `/api/*` و`/hubs/*` إلى API، وبقية المسارات إلى Angular SSR تحت origin عام واحد.
-- `/assets/*` وmedia delivery من private Azure Blob عبر CDN/signed access.
+- Angular dev proxy يوجه `/api/*` و`/hubs/*` إلى API، ويحافظ على same-origin browser flow.
+- media delivery من MinIO المحلي عبر grants قصيرة الصلاحية.
 - API يكتب jobs/outbox فقط؛ Worker وMediaWorker ينفذان.
-- API يتصل بخدمات Azure Managed Redis الثلاث عبر TLS وبـACL منفصلة؛ Workers تستخدم Cache/Realtime فقط عند الحاجة ولا تملك صلاحية rate-limit غير لازمة.
-- Migration Container Apps Job يتصل بـNeon direct endpoint.
-- telemetry يرسل عبر OTLP إلى Azure Monitor/Application Insights.
-- Postmark يرسل البريد وتتحقق API من signed webhooks.
-- Container Apps ingress لا يقبل الإنترنت مباشرة: يستخدم Front Door Premium Private Link حيث يتاح، وإلا access restrictions تسمح Front Door service tag فقط مع التحقق من `X-Azure-FDID` الخاص بالinstance. أي request مباشر إلى origin يرفض.
-- Blob origins private وتسمح Front Door/managed identity أو signed grants فقط؛ لا public container يتجاوز WAF أو entitlement checks.
-- direct browser upload يملك Azure Blob CORS allow-list لـ`https://dorosak.com` فقط، methods `PUT, HEAD, OPTIONS`, headers/checksum المطلوبة فقط، ولا wildcard credentials. signed URL تقيد object key, method, size intent، ومدة قصيرة.
+- Redis محلي للcache/rate limiting؛ single-node SignalR صريح للديمو.
+- migrations تنفذ one-shot عبر `Initialize-LocalPostgresDatabase.ps1` بحساب migrator منفصل.
+- Mailpit يلتقط البريد محليًا بدل إرساله للإنترنت، وOpenTelemetry يبقى اختياريًا.
+- Azure/Front Door/Blob/Key Vault/Postmark ليست مكونات runtime الحالي؛ اختيارها أو استبدالها قرار إطلاق مستقبلي.
 
 ### 24.2 Environments
 
 | Environment | Purpose | Data policy | Deployment |
 |---|---|---|---|
-| `Local` | Development on workstation | synthetic data، Neon Dev branch، local Redis/storage/mail | manual via CLI/Compose |
-| `Dev` | Shared integration | independent Neon project, sandbox integrations | automatic from main |
-| `Preview` | Trusted PR validation | temporary Neon Dev-derived branch, TTL 48h | automatic for trusted PR only |
-| `Staging` | Production-like verification | independent project, synthetic/anonymized data | same release manifest promoted |
-| `Production` | Real users | fully isolated accounts, secrets, storage, database | approved canary deployment |
+| `Local Demo` | Development and CV presentation | synthetic data only | CLI + Docker Compose |
+| `CI` | Hermetic build/test validation | disposable PostgreSQL and services | GitHub Actions |
+| `Cloud Preview` | Optional future public preview | synthetic data and isolated secrets | chosen only after provider/budget decision |
+| `Production` | Optional future real users | outside current scope | requires a new launch ADR |
 
-- لا تنسخ Production data إلى بيئات أخرى دون anonymization معتمد.
-- Production لا تستخدم scale-to-zero.
-- Staging تطابق topology والأمن بقدر يسمح باختبار واقعي.
+- لا توجد Production data في نطاق الديمو.
+- cloud preview وproduction لا يدخلان تعريف اكتمال المراحل الحالية.
 
-### 24.3 Release Process
+### 24.3 Portfolio Release Process
 
-1. Merge إلى protected main بعد required reviews/checks.
-2. Build OCI images لكل workload مرة واحدة، وفحصها وتوقيعها وإنتاج SBOM لكل image.
-3. إنشاء release manifest immutable تربط release ID بـWeb/API/Worker/MediaWorker image digests وapplication migration ID وHangfire schema version وevent/job contract versions.
-4. Deploy release manifest نفسها إلى Dev ثم Staging وتشغيل migrations, integration, E2E, DAST، وload baseline.
-5. Production approval عبر GitHub Environment وOIDC.
-6. تنفيذ application migration artifact ثم Hangfire schema artifact عند الحاجة، كل منهما job واحدة وبـlocks وصلاحيات منفصلة.
-7. نشر consumers المتوافقة مع N/N-1 أولًا، ثم API producers، ثم Web؛ لا تنتج API contract/job version جديدة قبل جاهزية consumers.
-8. canary traffic: 5% لعشر دقائق، 25% لخمس عشرة دقيقة، ثم 100% إذا بقيت SLO سليمة، مع مراقبة worker/media contract failures.
-9. إيقاف تلقائي عند ارتفاع 5xx, latency, DB saturation, SignalR reconnects، أو failed critical jobs.
-10. rollback يعيد previous release manifest كاملة خلال هدف 10 دقائق؛ workers القديمة تبقى متوافقة مع queued contracts وschema تتعامل roll-forward إذا لزم.
+1. Build backend وfrontend production artifacts وOCI images الموجودة.
+2. شغّل migrations على PostgreSQL محلي جديد، ثم unit/integration/E2E/security checks.
+3. ولّد synthetic demo data فقط، وشغّل الرحلات الأساسية للGuest/Student/Teacher/Admin.
+4. وثق أوامر التشغيل وscreenshots/README المناسبة للسيرة الذاتية.
+5. ارفع الكود إلى GitHub بعد موافقة المستخدم؛ لا deploy سحابي ولا canary ولا paid registry مطلوب.
 
-### 24.4 Domains and TLS
+### 24.4 Optional Public Launch
 
-- canonical product origin المستهدف `https://dorosak.com`، و`www` يحول إليه إذا كان النطاق مملوكًا عند مرحلة النشر.
-- `assets.dorosak.com` للملفات العامة/الخاصة عبر CDN بلا application cookies.
-- `status.dorosak.com` لصفحة حالة مستقلة عن runtime الأساسي.
-- Staging وPreview خلف access control ولا تفهرسهما محركات البحث.
-- TLS certificates مدارة وتجدد تلقائيًا؛ TLS 1.2/1.3 فقط.
-- HSTS يبدأ بدون preload، ثم يضاف `includeSubDomains/preload` بعد التحقق من جميع subdomains.
-- DNS registrar account محمي بـMFA, registrar lock, DNSSEC، ومسؤولين اثنين على الأقل.
+- لا domain أو TLS أو CDN مطلوب للديمو المحلي.
+- إذا تقرر نشر preview عام، يختار hosting/domain/budget أولًا ثم يكتب ADR يحدد TLS، edge، storage، secrets، backups،
+  monitoring، وسياسة الوصول. Azure أحد الخيارات وليس اختيارًا إلزاميًا.
 
 ## 25. Environment Variable Strategy
 
-الأسماء التالية contract تشغيلية. القيم السرية تحفظ في Key Vault ولا تكتب في Git.
+الأسماء التالية contract تشغيلية. محليًا تحفظ القيم في `.env.local` مستبعد ومقيد ACL؛ managed vault مستقبلية.
 
 | Variable | Classification | Purpose |
 |---|---|---|
@@ -1751,8 +1732,8 @@ app/
 | `Deployment__Release` | Config | Git SHA/release version |
 | `Deployment__ReleaseManifestDigest` | Config | immutable multi-workload release manifest digest |
 | `App__PublicUrl` | Config | canonical public origin |
-| `ConnectionStrings__Database` | Secret | Neon pooled runtime connection |
-| `Migrations__ConnectionString` | Secret | Neon direct migrator connection |
+| `ConnectionStrings__Database` | Secret | local or managed PostgreSQL runtime connection |
+| `Migrations__ConnectionString` | Secret | local or managed PostgreSQL migrator connection |
 | `ConnectionStrings__Hangfire` | Secret | Hangfire direct/restricted connection |
 | `ConnectionStrings__RedisCache` | Secret | TLS distributed cache endpoint/ACL |
 | `ConnectionStrings__RedisRateLimit` | Secret | isolated noeviction distributed limiter endpoint/ACL |
@@ -1762,18 +1743,18 @@ app/
 | `Jwt__Audience` | Config | API audience |
 | `Jwt__SigningKeyReference` | Secret reference | asymmetric signing key/certificate location |
 | `DataProtection__KeyStore` | Config | durable shared key ring location |
-| `DataProtection__KeyEncryptionKey` | Secret reference | Key Vault protection key |
+| `DataProtection__KeyEncryptionKey` | Secret reference | optional future external protection key |
 | `Storage__Endpoint` | Config | object storage endpoint |
 | `Storage__Container` | Config | environment-specific private container |
 | `Storage__BackupContainer` | Config | independent replicated backup destination |
 | `Storage__AllowedOrigins__0` | Config | exact browser upload origin configured by IaC |
 | `Storage__Credential` | Secret/reference | least-privilege storage identity |
-| `Email__Provider` | Config | `Postmark` reference adapter |
-| `Email__ApiKey` | Secret | transactional email API key |
-| `Email__WebhookSecret` | Secret | email webhook verification |
-| `Payments__Provider` | Config | configured provider when Commerce enabled |
-| `Payments__ApiKey` | Secret | provider server credential |
-| `Payments__WebhookSecret` | Secret | webhook signature verification |
+| `Email__Provider` | Config | local SMTP/Mailpit by default; external provider optional |
+| `Email__ApiKey` | Secret | absent in local demo; future provider credential |
+| `Email__WebhookSecret` | Secret | absent in local demo; future provider verification |
+| `Payments__Provider` | Config | `DemoProvider` in portfolio scope |
+| `Payments__ApiKey` | Secret | absent unless a future real provider is selected |
+| `Payments__WebhookSecret` | Secret | absent unless a future real provider is selected |
 | `Cors__AllowedOrigins__0` | Config | exact origin, used only where cross-origin exists |
 | `OpenTelemetry__Endpoint` | Config | OTLP endpoint |
 | `OpenTelemetry__Headers` | Secret | OTLP auth if required |
@@ -1934,7 +1915,7 @@ app/
 - keyboard, mobile, RTL/LTR, light/dark، وWCAG states اختبرت.
 - loading/empty/error/offline/concurrency states موجودة.
 - docs/runbooks/ADR تحدث عند الحاجة.
-- Docker build وCI الخاصان بالworkloads الموجودة ناجحان: backend من phase 3، frontend من phase 4، وMediaWorker من phase 7؛ تبدأ production scan/sign/promotion gates في phase 12.
+- Docker build وCI الخاصان بالworkloads الموجودة ناجحان؛ cloud signing/promotion ليست بوابة للـPortfolio Demo.
 - التغيير commit/push إلى GitHub بعد شرح المستخدم وتأكيده.
 
 ### 30.3 ADR Register
@@ -1943,12 +1924,12 @@ app/
 |---|---|---|
 | `ADR-001` | Modular Monolith before Microservices | Accepted |
 | `ADR-002` | .NET 10 LTS and Angular 21.2 LTS stable baselines | Accepted |
-| `ADR-003` | Neon PostgreSQL is the system of record | Accepted |
+| `ADR-003` | PostgreSQL is the system of record; Neon was the original reference host | Superseded for portfolio hosting by ADR-023 |
 | `ADR-004` | Short-lived JWT in memory + path-scoped rotating opaque refresh cookie | Accepted |
 | `ADR-005` | Same public origin through Front Door | Accepted |
 | `ADR-006` | Direct multipart uploads to quarantine object storage | Accepted |
 | `ADR-007` | PostgreSQL full-text/trigram search before external engine | Accepted |
-| `ADR-008` | Azure Container Apps reference deployment, no Kubernetes initially | Accepted |
+| `ADR-008` | Azure Container Apps reference deployment, no Kubernetes initially | Superseded for portfolio scope by ADR-023 |
 | `ADR-009` | Single marketplace, no speculative multi-tenancy | Accepted |
 | `ADR-010` | REST/OpenAPI 3.1, no GraphQL/OData initially | Accepted |
 | `ADR-011` | EF Core DbContext as Unit of Work; no generic repository | Accepted |
@@ -1962,6 +1943,8 @@ app/
 | `ADR-019` | Phase 7 media uploads, quarantine, processing, delivery, and MediaWorker contracts | Accepted |
 | `ADR-020` | Phase 8 immutable releases, learning, assessments, and publishing contracts | Accepted |
 | `ADR-021` | Phase 9 engagement, realtime, and assignment attachment contracts | Accepted |
+| `ADR-022` | Portfolio demo commerce, subscriptions, and credentials | Accepted |
+| `ADR-023` | Local-first portfolio demo; cloud providers are optional future adapters | Accepted |
 
 ## 31. Delivery Roadmap
 
@@ -1971,23 +1954,24 @@ app/
 |---|---|---|
 | `0. Architecture` | هذا PROJECT_PLAN، القرارات والحدود وخطة البيانات/API/تشغيل | مراجعة الملف، commit/push `docs: add Dorosak architecture plan` |
 | `1. Workstation and Repository Hardening` | تثبيت/تحقق Git, .NET SDK, Node, Angular CLI, Docker Desktop, IDE؛ gitignore, editorconfig, CODEOWNERS، وتصميم branch policy | أوامر versions ناجحة، commit/push foundation docs/config |
-| `2. Development Infrastructure and Neon` | Neon Dev project/branch، environment contract، Docker Compose لـRedis/MinIO/Mailpit/ClamAV، synthetic data policy | اتصال Neon آمن وفحوص الخدمات، commit/push `chore: add development infrastructure` |
+| `2. Development Infrastructure` | environment contract، local PostgreSQL/Redis/MinIO/Mailpit/ClamAV، synthetic data policy | فحوص الخدمات المحلية، commit/push `chore: add development infrastructure` |
 | `3. Backend Foundation and Initial CI` | solution/projects، dependency rules، Result، ProblemDetails، pipelines، EF/Neon migrations، Serilog، OTel، health، backend dev/production Dockerfiles، أول GitHub Actions، وتفعيل branch ruleset على checks حقيقية | build + container + architecture/integration tests، migration على Neon Dev، protected-main verification، commit/push |
 | `4. Frontend Foundation` | Angular standalone SSR/hydration/PWA، locale routes، shells، design tokens، routing، API client، errors، frontend dev/production Dockerfiles، accessibility baseline | SSR/hydration/container/E2E/bundle gates، commit/push |
 | `5. Identity and Security` | registration, verification, login, refresh rotation, sessions, reset, TOTP, roles/permissions, CSRF/headers/rate limits | security test matrix كاملة، commit/push |
 | `6. Catalog and Authoring Drafts` | categories/tags، teacher onboarding، course drafts/revisions، review workflow وcatalog projection contracts؛ لا تفعيل CourseRelease نهائية بعد | draft concurrency/auth/search-contract tests، commit/push |
 | `7. Media` | direct/chunk/stream uploads، quarantine، ClamAV، image variants، HLS، signed delivery، quotas، MediaWorker production image | container + malicious-file/resource exhaustion tests، commit/push |
 | `8. Learning, Assessments, and Publishing` | quizzes/assignments versions، PublishingCoordinator، final CourseRelease activation بعد Ready media/assessments، entitlements/enrollment، player/progress/offline، grading | publication invariant + learning integrity/offline/concurrency tests، commit/push |
-| `9. Engagement and Realtime` | reviews، discussions، reports، moderation، messaging، notifications، announcements، SignalR | multi-replica reconnect/dedupe/auth tests، commit/push |
-| `10. Commerce and Credentials` | checkout sessions، products/offers/coupons/orders، provider adapter، refunds/disputes، subscriptions، ledger/reconciliation/payout-ready، certificates | webhook/idempotency/reconciliation/security tests، commit/push |
-| `11. Admin, CMS, Analytics` | dashboards، settings، feature flags، CMS، audit UI، reports/exports/recommendations | permission matrix، performance/accessibility gates، commit/push |
-| `12. Production Containers and Staging` | hardening/signing للproduction images الموجودة، release manifests، Azure Container Apps، Key Vault، Redis Cache/Security/Realtime، Blob/Front Door، Postmark sandbox، Dev/Preview/Staging promotion | clean-environment deploy، staging restore test، commit/push IaC |
-| `13. Production CI/CD and Cloud Hardening` | protected environments، OIDC، signing/SBOM/scans، domains/TLS، canary/rollback، backups/runbooks/alerts | Production Readiness Review، no open Critical/High |
-| `14. Production Launch` | migrations، canary، smoke tests، monitoring، status page، support handover | seven-day stabilization وoperational handover |
+| `9. Engagement and Realtime` | reviews، discussions، reports، moderation، messaging، notifications، announcements، SignalR single-node demo | reconnect/dedupe/auth tests، commit/push |
+| `10. Demo Commerce and Credentials` | `100 DEMO` checkout، local subscription activate/cancel، completion certificate، public verification، printable view | idempotency/auth/completion/verification tests، commit/push |
+| `11. Demo Admin, CMS, Analytics` | focused dashboards، settings، CMS، audit UI، small reports/aggregates | permission matrix، performance/accessibility gates، commit/push |
+| `12. Portfolio Packaging` | local PostgreSQL default، one-command setup/start، synthetic showcase data، clean-machine Docker validation، README/screenshots، final CI/E2E/security checks | fresh local demo works with no external account; portfolio-ready tag/checkpoint |
 
-## 32. No-Go Conditions
+المراحل السابقة `12`–`14` الخاصة بـAzure staging، production CI/CD، وpublic launch أزيلت من تعريف اكتمال المشروع. تحفظ
+متطلباتها كـFuture Public Launch backlog فقط، وتبدأ بقرار جديد إذا اختار المستخدم مزودًا وميزانية وإطلاقًا حقيقيًا.
 
-يمنع Production deployment عند تحقق أي بند:
+## 32. Public Launch No-Go Conditions
+
+هذه القائمة لا تمنع اكتمال Portfolio Demo. تستخدم فقط إذا اتخذ قرار مستقل بالنشر العام:
 
 - لا توجد استعادة backup ناجحة ومقاسة.
 - migration غير backward-compatible أو غير مختبرة على حجم واقعي.
@@ -2022,7 +2006,8 @@ app/
 
 تم اختيار `.NET 10 LTS` بدل `.NET 9` لأن LTS هو الأنسب لعمر منصة إنتاجية في تاريخ هذه الخطة. وتم اختيار Angular 21.2 LTS standalone مع SSR/hydration بدل Angular 19 غير المدعوم وAngular 20 الأقصر دعمًا، واختيار Neon PostgreSQL يلغي أي اعتماد على SQL Server. كما تم اعتماد access JWT قصيرة داخل الذاكرة وrefresh token مدورة داخل Secure HttpOnly cookie لتلبية JWT مع تقليل مخاطر سرقة token الدائمة.
 
-تم اختيار Azure Container Apps بدل Kubernetes كبداية لأنه يقدم containers, autoscaling, revisions, jobs, secrets، وWebSockets مع عبء تشغيلي أقل. PostgreSQL يبقى مصدر الحقيقة، بينما Redis وSignalR وcache طبقات قابلة لإعادة البناء، وهذا يمنع فقد البيانات عند تعطلها.
+كان Azure Container Apps هو reference production choice الأصلي بدل Kubernetes. قرار `ADR-023` ألغى الحاجة إلى تنفيذ
+هذا الاختيار للـPortfolio Demo؛ Docker Compose هو runtime الحالي، ويعاد تقييم أي cloud provider فقط عند قرار إطلاق عام.
 
 ===========================
 ### 3. ماذا يجب أن أفعل أنا؟
@@ -2346,7 +2331,7 @@ Phase 6 مكتملة. تم تنفيذ Phase 7 والتحقق منها في `2026
 
 #### القرارات المؤجلة
 
-- Azure Blob/CDN signing, replication/disaster recovery: Phase 12.
+- Azure Blob/CDN signing, replication/disaster recovery: optional future public launch work.
 - Enrollment entitlement: implemented in Phase 8.
 - Text assignment submissions and grading: implemented in Phase 8؛ binary assignment uploads are implemented in the local
   Phase 9 work described below.
@@ -2403,7 +2388,7 @@ Phase 7 مكتملة من ناحية التنفيذ والاختبارات ال�
 - Binary assignment uploads وmalware-scanned submission attachments: implemented locally in Phase 9; integration gate remains.
 - Real-money enrollment, refunds, subscriptions, and provider commerce remain deferred. Durable demo orders/payments and
   demo-owned entitlements are implemented locally with `DemoProvider` and `100 DEMO` credits.
-- Azure Blob/CDN، production promotion، signing، وstaging deployment: Phase 12 وما بعدها.
+- Azure Blob/CDN، production promotion، signing، وstaging deployment: optional future public launch work.
 
 #### القرار
 
@@ -2411,7 +2396,7 @@ Phase 8 مكتملة من ناحية التنفيذ والاختبارات ال�
 Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخدم، وفق عقد `ADR-021`. لا يبدأ أي جزء لاحق خارج هذا النطاق قبل
 بوابة الجزء الحالي والتحقق المطلوب.
 
-### 11. Phase 9 Progress Report (Local, In Progress)
+### 11. Phase 9 Completion Report (Local Implementation Complete)
 
 #### Implemented
 
@@ -2436,26 +2421,35 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
   permission-gated moderation queues, append-only audited actions, idempotent replay rehydration, target visibility
   projections, advisory locks, and expected-version concurrency protection. Review/comment hide and restore transitions
   cannot be bypassed by author mutations.
+- Course-scoped conversations, sequenced messages, notification snapshots, unread/read operations, instructor announcements,
+  message reporting, and responsive Angular chat/notification/announcement pages are implemented with authorization-safe
+  replay, idempotency redaction, optimistic concurrency, gap-free REST resync, and no browser persistence of message bodies.
+- SignalR is an authenticated receive-only metadata channel backed by the durable outbox. Session revocation aborts active
+  connections, reconnect always resyncs through REST, leases complete atomically, poison events terminate safely, and
+  multi-node dispatch requires an explicit Redis backplane instead of silently losing events.
+- Cloudinary support is an optional, disabled-by-default processed-image adapter. Only profile/course variants are eligible
+  after checksum verification, ClamAV, magic-byte validation, and FFmpeg re-encoding. Quarantine, originals, video posters,
+  video, documents, and captions remain on S3/MinIO. No Cloudinary credential or live network verification is stored here.
 
 #### Verification
 
 - Backend solution Release build: `0 warnings`, `0 errors`.
-- Domain unit tests: `49 passed`.
-- Application unit tests: `21 passed`; architecture tests: `6 passed`.
-- MediaWorker unit tests: `8 passed`, `2 skipped` because the Compose ClamAV service was not running.
-- Angular tests: `88 passed` across `29` files; ESLint, Prettier, production build, PWA checks, and bundle budgets passed.
-- Application integration tests passed `31`, with `1` MinIO test skipped because the Compose MinIO service was not running;
-  API integration tests passed `30`, including moderation HTTP policy and OpenAPI coverage.
+- Domain unit tests: `58 passed`.
+- Application unit tests: `23 passed`; architecture tests: `7 passed`.
+- MediaWorker unit tests: `17 passed`, `2 skipped` because the dedicated Compose ClamAV service was not running.
+- Angular tests: `112 passed` across `35` files; ESLint, Prettier, production build, PWA checks, and bundle budgets passed.
+- Application integration tests passed `52`, with `1` dedicated MinIO test skipped because the Compose MinIO service was not
+  running; API integration tests passed `40`, including authenticated SignalR transport and session-revocation coverage.
+- Full Playwright passed `10/10` across desktop Chromium and mobile Chromium.
 - PostgreSQL schema tests passed with concrete report targets, append-only action grants, column-level update grants, and
   global queue indexes. Docker-backed workflow tests passed for discussions and moderation.
-- Neon Dev applied migrations through `20260810212341_Phase9ModerationHardening`; `dotnet ef migrations list` has no pending
-  entries and `has-pending-model-changes` reports no model drift. Direct/pooled runtime privilege verification passed.
+- Local PostgreSQL migrations and schema tests include communications consistency and message reporting;
+  `has-pending-model-changes` reports no model drift. Neon Dev still requires applying the migrations after
+  `20260810212341_Phase9ModerationHardening` and rerunning direct/pooled runtime privilege verification.
 
-#### Still Open
+#### Portfolio Decision
 
-- Durable Phase 9 engagement modules still open: messages, notifications, announcements, and SignalR reconnect/resync.
-  Reports, moderation, reviews, and discussions/comments/likes are implemented and covered by the current local gates.
-- Dedicated integration coverage remains for selected/all-enrolled IDOR, attachment lifecycle, rejected malware,
-  non-ready grading, collaborator downloads, multipart assignment uploads, and demo checkout persistence when the
-  corresponding Compose services are running.
-- The full backend/frontend/Playwright release gates have now passed; Phase 9 remains open only for the modules listed above.
+- Neon migration, Cloudinary smoke testing، وRedis multi-replica testing ليست بوابات للـPortfolio Demo. تبقى adapters معطلة
+  ولا تستخدم credentials خارجية.
+- local PostgreSQL هو checkpoint المطلوب؛ single-node SignalR مقصود للديمو.
+- Phase 10 تبدأ كـDemo commerce/subscription/certificate فقط وفق `ADR-022`; لا real payment أو cloud subscription.

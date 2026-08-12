@@ -4,6 +4,7 @@ using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
 using Dorosak.Domain.Commerce;
 using Dorosak.Domain.Communications;
+using Dorosak.Domain.Credentials;
 using Dorosak.Domain.Engagement;
 using Dorosak.Domain.Identity;
 using Dorosak.Domain.Learning;
@@ -166,6 +167,10 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<DemoOrder> DemoOrders => Set<DemoOrder>();
 
     internal DbSet<DemoPayment> DemoPayments => Set<DemoPayment>();
+
+    internal DbSet<DemoSubscription> DemoSubscriptions => Set<DemoSubscription>();
+
+    internal DbSet<Certificate> Certificates => Set<Certificate>();
 
     internal DbSet<CourseReview> CourseReviews => Set<CourseReview>();
 

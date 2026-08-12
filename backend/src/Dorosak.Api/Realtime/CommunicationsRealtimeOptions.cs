@@ -6,6 +6,10 @@ public sealed class CommunicationsRealtimeOptions
 
     public bool DispatcherEnabled { get; init; }
 
+    public bool SingleNodeMode { get; init; }
+
+    public TimeSpan SessionValidationInterval { get; init; } = TimeSpan.FromSeconds(10);
+
     public TimeSpan IdleDelay { get; init; } = TimeSpan.FromSeconds(2);
 
     public TimeSpan FailureDelay { get; init; } = TimeSpan.FromSeconds(10);

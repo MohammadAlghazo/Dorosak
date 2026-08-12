@@ -2301,6 +2301,57 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ActivatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("activated_at");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("plan_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_demo_subscriptions");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_demo_subscriptions_user_id");
+
+                    b.ToTable("demo_subscriptions", "commerce", t =>
+                        {
+                            t.HasCheckConstraint("ck_demo_subscriptions_cancelled_at", "(status = 'Active' AND cancelled_at IS NULL) OR (status = 'Cancelled' AND cancelled_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_demo_subscriptions_plan", "plan_code = 'portfolio-demo'");
+
+                            t.HasCheckConstraint("ck_demo_subscriptions_status", "status IN ('Active', 'Cancelled')");
+                        });
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Communications.Announcement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2652,6 +2703,107 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                     b.ToTable("notification_sequences", "communication", t =>
                         {
                             t.HasCheckConstraint("ck_notification_sequences_last_sequence", "last_sequence >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Credentials.Certificate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<Guid>("CompletionEnrollmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("completion_enrollment_id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<string>("CourseTitle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("course_title");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("LearnerName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("learner_name");
+
+                    b.Property<Guid>("LearnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("learner_user_id");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("locale");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("revocation_reason");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revoked_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("VerificationCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("verification_code");
+
+                    b.HasKey("Id")
+                        .HasName("pk_certificates");
+
+                    b.HasIndex("CompletionEnrollmentId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_certificates_completion_enrollment_id");
+
+                    b.HasIndex("RevokedByUserId")
+                        .HasDatabaseName("ix_certificates_revoked_by_user_id");
+
+                    b.HasIndex("VerificationCode")
+                        .IsUnique()
+                        .HasDatabaseName("uq_certificates_verification_code");
+
+                    b.HasIndex("LearnerUserId", "IssuedAt", "Id")
+                        .IsDescending()
+                        .HasDatabaseName("ix_certificates_learner_issued_id");
+
+                    b.ToTable("certificates", "credentials", t =>
+                        {
+                            t.HasCheckConstraint("ck_certificates_locale", "locale IN ('ar', 'en')");
+
+                            t.HasCheckConstraint("ck_certificates_revocation", "(status = 'Active' AND revoked_at IS NULL AND revoked_by_user_id IS NULL AND revocation_reason IS NULL) OR (status = 'Revoked' AND revoked_at IS NOT NULL AND revoked_by_user_id IS NOT NULL AND revocation_reason IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_certificates_status", "status IN ('Active', 'Revoked')");
                         });
                 });
 
@@ -6572,6 +6724,16 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_demo_payments_demo_orders_order_id");
                 });
 
+            modelBuilder.Entity("Dorosak.Domain.Commerce.DemoSubscription", b =>
+                {
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithOne()
+                        .HasForeignKey("Dorosak.Domain.Commerce.DemoSubscription", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_demo_subscriptions_users_user_id");
+                });
+
             modelBuilder.Entity("Dorosak.Domain.Communications.Announcement", b =>
                 {
                     b.HasOne("Dorosak.Domain.Catalog.Course", null)
@@ -6701,6 +6863,29 @@ namespace Dorosak.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_notification_sequences_users_user_id");
+                });
+
+            modelBuilder.Entity("Dorosak.Domain.Credentials.Certificate", b =>
+                {
+                    b.HasOne("Dorosak.Domain.Learning.CourseCompletion", null)
+                        .WithOne()
+                        .HasForeignKey("Dorosak.Domain.Credentials.Certificate", "CompletionEnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_certificates_course_completions_completion_enrollment_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("LearnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_certificates_users_learner_user_id");
+
+                    b.HasOne("Dorosak.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RevokedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_certificates_users_revoked_by_user_id");
                 });
 
             modelBuilder.Entity("Dorosak.Domain.Engagement.CommentLike", b =>

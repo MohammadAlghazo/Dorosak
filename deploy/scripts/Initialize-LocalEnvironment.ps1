@@ -13,7 +13,6 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$configurationPath = Join-Path $repositoryRoot "deploy\neon\development.json"
 $environmentPath = Join-Path $repositoryRoot ".env.local"
 if ((Test-Path -LiteralPath $environmentPath) -and -not $Force) {
     Write-Host ".env.local already exists. Use -Force only when rotating local credentials."
@@ -24,8 +23,6 @@ $ignoredPath = & git -C $repositoryRoot check-ignore ".env.local"
 if ($LASTEXITCODE -ne 0) {
     throw ".env.local must be ignored by Git before credentials can be generated."
 }
-
-$configuration = Get-Content -LiteralPath $configurationPath -Raw | ConvertFrom-Json
 
 function New-UrlSafeSecret {
     $bytes = [byte[]]::new(32)
@@ -41,45 +38,56 @@ function New-UrlSafeSecret {
     return [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 
-function Get-NeonConnectionString {
+function New-PostgresConnectionString {
     param(
-        [switch]$Pooled
+        [Parameter(Mandatory = $true)]
+        [string]$Username,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Password,
+
+        [switch]$Migrator
     )
 
-    $arguments = @(
-        "--yes",
-        "--package", "neonctl@$($configuration.neonCliVersion)",
-        "neonctl", "connection-string", $configuration.branch,
-        "--project-id", $configuration.projectId,
-        "--role-name", $configuration.ownerRole,
-        "--database-name", $configuration.database,
-        "--ssl", "verify-full",
-        "--no-color",
-        "--no-analytics"
-    )
+    $builder = [Data.Common.DbConnectionStringBuilder]::new()
+    $builder["Host"] = "127.0.0.1"
+    $builder["Port"] = 5432
+    $builder["Database"] = "dorosak_dev"
+    $builder["Username"] = $Username
+    $builder["Password"] = $Password
+    $builder["SSL Mode"] = "Disable"
+    $builder["Channel Binding"] = "Disable"
+    $builder["Include Error Detail"] = $false
+    $builder["Timeout"] = 15
+    $builder["Command Timeout"] = if ($Migrator) { 60 } else { 30 }
+    $builder["Pooling"] = -not $Migrator
 
-    if ($Pooled) {
-        $arguments += "--pooled"
+    if ($Migrator) {
+        $builder["Options"] = "-c role=dorosak_schema_owner"
+    }
+    else {
+        $builder["Minimum Pool Size"] = 0
+        $builder["Maximum Pool Size"] = 20
+        $builder["Connection Idle Lifetime"] = 300
+        $builder["Keepalive"] = 30
     }
 
-    $output = & npx @arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Neon CLI could not provide a connection string."
-    }
-
-    $connectionString = ($output -join [Environment]::NewLine).Trim()
-    if ($connectionString -notmatch "^postgresql://") {
-        throw "Neon CLI returned an invalid connection string."
-    }
-
-    return $connectionString
+    return $builder.get_ConnectionString()
 }
 
-$pooledConnectionString = Get-NeonConnectionString -Pooled
-$directConnectionString = Get-NeonConnectionString
+$ownerPassword = New-UrlSafeSecret
+$migratorPassword = New-UrlSafeSecret
+$runtimePassword = New-UrlSafeSecret
+$redisPassword = New-UrlSafeSecret
 
 $lines = @(
-    "DOROSAK_REDIS_PASSWORD=$(New-UrlSafeSecret)",
+    "DOROSAK_POSTGRES_DATABASE=dorosak_dev",
+    "DOROSAK_POSTGRES_PORT=5432",
+    "DOROSAK_POSTGRES_OWNER_PASSWORD=$ownerPassword",
+    "DOROSAK_POSTGRES_MIGRATOR_PASSWORD=$migratorPassword",
+    "DOROSAK_POSTGRES_APP_PASSWORD=$runtimePassword",
+    "",
+    "DOROSAK_REDIS_PASSWORD=$redisPassword",
     "DOROSAK_REDIS_PORT=6380",
     "",
     "DOROSAK_MINIO_ROOT_USER=dorosak_local_admin",
@@ -92,9 +100,19 @@ $lines = @(
     "",
     "DOROSAK_CLAMAV_PORT=3311",
     "",
-    "DOROSAK_NEON_PROJECT_ID=$($configuration.projectId)",
-    "DOROSAK_NEON_OWNER_POOLED_URL=$pooledConnectionString",
-    "DOROSAK_NEON_OWNER_DIRECT_URL=$directConnectionString"
+    "DOROSAK_CLOUDINARY_ENABLED=false",
+    "DOROSAK_CLOUDINARY_CLOUD_NAME=",
+    "DOROSAK_CLOUDINARY_API_KEY=",
+    "DOROSAK_CLOUDINARY_API_SECRET=",
+    "",
+    "DOROSAK_API_PORT=5053",
+    "DOROSAK_MEDIATR_LICENSE_KEY=",
+    "DOROSAK_AUTOMAPPER_LICENSE_KEY=",
+    "DOROSAK_OTEL_ENDPOINT=",
+    "",
+    "Migrations__ConnectionString=$(New-PostgresConnectionString -Username 'dorosak_migrator' -Password $migratorPassword -Migrator)",
+    "ConnectionStrings__Database=$(New-PostgresConnectionString -Username 'dorosak_app' -Password $runtimePassword)",
+    "ConnectionStrings__Redis=127.0.0.1:6380,password=$redisPassword,abortConnect=false"
 )
 
 Set-LocalSecretFile -Path $environmentPath -Lines $lines

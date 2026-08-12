@@ -19,6 +19,7 @@ public sealed class DorosakApiFactory(
             .UseSetting("Identity:RefreshRaceWindowSeconds", "1")
             .UseSetting("Media:Storage:Enabled", "false")
             .UseSetting("CommunicationsRealtime:DispatcherEnabled", "false")
+            .UseSetting("CommunicationsRealtime:SingleNodeMode", "false")
             .UseSetting("Cors:AllowedOrigins:0", "https://app.dorosak.test");
     }
 }

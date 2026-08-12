@@ -53,3 +53,25 @@ internal sealed class DemoPaymentConfiguration : IEntityTypeConfiguration<DemoPa
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+internal sealed class DemoSubscriptionConfiguration : IEntityTypeConfiguration<DemoSubscription>
+{
+    public void Configure(EntityTypeBuilder<DemoSubscription> builder)
+    {
+        builder.ToTable("demo_subscriptions", "commerce", table =>
+        {
+            table.HasCheckConstraint("ck_demo_subscriptions_plan", "plan_code = 'portfolio-demo'");
+            table.HasCheckConstraint("ck_demo_subscriptions_status", "status IN ('Active', 'Cancelled')");
+            table.HasCheckConstraint(
+                "ck_demo_subscriptions_cancelled_at",
+                "(status = 'Active' AND cancelled_at IS NULL) OR (status = 'Cancelled' AND cancelled_at IS NOT NULL)");
+        });
+        builder.HasKey(subscription => subscription.Id).HasName("pk_demo_subscriptions");
+        builder.Property(subscription => subscription.Id).ValueGeneratedNever();
+        builder.Property(subscription => subscription.PlanCode).HasMaxLength(40).IsRequired();
+        builder.Property(subscription => subscription.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.HasIndex(subscription => subscription.UserId).IsUnique().HasDatabaseName("uq_demo_subscriptions_user_id");
+        builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<DemoSubscription>(subscription => subscription.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

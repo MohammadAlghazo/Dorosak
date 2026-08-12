@@ -8,6 +8,7 @@ using Dorosak.Infrastructure.Caching;
 using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Commerce;
 using Dorosak.Infrastructure.Communications;
+using Dorosak.Infrastructure.Credentials;
 using Dorosak.Infrastructure.Engagement;
 using Dorosak.Infrastructure.Idempotency;
 using Dorosak.Infrastructure.Identity;
@@ -20,6 +21,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -43,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IMediaProcessingStore, MediaProcessingStore>();
         services.AddScoped<Application.Features.Learning.ILearningService, LearningService>();
         services.AddScoped<Application.Features.Commerce.ICommerceService, CommerceService>();
+        services.AddScoped<Application.Features.Credentials.ICredentialsService, CredentialsService>();
+        services.AddScoped<Application.Features.Credentials.ICertificateIssuanceDispatcher, CertificateIssuanceDispatcher>();
         services.AddScoped<CommunicationsService>();
         services.AddScoped<Application.Features.Communications.ICommunicationsService>(provider =>
             provider.GetRequiredService<CommunicationsService>());
@@ -156,6 +160,18 @@ public static class DependencyInjection
             .Validate(options => options.UploadUrlMinutes is >= 1 and <= 10 && options.DownloadUrlMinutes is >= 1 and <= 5,
                 "Media signed URL lifetimes are invalid.")
             .ValidateOnStart();
+        services.AddOptions<CloudinaryOptions>()
+            .Bind(configuration.GetSection(CloudinaryOptions.SectionName))
+            .Validate(options => !options.Enabled || IsValidCloudinaryCloudName(options.CloudName),
+                "Cloudinary cloud name is required and must contain only ASCII letters, digits, hyphens, or underscores when enabled.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ApiKey),
+                "Cloudinary API key is required when enabled.")
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ApiSecret),
+                "Cloudinary API secret is required when enabled.")
+            .Validate(options => options.RequestTimeoutSeconds is >= 1 and <= 120 &&
+                options.UploadTimeoutSeconds is >= 5 and <= 600,
+                "Cloudinary request timeouts are invalid.")
+            .ValidateOnStart();
         services.AddSingleton<IObjectStorage>(provider =>
         {
             MediaStorageOptions options = provider.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
@@ -227,7 +243,14 @@ public static class DependencyInjection
                 configuration.GetConnectionString("RedisSecurity") ?? redisConnection));
         services.AddScoped<IQueryCache, DistributedQueryCache>();
 
-        services.ConfigureHttpClientDefaults(httpClient => httpClient.AddStandardResilienceHandler());
+        services.ConfigureHttpClientDefaults(httpClient =>
+            httpClient.AddStandardResilienceHandler(options =>
+                options.Retry.DisableForUnsafeHttpMethods()));
+        services.AddHttpClient<IProcessedImageStore, CloudinaryProcessedImageStore>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.cloudinary.com/", UriKind.Absolute);
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
         services.AddHttpClient<BreachedPasswordService>((provider, client) =>
         {
             PasswordBreachOptions options = provider.GetRequiredService<IOptions<PasswordBreachOptions>>().Value;
@@ -245,4 +268,9 @@ public static class DependencyInjection
             ? throw new InvalidOperationException($"Connection string '{name}' is required.")
             : value;
     }
+
+    private static bool IsValidCloudinaryCloudName(string value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= 255 &&
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
 }

@@ -278,6 +278,74 @@ export const routes: Routes = [
               permission: 'TeacherApplication.CreateOwn',
             },
           },
+          {
+            path: 'subscription',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/settings/demo-subscription-page.component').then(
+                (module) => module.DemoSubscriptionPageComponent,
+              ),
+            data: {
+              titleAr: 'الاشتراك التجريبي',
+              titleEn: 'Demo subscription',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Subscription.ManageOwn',
+            },
+          },
+        ],
+      },
+      {
+        path: 'certificates/verify/:verificationCode',
+        loadComponent: () =>
+          import('./features/credentials/certificate-page.component').then(
+            (module) => module.CertificatePageComponent,
+          ),
+        data: {
+          titleAr: 'التحقق من الشهادة',
+          titleEn: 'Verify certificate',
+          indexing: 'noindex',
+          renderMode: 'server',
+        },
+      },
+      {
+        path: 'certificates',
+        canActivate: [sessionGuard],
+        loadComponent: () =>
+          import('./shells/workspace-shell/workspace-shell.component').then(
+            (module) => module.WorkspaceShellComponent,
+          ),
+        children: [
+          {
+            path: '',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/credentials/certificates-page.component').then(
+                (module) => module.CertificatesPageComponent,
+              ),
+            data: {
+              titleAr: 'شهاداتي',
+              titleEn: 'My certificates',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Certificate.ReadOwn',
+            },
+          },
+          {
+            path: ':certificateId',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/credentials/certificate-page.component').then(
+                (module) => module.CertificatePageComponent,
+              ),
+            data: {
+              titleAr: 'الشهادة',
+              titleEn: 'Certificate',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Certificate.ReadOwn',
+            },
+          },
         ],
       },
       {

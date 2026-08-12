@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Learning;
@@ -1403,6 +1404,13 @@ internal sealed class LearningService(
         if (!await dbContext.CourseCompletions.AnyAsync(item => item.EnrollmentId == enrollment.Id, cancellationToken))
         {
             dbContext.CourseCompletions.Add(CourseCompletion.Create(enrollment.Id, enrollment.CourseId, releaseId, now));
+            string payload = JsonSerializer.Serialize(new { CompletionEnrollmentId = enrollment.Id });
+            dbContext.OutboxMessages.Add(OutboxMessage.Create(
+                "learning.course-completed",
+                1,
+                payload,
+                "{}",
+                now));
         }
         AddAudit(enrollment.UserId, "learning.course-completed", "Enrollment", enrollment.Id, null, now);
     }

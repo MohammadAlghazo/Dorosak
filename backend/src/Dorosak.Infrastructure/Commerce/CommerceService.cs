@@ -74,10 +74,79 @@ internal sealed class CommerceService(DorosakDbContext dbContext, TimeProvider t
         return Result.Success(Map(order, payment, enrollment.Id));
     }
 
+    public async Task<Result<DemoSubscriptionStateResponse>> GetDemoSubscriptionAsync(
+        GetDemoSubscriptionQuery request,
+        CancellationToken cancellationToken)
+    {
+        DemoSubscription? subscription = await dbContext.DemoSubscriptions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken);
+        return Result.Success(new DemoSubscriptionStateResponse(subscription is null ? null : Map(subscription)));
+    }
+
+    public async Task<Result<DemoSubscriptionResponse>> ActivateDemoSubscriptionAsync(
+        ActivateDemoSubscriptionCommand request,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({$"demo-subscription:{request.UserId:D}"}, 0))",
+            cancellationToken);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        DemoSubscription? subscription = await dbContext.DemoSubscriptions
+            .SingleOrDefaultAsync(item => item.UserId == request.UserId, cancellationToken);
+        if (subscription is null)
+        {
+            subscription = DemoSubscription.Create(request.UserId, now);
+            dbContext.DemoSubscriptions.Add(subscription);
+        }
+        else
+        {
+            subscription.Activate(now);
+        }
+
+        AddAudit(request.UserId, "commerce.demo-subscription-activated", "DemoSubscription", subscription.Id, subscription.PlanCode, now);
+        return Result.Success(Map(subscription));
+    }
+
+    public async Task<Result<DemoSubscriptionResponse>> CancelDemoSubscriptionAsync(
+        CancelDemoSubscriptionCommand request,
+        CancellationToken cancellationToken)
+    {
+        DemoSubscription? subscription = await dbContext.DemoSubscriptions.SingleOrDefaultAsync(
+            item => item.Id == request.SubscriptionId && item.UserId == request.UserId,
+            cancellationToken);
+        if (subscription is null)
+        {
+            return Result.Failure<DemoSubscriptionResponse>(ResultError.NotFound(
+                "COMMERCE.SUBSCRIPTION_NOT_FOUND", "The demo subscription was not found."));
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        subscription.Cancel(now);
+        AddAudit(request.UserId, "commerce.demo-subscription-cancelled", "DemoSubscription", subscription.Id, subscription.PlanCode, now);
+        return Result.Success(Map(subscription));
+    }
+
     private static DemoCheckoutResponse Map(DemoOrder order, DemoPayment payment, Guid? enrollmentId) => new(
         order.Id, payment.Id, order.CourseId, enrollmentId, order.Status.ToString(), payment.Status.ToString(),
         order.TotalCredits, order.Currency);
 
+    private static DemoSubscriptionResponse Map(DemoSubscription subscription) => new(
+        subscription.Id,
+        subscription.PlanCode,
+        subscription.Status.ToString(),
+        subscription.ActivatedAt,
+        subscription.UpdatedAt,
+        subscription.CancelledAt);
+
     private void AddAudit(Guid actorUserId, string action, Guid orderId, string reason, DateTimeOffset now) =>
-        dbContext.AuditLogs.Add(AuditLog.Create(actorUserId, action, "DemoOrder", orderId, "Succeeded", reason, now));
+        AddAudit(actorUserId, action, "DemoOrder", orderId, reason, now);
+
+    private void AddAudit(
+        Guid actorUserId,
+        string action,
+        string targetType,
+        Guid targetId,
+        string reason,
+        DateTimeOffset now) =>
+        dbContext.AuditLogs.Add(AuditLog.Create(actorUserId, action, targetType, targetId, "Succeeded", reason, now));
 }

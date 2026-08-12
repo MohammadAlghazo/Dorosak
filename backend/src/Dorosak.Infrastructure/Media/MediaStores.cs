@@ -181,14 +181,17 @@ internal sealed class MediaProcessingStore(
         foreach (MediaVariantFile variant in variants)
         {
             ObjectStoragePutResult upload = uploads[variant.Kind];
+            string objectKey = string.IsNullOrWhiteSpace(upload.ObjectKey) ? variant.ObjectKey : upload.ObjectKey;
+            string provider = string.IsNullOrWhiteSpace(upload.Provider) ? asset.StorageProvider : upload.Provider;
+            string container = string.IsNullOrWhiteSpace(upload.Container) ? asset.StorageContainer : upload.Container;
             dbContext.MediaVariants.Add(MediaVariant.Create(
                 variant.VariantId,
                 asset.Id,
                 variant.Kind,
                 variant.ContentType,
-                variant.ObjectKey,
-                asset.StorageProvider,
-                asset.StorageContainer,
+                objectKey,
+                provider,
+                container,
                 upload.Bytes,
                 variant.Sha256,
                 upload.ETag,

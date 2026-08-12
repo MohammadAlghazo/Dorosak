@@ -65,3 +65,18 @@ test('protected workspaces redirect anonymous browsers without SSR private data'
   await expect(page).toHaveURL(/\/en\/auth\/sign-in\?returnUrl=/u);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 });
+
+test('certificate verification is public, noindex, and handles an unknown code safely', async ({
+  page,
+  request,
+}) => {
+  const response = await request.get('/en/certificates/verify/not_a_real_certificate_code');
+  expect(response.status()).toBe(200);
+  const html = await response.text();
+  expect(html).not.toContain('learnerUserId');
+  expect(html).not.toContain('@example.test');
+
+  await page.goto('/en/certificates/verify/not_a_real_certificate_code');
+  await expect(page.getByRole('heading', { name: 'Certificate not found' })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex,follow');
+});

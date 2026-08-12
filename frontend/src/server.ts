@@ -183,7 +183,11 @@ function validatedPort(value: string): number {
 }
 
 function isPrivateRoute(path: string): boolean {
-  return /^\/(?:ar|en)\/(?:auth|dashboard|my-learning|chat|notifications|learn|instructor|admin|settings)(?:\/|$)/u.test(
-    path,
+  return (
+    /^\/(?:ar|en)\/(?:auth|dashboard|my-learning|chat|notifications|learn|instructor|admin|settings)(?:\/|$)/u.test(
+      path,
+    ) ||
+    (/^\/(?:ar|en)\/certificates(?:\/|$)/u.test(path) &&
+      !/^\/(?:ar|en)\/certificates\/verify(?:\/|$)/u.test(path))
   );
 }

@@ -26,4 +26,8 @@
     <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dorosak.Api.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

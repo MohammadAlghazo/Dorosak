@@ -81,9 +81,21 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'assessment' AND table_name IN ('quizzes', 'quiz_versions', 'questions', 'question_options', 'quiz_attempts', 'quiz_answers', 'assignments', 'assignment_versions', 'assignment_submissions', 'assignment_audience_members', 'quiz_audience_members', 'submission_files', 'grade_revisions', 'quiz_grade_revisions')",
             TestContext.Current.CancellationToken));
-        Assert.Equal(2L, await ExecuteScalarAsync<long>(
+        Assert.Equal(3L, await ExecuteScalarAsync<long>(
             connection,
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'commerce' AND table_name IN ('demo_orders', 'demo_payments')",
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'commerce' AND table_name IN ('demo_orders', 'demo_payments', 'demo_subscriptions')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'credentials' AND table_name = 'certificates'",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_schema_privilege('dorosak_runtime', 'credentials', 'USAGE') AND has_table_privilege('dorosak_runtime', 'credentials.certificates', 'SELECT,INSERT') AND has_column_privilege('dorosak_runtime', 'credentials.certificates', 'status', 'UPDATE') AND has_table_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'SELECT,INSERT') AND has_column_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'status', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'credentials.certificates', 'DELETE,TRUNCATE') OR has_column_privilege('dorosak_runtime', 'credentials.certificates', 'learner_name', 'UPDATE') OR has_table_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'DELETE,TRUNCATE') OR has_column_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'user_id', 'UPDATE')",
             TestContext.Current.CancellationToken));
         Assert.Equal(4L, await ExecuteScalarAsync<long>(
             connection,
