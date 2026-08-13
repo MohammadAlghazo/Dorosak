@@ -13,7 +13,7 @@ public sealed class DatabaseBootstrapTests
     [Fact]
     public async Task Bootstrap_EnforcesRoleBoundariesAndRejectsMembershipDrift()
     {
-        await using PostgreSqlContainer postgres = new PostgreSqlBuilder(PostgresImage)
+        await using PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage(PostgresImage)
             .WithDatabase("dorosak_bootstrap_tests")
             .WithUsername("postgres")
             .WithPassword("postgres")
@@ -125,3 +125,4 @@ public sealed class DatabaseBootstrapTests
         return Assert.IsType<string>(result);
     }
 }
+

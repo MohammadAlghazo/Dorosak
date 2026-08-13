@@ -261,8 +261,7 @@ public static class DependencyInjection
         services.AddScoped<IQueryCache, DistributedQueryCache>();
 
         services.ConfigureHttpClientDefaults(httpClient =>
-            httpClient.AddStandardResilienceHandler(options =>
-                options.Retry.DisableForUnsafeHttpMethods()));
+            httpClient.AddStandardResilienceHandler());
         services.AddHttpClient<IProcessedImageStore, CloudinaryProcessedImageStore>(client =>
         {
             client.BaseAddress = new Uri("https://api.cloudinary.com/", UriKind.Absolute);

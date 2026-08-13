@@ -68,7 +68,7 @@ public sealed class ConcurrentIdempotencyTests(InfrastructureFixture fixture)
 
         return await transactionBehavior.Handle(
             request,
-            token => idempotencyBehavior.Handle(request, innerToken => handler(innerToken), token),
+            () => idempotencyBehavior.Handle(request, () => handler(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken),
             TestContext.Current.CancellationToken);
     }
 
@@ -87,3 +87,4 @@ public sealed class ConcurrentIdempotencyTests(InfrastructureFixture fixture)
 
     private sealed record TestResponse(string Id);
 }
+

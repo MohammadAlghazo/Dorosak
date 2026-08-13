@@ -28,7 +28,7 @@ public sealed class QueryCacheBehavior<TRequest, TResponse>(
     {
         if (request is not ICachedQuery cachedQuery)
         {
-            return await next(cancellationToken);
+            return await next();
         }
 
         CacheLookup<TResponse> lookup;
@@ -47,7 +47,7 @@ public sealed class QueryCacheBehavior<TRequest, TResponse>(
             return lookup.Value!;
         }
 
-        TResponse response = await next(cancellationToken);
+        TResponse response = await next();
         if (response is not IResult result || result.IsSuccess)
         {
             try
@@ -66,3 +66,4 @@ public sealed class QueryCacheBehavior<TRequest, TResponse>(
     private static bool IsRequestCancellation(Exception exception, CancellationToken cancellationToken) =>
         exception is OperationCanceledException && cancellationToken.IsCancellationRequested;
 }
+

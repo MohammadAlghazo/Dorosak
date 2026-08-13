@@ -17,7 +17,7 @@ public sealed class TelemetryBehavior<TRequest, TResponse> : IPipelineBehavior<T
 
         try
         {
-            TResponse response = await next(cancellationToken);
+            TResponse response = await next();
             activity?.SetStatus(ActivityStatusCode.Ok);
             return response;
         }
@@ -28,3 +28,4 @@ public sealed class TelemetryBehavior<TRequest, TResponse> : IPipelineBehavior<T
         }
     }
 }
+

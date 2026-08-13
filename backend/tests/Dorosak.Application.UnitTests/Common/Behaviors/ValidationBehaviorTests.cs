@@ -14,7 +14,7 @@ public sealed class ValidationBehaviorTests
 
         string response = await behavior.Handle(
             new TestRequest("value"),
-            _ => Task.FromResult("handled"),
+            () => Task.FromResult("handled"),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("handled", response);
@@ -67,3 +67,4 @@ public sealed class ValidationBehaviorTests
         public void Exit() => Interlocked.Decrement(ref _active);
     }
 }
+

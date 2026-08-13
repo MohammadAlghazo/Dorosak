@@ -17,13 +17,13 @@ public sealed class ApiFixture : IAsyncLifetime
         "redis:8.10.0@sha256:39353c6a2f310da333374e1290c91805d15a85def073b5090f58e4ac646d284c";
     private const string RedisPassword = "dorosak-api-tests";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder(PostgresImage)
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder().WithImage(PostgresImage)
         .WithDatabase("dorosak_api_tests")
         .WithUsername("dorosak_api_tests")
         .WithPassword("dorosak_api_tests")
         .Build();
 
-    private readonly IContainer _redis = new ContainerBuilder(RedisImage)
+    private readonly IContainer _redis = new ContainerBuilder().WithImage(RedisImage)
         .WithCommand("redis-server", "--save", "", "--appendonly", "no", "--requirepass", RedisPassword)
         .WithPortBinding(6379, true)
         .WithWaitStrategy(Wait.ForUnixContainer().UntilCommandIsCompleted(

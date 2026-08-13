@@ -15,7 +15,7 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>(IEnumerable<IRequ
     {
         if (request is not IAuthorizedRequest)
         {
-            return await next(cancellationToken);
+            return await next();
         }
 
         IRequestAuthorizer<TRequest>[] requestAuthorizers = [.. authorizers];
@@ -38,6 +38,7 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>(IEnumerable<IRequ
             }
         }
 
-        return await next(cancellationToken);
+        return await next();
     }
 }
+

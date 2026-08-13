@@ -16,7 +16,6 @@ public static class DependencyInjection
         services.AddMediatR(configuration =>
         {
             configuration.RegisterServicesFromAssembly(AssemblyReference.Assembly);
-            configuration.LicenseKey = mediatRLicenseKey;
             configuration.AddOpenBehavior(typeof(TelemetryBehavior<,>));
             configuration.AddOpenBehavior(typeof(LoggingBehavior<,>));
             configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
@@ -78,9 +77,7 @@ public static class DependencyInjection
             Features.Media.MediaResourceAuthorizer<Features.Media.CreateDownloadGrantCommand>>();
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Media.CreateCaptionUploadCommand>,
             Features.Media.MediaResourceAuthorizer<Features.Media.CreateCaptionUploadCommand>>();
-        services.AddAutoMapper(
-            configuration => configuration.LicenseKey = autoMapperLicenseKey,
-            AssemblyReference.Assembly);
+        services.AddAutoMapper(AssemblyReference.Assembly);
 
         services.AddSingleton(TimeProvider.System);
         return services;

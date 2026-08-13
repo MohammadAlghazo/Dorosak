@@ -19,7 +19,7 @@ public sealed class QueryCacheBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new CachedQuery(),
-            _ =>
+            () =>
             {
                 handlerCalls++;
                 return Task.FromResult(Result.Success("database"));
@@ -43,7 +43,7 @@ public sealed class QueryCacheBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new CachedQuery(),
-            _ => Task.FromResult(Result.Success("database")),
+            () => Task.FromResult(Result.Success("database")),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -59,7 +59,7 @@ public sealed class QueryCacheBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new CachedQuery(),
-            _ => Task.FromResult(Result.Failure<string>(ResultError.NotFound("ITEM.NOT_FOUND", "Not found."))),
+            () => Task.FromResult(Result.Failure<string>(ResultError.NotFound("ITEM.NOT_FOUND", "Not found."))),
             TestContext.Current.CancellationToken);
 
         Assert.False(result.IsSuccess);
@@ -79,7 +79,7 @@ public sealed class QueryCacheBehaviorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => behavior.Handle(
             new CachedQuery(),
-            _ => Task.FromResult(Result.Success("database")),
+            () => Task.FromResult(Result.Success("database")),
             cancellation.Token));
     }
 
@@ -127,3 +127,4 @@ public sealed class QueryCacheBehaviorTests
         public ValueTask RemoveAsync(string key, CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 }
+

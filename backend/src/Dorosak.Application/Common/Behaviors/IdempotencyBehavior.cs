@@ -19,7 +19,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>(
     {
         if (request is not IIdempotentRequest idempotentRequest)
         {
-            return await next(cancellationToken);
+            return await next();
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotentRequest.IdempotencyOperation);
@@ -60,7 +60,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>(
                 "The stored response is not compatible with this operation version.");
         }
 
-        TResponse response = await next(cancellationToken);
+        TResponse response = await next();
         IIdempotencyResponseRedactor<TRequest, TResponse>[] redactors = [.. responseRedactors ?? []];
         if (redactors.Length > 1)
         {
@@ -84,3 +84,4 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>(
         return response;
     }
 }
+

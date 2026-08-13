@@ -14,7 +14,8 @@ public sealed class TransactionBehavior<TRequest, TResponse>(IUnitOfWork unitOfW
         CancellationToken cancellationToken)
     {
         return request is ITransactionalRequest
-            ? unitOfWork.ExecuteInTransactionAsync<TResponse>(token => next(token), cancellationToken)
-            : next(cancellationToken);
+            ? unitOfWork.ExecuteInTransactionAsync<TResponse>(token => next(), cancellationToken)
+            : next();
     }
 }
+

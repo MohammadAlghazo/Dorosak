@@ -63,7 +63,7 @@ try
 
     if (app.Environment.IsDevelopment())
     {
-        app.UseSwagger(options => options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1);
+        app.UseSwagger();
         app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Dorosak API v1"));
     }
 
@@ -87,3 +87,4 @@ finally
 }
 
 public partial class Program;
+

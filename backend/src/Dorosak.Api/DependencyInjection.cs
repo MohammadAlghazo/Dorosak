@@ -28,6 +28,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
 
 namespace Dorosak.Api;
@@ -463,3 +464,4 @@ public static class DependencyInjection
         _ => $"HTTP.{status}",
     };
 }
+

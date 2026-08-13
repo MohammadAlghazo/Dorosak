@@ -36,7 +36,7 @@ public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior
 
         try
         {
-            TResponse response = await next(cancellationToken);
+            TResponse response = await next();
             RequestCompleted(
                 logger,
                 requestName,
@@ -64,3 +64,4 @@ public sealed class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior
         }
     }
 }
+

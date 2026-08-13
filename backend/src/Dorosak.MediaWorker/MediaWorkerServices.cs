@@ -426,7 +426,7 @@ internal sealed class MagicByteMediaValidator(IOptions<MediaOptions> options) : 
         }
         try
         {
-            using PdfDocument document = PdfDocument.Open(filePath, new ParsingOptions { UseLenientParsing = false, MaxStackDepth = 128 });
+            using PdfDocument document = PdfDocument.Open(filePath, new ParsingOptions { UseLenientParsing = false });
             if (document.IsEncrypted || document.NumberOfPages < 1 || document.NumberOfPages > _options.PdfParserMaxPages)
             {
                 return false;
@@ -443,10 +443,7 @@ internal sealed class MagicByteMediaValidator(IOptions<MediaOptions> options) : 
         {
             return false;
         }
-        catch (PdfDocumentStackDepthException)
-        {
-            return false;
-        }
+
         catch (InvalidOperationException)
         {
             return false;

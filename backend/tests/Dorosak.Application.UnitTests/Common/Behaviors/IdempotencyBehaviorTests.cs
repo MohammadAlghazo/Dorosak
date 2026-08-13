@@ -22,7 +22,7 @@ public sealed class IdempotencyBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new IdempotentRequest("key", "payload"),
-            _ =>
+            () =>
             {
                 handlerCalls++;
                 return Task.FromResult(Result.Success("new"));
@@ -42,7 +42,7 @@ public sealed class IdempotencyBehaviorTests
 
         RequestConflictException exception = await Assert.ThrowsAsync<RequestConflictException>(() => behavior.Handle(
             new IdempotentRequest("key", "changed"),
-            _ => Task.FromResult(Result.Success("new")),
+            () => Task.FromResult(Result.Success("new")),
             TestContext.Current.CancellationToken));
 
         Assert.Equal("IDEMPOTENCY.KEY_REUSED", exception.Code);
@@ -60,7 +60,7 @@ public sealed class IdempotencyBehaviorTests
 
         RequestConflictException exception = await Assert.ThrowsAsync<RequestConflictException>(() => behavior.Handle(
             new IdempotentRequest("key", "payload"),
-            _ => Task.FromResult(Result.Success("new")),
+            () => Task.FromResult(Result.Success("new")),
             TestContext.Current.CancellationToken));
 
         Assert.Equal("IDEMPOTENCY.RESPONSE_SCHEMA_MISMATCH", exception.Code);
@@ -74,7 +74,7 @@ public sealed class IdempotencyBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new IdempotentRequest("key", "payload"),
-            _ => Task.FromResult(Result.Success("new")),
+            () => Task.FromResult(Result.Success("new")),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("new", result.Value);
@@ -91,7 +91,7 @@ public sealed class IdempotencyBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new IdempotentRequest("key", "payload"),
-            _ => Task.FromResult(Result.Success("private")),
+            () => Task.FromResult(Result.Success("private")),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("private", result.Value);
@@ -114,7 +114,7 @@ public sealed class IdempotencyBehaviorTests
 
         Result<string> result = await behavior.Handle(
             new IdempotentRequest("key", "payload"),
-            _ => Task.FromResult(Result.Success("new")),
+            () => Task.FromResult(Result.Success("new")),
             TestContext.Current.CancellationToken);
 
         Assert.Equal("current", result.Value);
@@ -192,3 +192,4 @@ public sealed class IdempotencyBehaviorTests
             Result.Success("redacted");
     }
 }
+
