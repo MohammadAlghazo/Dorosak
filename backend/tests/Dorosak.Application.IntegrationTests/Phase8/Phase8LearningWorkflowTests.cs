@@ -3,7 +3,10 @@ using Dorosak.Application.Features.Commerce;
 using Dorosak.Application.Features.Credentials;
 using Dorosak.Application.Features.Engagement;
 using Dorosak.Application.Features.Learning;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
@@ -616,3 +619,4 @@ public sealed class Phase8LearningWorkflowTests(InfrastructureFixture fixture)
         return user.Id;
     }
 }
+

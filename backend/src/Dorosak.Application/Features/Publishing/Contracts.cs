@@ -1,7 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 
 namespace Dorosak.Application.Features.Publishing;
 
@@ -211,3 +214,4 @@ public sealed record CourseReleaseResponse(
 public sealed record PublicCourseLookupResponse(
     PublicCourseDetailResponse? Course,
     string? RedirectSlug);
+

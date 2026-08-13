@@ -6,7 +6,10 @@ using Dorosak.Api.Contracts;
 using Dorosak.Api.Extensions;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
@@ -23,7 +26,7 @@ namespace Dorosak.Api.Controllers;
 [Route("api/v{version:apiVersion}/admin")]
 [EnableRateLimiting(ApiConstants.SensitiveRateLimitPolicy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outputCacheStore) : ControllerBase
+public sealed class AdminTeacherApplicationsController(ISender sender, IOutputCacheStore outputCacheStore) : ControllerBase
 {
     [HttpPost("courses/{courseId:guid}/publish")]
     [AdminHighRiskPolicy(Permissions.CoursePublishAny)]
@@ -253,3 +256,4 @@ public sealed class AdminPhase6Controller(ISender sender, IOutputCacheStore outp
         return value.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ar";
     }
 }
+

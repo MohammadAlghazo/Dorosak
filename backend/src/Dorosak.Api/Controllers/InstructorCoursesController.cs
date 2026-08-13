@@ -6,7 +6,10 @@ using Dorosak.Api.Contracts;
 using Dorosak.Api.Extensions;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -322,3 +325,4 @@ public sealed class InstructorCoursesController(ISender sender) : ControllerBase
 
     private static string FormatEtag(long version) => $"\"v{version.ToString(CultureInfo.InvariantCulture)}\"";
 }
+

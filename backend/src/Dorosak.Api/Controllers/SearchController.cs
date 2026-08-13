@@ -1,7 +1,10 @@
 using Asp.Versioning;
 using Dorosak.Api.Extensions;
 using Dorosak.Application.Common.Results;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
@@ -63,3 +66,4 @@ public sealed class SearchController(ISender sender) : ControllerBase
         return value.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ar";
     }
 }
+

@@ -2,7 +2,10 @@ using System.Text;
 using System.Text.Json;
 using Dorosak.Application.Common.Errors;
 using Dorosak.Application.Common.Results;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
@@ -746,3 +749,4 @@ internal sealed class CatalogActivationPort(
             .Trim();
     }
 }
+

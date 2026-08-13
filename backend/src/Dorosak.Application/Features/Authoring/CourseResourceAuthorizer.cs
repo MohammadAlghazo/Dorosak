@@ -1,10 +1,10 @@
 using Dorosak.Application.Common.Authorization;
 
-namespace Dorosak.Application.Features.Phase6;
+namespace Dorosak.Application.Features.Authoring;
 
-internal sealed class Phase6ResourceAuthorizer<TRequest>(ICourseAccessReader accessReader)
+internal sealed class CourseResourceAuthorizer<TRequest>(ICourseAccessReader accessReader)
     : IRequestAuthorizer<TRequest>
-    where TRequest : IPhase6AuthorizedRequest
+    where TRequest : ICourseAuthorizedRequest
 {
     public async ValueTask<AuthorizationDecision> AuthorizeAsync(
         TRequest request,

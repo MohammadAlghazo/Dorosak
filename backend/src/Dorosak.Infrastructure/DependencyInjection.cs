@@ -6,6 +6,7 @@ using Dorosak.Application.Features.Media;
 using Dorosak.Application.Features.Publishing;
 using Dorosak.Infrastructure.Administration;
 using Dorosak.Infrastructure.Analytics;
+using Dorosak.Infrastructure.Authoring;
 using Dorosak.Infrastructure.Caching;
 using Dorosak.Infrastructure.Catalog;
 using Dorosak.Infrastructure.Commerce;
@@ -18,6 +19,8 @@ using Dorosak.Infrastructure.Learning;
 using Dorosak.Infrastructure.Media;
 using Dorosak.Infrastructure.Moderation;
 using Dorosak.Infrastructure.Persistence;
+using Dorosak.Infrastructure.Profiles;
+using Dorosak.Infrastructure.PublishingCoordinator;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -64,16 +67,26 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Moderation.IModerationService, ModerationService>();
         services.AddScoped<Application.Features.Analytics.IAnalyticsService, AnalyticsService>();
         services.AddScoped<Application.Features.Administration.IAdministrationService, AdministrationService>();
-        services.AddScoped<Phase6Service>();
-        services.AddScoped<Application.Features.Phase6.IPhase6Service>(provider => provider.GetRequiredService<Phase6Service>());
-        services.AddScoped<Application.Features.Phase6.ICourseAccessReader>(provider => provider.GetRequiredService<Phase6Service>());
+        // Teacher Applications
+        services.AddScoped<Application.Features.Profiles.TeacherApplications.ITeacherApplicationService, TeacherApplicationService>();
+        // Course Authoring (registered as concrete type first to enable multi-interface resolution from a single instance per scope)
+        services.AddScoped<CourseAuthoringService>();
+        services.AddScoped<Application.Features.Authoring.IAuthoringService>(provider => provider.GetRequiredService<CourseAuthoringService>());
+        services.AddScoped<Application.Features.Authoring.ICurriculumService>(provider => provider.GetRequiredService<CourseAuthoringService>());
+        services.AddScoped<Application.Features.Authoring.ICourseAccessReader>(provider => provider.GetRequiredService<CourseAuthoringService>());
+        // Publishing Coordinator (depends on ICourseAccessReader from CourseAuthoringService)
+        services.AddScoped<Application.Features.PublishingCoordinator.IPublishingService, PublishingService>();
+        // Catalog & Public Catalog
+        services.AddScoped<CatalogService>();
+        services.AddScoped<Application.Features.Catalog.ICatalogService>(provider => provider.GetRequiredService<CatalogService>());
+        services.AddScoped<IPublicCatalogPort>(provider => provider.GetRequiredService<CatalogService>());
+        // Publishing Ports
         services.AddScoped<IAuthoringPublishingPort, AuthoringPublishingPort>();
         services.AddScoped<IMediaPublishingPort, MediaPublishingPort>();
         services.AddScoped<IAssessmentPublishingPort, AssessmentPublishingPort>();
         services.AddScoped<IPublishingAuditPort, PublishingAuditPort>();
         services.AddScoped<ICatalogProjectionGenerationPort, CatalogProjectionGenerationPort>();
         services.AddScoped<ICatalogActivationPort, CatalogActivationPort>();
-        services.AddScoped<IPublicCatalogPort>(provider => provider.GetRequiredService<Phase6Service>());
         services.AddSingleton<CatalogCursorCodec>();
         services.AddSingleton<SearchTelemetry>();
         services.AddOptions<CatalogCursorOptions>()

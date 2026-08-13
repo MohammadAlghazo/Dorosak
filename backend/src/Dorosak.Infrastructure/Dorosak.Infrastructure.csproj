@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Dorosak.Application\Dorosak.Application.csproj" />
@@ -36,4 +36,8 @@
     <InternalsVisibleTo Include="Dorosak.MediaWorker.UnitTests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="Dorosak.Application.Common.Models" />
+  </ItemGroup>
 </Project>
+

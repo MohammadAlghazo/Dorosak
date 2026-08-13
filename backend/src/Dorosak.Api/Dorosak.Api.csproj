@@ -30,4 +30,8 @@
     <InternalsVisibleTo Include="Dorosak.Api.IntegrationTests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="Dorosak.Application.Common.Models" />
+  </ItemGroup>
 </Project>
+

@@ -1,4 +1,7 @@
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 
 namespace Dorosak.Application.UnitTests.Phase6;
 
@@ -19,3 +22,4 @@ public sealed class SearchTextNormalizerTests
         Assert.Equal("postgresql basics", SearchTextNormalizer.Normalize(" PostgreSQL Basics ", "en"));
     }
 }
+

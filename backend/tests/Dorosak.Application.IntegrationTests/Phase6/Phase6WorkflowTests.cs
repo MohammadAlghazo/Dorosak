@@ -1,5 +1,9 @@
+using Dorosak.Application.Common.Models;
 using Dorosak.Application.Common.Results;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -423,3 +427,6 @@ public sealed class Phase6WorkflowTests(InfrastructureFixture fixture)
         "PostgreSQL, backend engineering, and application security",
         "I want to provide practical Arabic-first engineering courses.");
 }
+
+
+

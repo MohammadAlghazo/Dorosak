@@ -1,4 +1,7 @@
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 
 namespace Dorosak.Infrastructure.Catalog;
 
@@ -23,3 +26,4 @@ internal sealed class SearchTelemetry
 
     public long Requests => Interlocked.Read(ref _requests);
 }
+

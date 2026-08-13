@@ -4,7 +4,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Dorosak.Application.Common.Results;
 using Dorosak.Application.Features.Identity;
-using Dorosak.Application.Features.Phase6;
+using Dorosak.Application.Features.Profiles.TeacherApplications;
+using Dorosak.Application.Features.Authoring;
+using Dorosak.Application.Features.PublishingCoordinator;
+using Dorosak.Application.Features.Catalog;
 using Dorosak.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -312,3 +315,4 @@ public sealed class Phase6ApiTests(ApiFixture fixture)
 
     private sealed record SignedInTeacher(Guid UserId, string AccessToken);
 }
+
