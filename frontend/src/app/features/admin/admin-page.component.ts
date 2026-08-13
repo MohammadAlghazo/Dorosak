@@ -89,6 +89,45 @@ import { LocaleService } from '../../core/i18n/locale.service';
             </p>
           </a>
         }
+        @if (session.hasPermission('Cms.Manage')) {
+          <a class="admin-action-card" [routerLink]="['cms']">
+            <span>06</span>
+            <h2>{{ locale.locale() === 'ar' ? 'المحتوى التحريري' : 'Editorial CMS' }}</h2>
+            <p>
+              {{
+                locale.locale() === 'ar'
+                  ? 'تحرير الصفحات والأسئلة ثم نشرها.'
+                  : 'Draft and publish pages and FAQs.'
+              }}
+            </p>
+          </a>
+        }
+        @if (session.hasPermission('Settings.Manage')) {
+          <a class="admin-action-card" [routerLink]="['settings']">
+            <span>07</span>
+            <h2>{{ locale.locale() === 'ar' ? 'إعدادات المنصة' : 'Platform settings' }}</h2>
+            <p>
+              {{
+                locale.locale() === 'ar'
+                  ? 'ضبط إشعار الديمو والمقررات المميزة.'
+                  : 'Configure the demo notice and featured courses.'
+              }}
+            </p>
+          </a>
+        }
+        @if (session.hasPermission('Audit.Read')) {
+          <a class="admin-action-card" [routerLink]="['audit-logs']">
+            <span>08</span>
+            <h2>{{ locale.locale() === 'ar' ? 'سجل التدقيق' : 'Audit logs' }}</h2>
+            <p>
+              {{
+                locale.locale() === 'ar'
+                  ? 'قراءة آمنة ومسجلة ذاتيًا لأحداث الإدارة.'
+                  : 'Read safe, self-audited administration events.'
+              }}
+            </p>
+          </a>
+        }
       </div>
     </section>
   `,

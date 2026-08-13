@@ -2,6 +2,7 @@ using Dorosak.Application.Common.Persistence;
 using Dorosak.Domain.Assessment;
 using Dorosak.Domain.Authoring;
 using Dorosak.Domain.Catalog;
+using Dorosak.Domain.Cms;
 using Dorosak.Domain.Commerce;
 using Dorosak.Domain.Communications;
 using Dorosak.Domain.Credentials;
@@ -171,6 +172,16 @@ public sealed class DorosakDbContext(DbContextOptions<DorosakDbContext> options)
     internal DbSet<DemoSubscription> DemoSubscriptions => Set<DemoSubscription>();
 
     internal DbSet<Certificate> Certificates => Set<Certificate>();
+
+    internal DbSet<CmsPage> CmsPages => Set<CmsPage>();
+
+    internal DbSet<CmsPageRevision> CmsPageRevisions => Set<CmsPageRevision>();
+
+    internal DbSet<CmsFaq> CmsFaqs => Set<CmsFaq>();
+
+    internal DbSet<CmsFaqRevision> CmsFaqRevisions => Set<CmsFaqRevision>();
+
+    internal DbSet<PortfolioSettings> PortfolioSettings => Set<PortfolioSettings>();
 
     internal DbSet<CourseReview> CourseReviews => Set<CourseReview>();
 

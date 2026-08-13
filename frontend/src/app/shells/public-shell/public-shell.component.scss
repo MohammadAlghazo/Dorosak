@@ -90,6 +90,25 @@
   text-decoration: none;
 }
 
+.portfolio-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--page-gutter);
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);
+}
+.portfolio-notice span {
+  font: 750 0.7rem/1 monospace;
+  letter-spacing: 0.12em;
+}
+.portfolio-notice p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .site-footer {
   display: flex;
   justify-content: space-between;
@@ -136,5 +155,8 @@
   .site-footer {
     flex-direction: column;
     padding-block-end: calc(var(--space-10) + 60px);
+  }
+  .portfolio-notice {
+    grid-template-columns: 1fr;
   }
 }

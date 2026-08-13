@@ -99,7 +99,7 @@
       <ol class="pathway-list">
         @for (pathway of featured.state().items; track pathway.releaseId; let index = $index) {
           <li>
-            <span class="pathway-number">0{{ index + 1 }}</span>
+            <span class="pathway-number">{{ pathwayNumber(index + 1) }}</span>
             <div>
               <h3>{{ pathway.title }}</h3>
               <p>{{ pathway.summary }}</p>

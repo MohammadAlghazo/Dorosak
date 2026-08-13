@@ -39,6 +39,13 @@
   </div>
 </header>
 
+@if (portfolio.notice(); as notice) {
+  <aside class="portfolio-notice" aria-live="polite">
+    <span>PORTFOLIO / LOCAL</span>
+    <p dir="auto">{{ notice }}</p>
+  </aside>
+}
+
 <main id="main-content" tabindex="-1">
   <router-outlet />
 </main>
@@ -54,6 +61,21 @@
   </div>
   <nav aria-label="Footer navigation">
     <a [routerLink]="['/', locale.locale(), 'courses']">{{ locale.copy().browseCourses }}</a>
+    <a [routerLink]="['/', locale.locale(), 'about']">{{
+      locale.locale() === 'ar' ? 'عن دروسك' : 'About'
+    }}</a>
+    <a [routerLink]="['/', locale.locale(), 'contact']">{{
+      locale.locale() === 'ar' ? 'تواصل' : 'Contact'
+    }}</a>
+    <a [routerLink]="['/', locale.locale(), 'faq']">{{
+      locale.locale() === 'ar' ? 'الأسئلة الشائعة' : 'FAQ'
+    }}</a>
+    <a [routerLink]="['/', locale.locale(), 'privacy']">{{
+      locale.locale() === 'ar' ? 'الخصوصية' : 'Privacy'
+    }}</a>
+    <a [routerLink]="['/', locale.locale(), 'terms']">{{
+      locale.locale() === 'ar' ? 'الشروط' : 'Terms'
+    }}</a>
     <a [routerLink]="['/', locale.locale(), 'offline']">{{
       locale.locale() === 'ar' ? 'وضع عدم الاتصال' : 'Offline mode'
     }}</a>

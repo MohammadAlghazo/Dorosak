@@ -1,10 +1,11 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, map, of, Subject, startWith, switchMap, tap } from 'rxjs';
+import { catchError, combineLatest, map, of, Subject, startWith, switchMap, tap } from 'rxjs';
 import { ApiProblem } from '../../core/api/api-problem';
 import { DiscoveryApiClient } from '../../core/api/discovery-api.client';
 import type { PublicCourseSummary, PublicLoadStatus } from '../../core/api/discovery-api.types';
 import { ConnectivityStore } from '../../core/pwa/connectivity.store';
+import { PublicPortfolioSettingsStore } from '../cms/public-portfolio-settings.store';
 
 export interface FeaturedCoursesState {
   status: PublicLoadStatus;
@@ -16,6 +17,7 @@ export interface FeaturedCoursesState {
 export class FeaturedCoursesStore {
   private readonly api = inject(DiscoveryApiClient);
   private readonly connectivity = inject(ConnectivityStore);
+  private readonly portfolio = inject(PublicPortfolioSettingsStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reloadRequests = new Subject<void>();
   private readonly featuredState = signal<FeaturedCoursesState>({
@@ -27,9 +29,8 @@ export class FeaturedCoursesStore {
   readonly state = this.featuredState.asReadonly();
 
   constructor() {
-    this.reloadRequests
+    combineLatest([this.reloadRequests.pipe(startWith(undefined)), this.portfolio.settings$])
       .pipe(
-        startWith(undefined),
         tap(() => {
           const current = this.featuredState();
           this.featuredState.set({
@@ -38,9 +39,9 @@ export class FeaturedCoursesStore {
             errorCode: null,
           });
         }),
-        switchMap(() => {
+        switchMap(([, settings]) => {
           if (!this.connectivity.isOnline()) return of<FeaturedCoursesState>(failure('offline'));
-          return this.api.getFeatured().pipe(
+          return this.api.getFeatured(settings.featuredCourseLimit).pipe(
             map(mapFeaturedState),
             catchError((error: unknown) => of(failure(errorStatus(error), error))),
           );

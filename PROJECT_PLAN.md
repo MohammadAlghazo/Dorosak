@@ -2488,7 +2488,16 @@ Phase 9 بدأت محليًا في `2026-08-09` بعد تأكيد المستخد
 
 #### Remaining Scope
 
-- Phase 11 is the next portfolio phase: focused Admin/CMS/analytics screens and small local reports only.
+- Phase 11 is implemented locally: aggregate analytics, bilingual CMS pages/FAQs with draft/publish, typed portfolio settings,
+  public settings-driven showcase behavior, and safe self-audited audit reads. Cloud providers and production-scale reporting
+  remain outside the demo gate.
 - Phase 12 remains portfolio packaging: deterministic showcase data, simplified start command, clean-machine workflow,
   screenshots، and final CV-facing documentation.
 - Real payments, cloud deployment, managed services، وpublic production launch remain outside the current definition of done.
+
+### 12.1 Phase 11 Verification Notes
+
+- Backend Release build: `0 warnings`, `0 errors`; focused Phase 11 API integration tests: `3/3` passed; backend format verification passed.
+- Angular development SSR build and ESLint pass; CMS API and public settings focused tests: `10/10` passed.
+- The Phase 11 migration is `20260812221713_Phase11DemoAdministrationCms`; it adds the `cms` schema, runtime grants, and the
+  schema compatibility marker update. A fresh local PostgreSQL migration smoke test remains the final environment gate.

@@ -30,6 +30,65 @@ export const routes: Routes = [
               preload: true,
             },
           },
+          {
+            path: 'about',
+            loadComponent: () =>
+              import('./features/cms/cms-page.component').then((module) => module.CmsPageComponent),
+            data: {
+              cmsSlug: 'about',
+              titleAr: 'عن دروسك',
+              titleEn: 'About Dorosak',
+              indexing: 'index',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'contact',
+            loadComponent: () =>
+              import('./features/cms/cms-page.component').then((module) => module.CmsPageComponent),
+            data: {
+              cmsSlug: 'contact',
+              titleAr: 'تواصل',
+              titleEn: 'Contact',
+              indexing: 'index',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'privacy',
+            loadComponent: () =>
+              import('./features/cms/cms-page.component').then((module) => module.CmsPageComponent),
+            data: {
+              cmsSlug: 'privacy',
+              titleAr: 'الخصوصية',
+              titleEn: 'Privacy',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'terms',
+            loadComponent: () =>
+              import('./features/cms/cms-page.component').then((module) => module.CmsPageComponent),
+            data: {
+              cmsSlug: 'terms',
+              titleAr: 'الشروط',
+              titleEn: 'Terms',
+              indexing: 'noindex',
+              renderMode: 'server',
+            },
+          },
+          {
+            path: 'faq',
+            loadComponent: () =>
+              import('./features/cms/faq-page.component').then((module) => module.FaqPageComponent),
+            data: {
+              titleAr: 'الأسئلة الشائعة',
+              titleEn: 'Frequently asked questions',
+              indexing: 'index',
+              renderMode: 'server',
+            },
+          },
         ],
       },
       {
@@ -714,6 +773,51 @@ export const routes: Routes = [
               indexing: 'noindex',
               renderMode: 'client',
               permission: 'Analytics.Read',
+            },
+          },
+          {
+            path: 'cms',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/cms-management-page.component').then(
+                (module) => module.CmsManagementPageComponent,
+              ),
+            data: {
+              titleAr: 'إدارة المحتوى',
+              titleEn: 'CMS management',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Cms.Manage',
+            },
+          },
+          {
+            path: 'settings',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/platform-settings-page.component').then(
+                (module) => module.PlatformSettingsPageComponent,
+              ),
+            data: {
+              titleAr: 'إعدادات المنصة',
+              titleEn: 'Platform settings',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Settings.Manage',
+            },
+          },
+          {
+            path: 'audit-logs',
+            canActivate: [permissionGuard],
+            loadComponent: () =>
+              import('./features/admin/audit-logs-page.component').then(
+                (module) => module.AuditLogsPageComponent,
+              ),
+            data: {
+              titleAr: 'سجل التدقيق',
+              titleEn: 'Audit logs',
+              indexing: 'noindex',
+              renderMode: 'client',
+              permission: 'Audit.Read',
             },
           },
         ],

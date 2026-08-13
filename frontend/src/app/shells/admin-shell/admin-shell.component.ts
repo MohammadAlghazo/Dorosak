@@ -42,6 +42,21 @@ import { LocaleService } from '../../core/i18n/locale.service';
               {{ locale.locale() === 'ar' ? 'نبض المنصة' : 'Platform pulse' }}
             </a>
           }
+          @if (session.hasPermission('Cms.Manage')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'cms']">
+              {{ locale.locale() === 'ar' ? 'المحتوى التحريري' : 'Editorial CMS' }}
+            </a>
+          }
+          @if (session.hasPermission('Settings.Manage')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'settings']">
+              {{ locale.locale() === 'ar' ? 'إعدادات المنصة' : 'Platform settings' }}
+            </a>
+          }
+          @if (session.hasPermission('Audit.Read')) {
+            <a [routerLink]="['/', locale.locale(), 'admin', 'audit-logs']">
+              {{ locale.locale() === 'ar' ? 'سجل التدقيق' : 'Audit logs' }}
+            </a>
+          }
           <span>{{
             locale.locale() === 'ar' ? 'مساحة جاهزة للتدقيق' : 'Audit-ready workspace'
           }}</span>

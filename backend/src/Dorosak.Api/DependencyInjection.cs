@@ -270,6 +270,11 @@ public static class DependencyInjection
                 .SetVaryByHeader("Accept-Language")
                 .SetVaryByQuery("*")
                 .Tag(ApiConstants.TaxonomyCacheTag));
+            options.AddPolicy(ApiConstants.CmsOutputCachePolicy, policy => policy
+                .Expire(TimeSpan.FromMinutes(5))
+                .SetVaryByHeader("Accept-Language")
+                .SetVaryByQuery("*")
+                .Tag(ApiConstants.CmsCacheTag));
         });
         services.AddRateLimiter(options =>
         {

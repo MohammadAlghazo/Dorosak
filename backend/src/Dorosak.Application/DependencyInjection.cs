@@ -37,6 +37,7 @@ public static class DependencyInjection
         AddEngagementHandlers(services);
         AddModerationHandlers(services);
         AddAnalyticsHandlers(services);
+        AddAdministrationHandlers(services);
         AddEngagementAuthorization(services);
         AddCommunicationsAuthorization(services);
         services.AddScoped<Common.Authorization.IRequestAuthorizer<Features.Phase6.GetCourseQuery>,
@@ -342,6 +343,74 @@ public static class DependencyInjection
             Features.Analytics.GetAdminAnalyticsOverviewQuery,
             Common.Results.Result<Features.Analytics.AdminAnalyticsOverviewResponse>>,
             Features.Analytics.GetAdminAnalyticsOverviewQueryHandler>();
+
+    private static void AddAdministrationHandlers(IServiceCollection services) =>
+        services.AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetAdminCmsQuery,
+            Common.Results.Result<Features.Administration.AdminCmsResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetAdminCmsQuery,
+                Features.Administration.AdminCmsResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetPublicCmsPageQuery,
+            Common.Results.Result<Features.Administration.PublicCmsPageResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetPublicCmsPageQuery,
+                Features.Administration.PublicCmsPageResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetPublicFaqsQuery,
+            Common.Results.Result<IReadOnlyList<Features.Administration.PublicCmsFaqResponse>>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetPublicFaqsQuery,
+                IReadOnlyList<Features.Administration.PublicCmsFaqResponse>>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetAdminSettingsQuery,
+            Common.Results.Result<Features.Administration.PortfolioSettingsResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetAdminSettingsQuery,
+                Features.Administration.PortfolioSettingsResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetPublicSettingsQuery,
+            Common.Results.Result<Features.Administration.PublicPortfolioSettingsResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetPublicSettingsQuery,
+                Features.Administration.PublicPortfolioSettingsResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.UpsertCmsPageDraftCommand,
+            Common.Results.Result<Features.Administration.CmsPageResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.UpsertCmsPageDraftCommand,
+                Features.Administration.CmsPageResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.PublishCmsPageCommand,
+            Common.Results.Result<Features.Administration.CmsPageResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.PublishCmsPageCommand,
+                Features.Administration.CmsPageResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.UpsertCmsFaqDraftCommand,
+            Common.Results.Result<Features.Administration.CmsFaqResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.UpsertCmsFaqDraftCommand,
+                Features.Administration.CmsFaqResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.PublishCmsFaqCommand,
+            Common.Results.Result<Features.Administration.CmsFaqResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.PublishCmsFaqCommand,
+                Features.Administration.CmsFaqResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.UpdatePortfolioSettingsCommand,
+            Common.Results.Result<Features.Administration.PortfolioSettingsResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.UpdatePortfolioSettingsCommand,
+                Features.Administration.PortfolioSettingsResponse>>()
+        .AddTransient<MediatR.IRequestHandler<
+            Features.Administration.GetAuditLogsQuery,
+            Common.Results.Result<Features.Administration.AuditLogPageResponse>>,
+            Features.Administration.AdministrationHandler<
+                Features.Administration.GetAuditLogsQuery,
+                Features.Administration.AuditLogPageResponse>>();
 
     private static void AddCommandHandler<TRequest, TResponse>(IServiceCollection services)
         where TRequest : class, MediatR.IRequest<Common.Results.Result<TResponse>>

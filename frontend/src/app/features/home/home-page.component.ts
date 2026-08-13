@@ -41,4 +41,11 @@ export class HomePageComponent {
         });
     });
   }
+
+  protected pathwayNumber(value: number): string {
+    return new Intl.NumberFormat(this.locale.locale(), {
+      minimumIntegerDigits: 2,
+      useGrouping: false,
+    }).format(value);
+  }
 }

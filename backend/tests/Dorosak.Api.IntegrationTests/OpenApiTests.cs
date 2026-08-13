@@ -144,6 +144,23 @@ public sealed class OpenApiTests(ApiFixture fixture)
         Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("200", out _));
         Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("401", out _));
         Assert.True(getAnalyticsOverview.GetProperty("responses").TryGetProperty("403", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/portfolio-settings", out JsonElement publicSettings));
+        Assert.True(publicSettings.GetProperty("get").GetProperty("responses").TryGetProperty("200", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/admin/settings", out JsonElement adminSettings));
+        JsonElement updateSettings = adminSettings.GetProperty("put");
+        Assert.True(FindHeader(updateSettings, "X-Audit-Reason").GetProperty("required").GetBoolean());
+        Assert.Contains(
+            ResolveRequestSchema(document.RootElement, updateSettings).GetProperty("required").EnumerateArray(),
+            property => string.Equals(property.GetString(), "expectedVersion", StringComparison.Ordinal));
+        Assert.True(updateSettings.GetProperty("responses").TryGetProperty("409", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/admin/audit-logs", out JsonElement auditLogs));
+        Assert.True(FindHeader(auditLogs.GetProperty("get"), "X-Audit-Reason").GetProperty("required").GetBoolean());
+        Assert.True(paths.TryGetProperty("/api/v1/admin/cms/pages/{slug}/draft", out JsonElement pageDraft));
+        JsonElement savePageDraft = pageDraft.GetProperty("put");
+        Assert.True(FindHeader(savePageDraft, "X-Audit-Reason").GetProperty("required").GetBoolean());
+        Assert.True(savePageDraft.GetProperty("responses").TryGetProperty("409", out _));
+        Assert.True(paths.TryGetProperty("/api/v1/admin/cms/pages/{slug}/publish", out JsonElement pagePublish));
+        Assert.True(FindHeader(pagePublish.GetProperty("post"), "X-Audit-Reason").GetProperty("required").GetBoolean());
 
         Assert.Equal(HttpStatusCode.OK, uiResponse.StatusCode);
         string csp = uiResponse.Headers.GetValues("Content-Security-Policy").Single();

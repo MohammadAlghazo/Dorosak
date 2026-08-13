@@ -89,6 +89,22 @@ public sealed class DatabaseSchemaTests(InfrastructureFixture fixture)
             connection,
             "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'credentials' AND table_name = 'certificates'",
             TestContext.Current.CancellationToken));
+        Assert.Equal(5L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'cms' AND table_name IN ('pages', 'page_revisions', 'faqs', 'faq_revisions', 'platform_settings')",
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1L, await ExecuteScalarAsync<long>(
+            connection,
+            "SELECT count(*) FROM cms.platform_settings WHERE id = '018f3f0e-4380-7b1b-8f8d-b8ea9c546024'::uuid AND version >= 1",
+            TestContext.Current.CancellationToken));
+        Assert.True(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_schema_privilege('dorosak_runtime', 'cms', 'USAGE') AND has_table_privilege('dorosak_runtime', 'cms.pages', 'SELECT,INSERT') AND has_table_privilege('dorosak_runtime', 'cms.page_revisions', 'SELECT,INSERT') AND has_table_privilege('dorosak_runtime', 'cms.faqs', 'SELECT,INSERT') AND has_table_privilege('dorosak_runtime', 'cms.faq_revisions', 'SELECT,INSERT') AND has_table_privilege('dorosak_runtime', 'cms.platform_settings', 'SELECT') AND has_column_privilege('dorosak_runtime', 'cms.pages', 'current_version', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'cms.faqs', 'published_display_order', 'UPDATE') AND has_column_privilege('dorosak_runtime', 'cms.platform_settings', 'version', 'UPDATE')",
+            TestContext.Current.CancellationToken));
+        Assert.False(await ExecuteScalarAsync<bool>(
+            connection,
+            "SELECT has_table_privilege('dorosak_runtime', 'cms.pages', 'DELETE,TRUNCATE') OR has_column_privilege('dorosak_runtime', 'cms.pages', 'slug', 'UPDATE') OR has_table_privilege('dorosak_runtime', 'cms.page_revisions', 'UPDATE,DELETE,TRUNCATE') OR has_table_privilege('dorosak_runtime', 'cms.faqs', 'DELETE,TRUNCATE') OR has_table_privilege('dorosak_runtime', 'cms.faq_revisions', 'UPDATE,DELETE,TRUNCATE') OR has_table_privilege('dorosak_runtime', 'cms.platform_settings', 'INSERT,DELETE,TRUNCATE') OR has_column_privilege('dorosak_runtime', 'cms.platform_settings', 'id', 'UPDATE')",
+            TestContext.Current.CancellationToken));
         Assert.True(await ExecuteScalarAsync<bool>(
             connection,
             "SELECT has_schema_privilege('dorosak_runtime', 'credentials', 'USAGE') AND has_table_privilege('dorosak_runtime', 'credentials.certificates', 'SELECT,INSERT') AND has_column_privilege('dorosak_runtime', 'credentials.certificates', 'status', 'UPDATE') AND has_table_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'SELECT,INSERT') AND has_column_privilege('dorosak_runtime', 'commerce.demo_subscriptions', 'status', 'UPDATE')",
